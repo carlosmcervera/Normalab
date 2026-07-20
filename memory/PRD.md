@@ -29,6 +29,11 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
 - Informe incluye: cuadro de superficies, ocupación, resumen de sectores, detalle+instalaciones por sector, tablas de referencia resaltadas.
 
 ## Implementado
+- 2026-07-20 (iter 8):
+  - RSCIEI · Bloque de evacuación ampliado: recorridos reales por origen (hasta_salida/sin_alternativa) con validación cumple/no cumple, y coeficientes de incremento notas 4/5 de la Tabla 2.3.1 (nota4a/4b +25%, nota4c +100%, nota5 solo riesgo bajo nivel 1). Nuevo paso «Evacuación» en el asistente; recorridos en informe y panel de resultados.
+  - Nuevo módulo OPERATIVO **CTE DB-SI** (RD 314/2006): SI 1 (compartimentación/sup. máx sector), SI 3 (ocupación, salidas, recorridos, ancho A≥P/200), SI 4 (instalaciones) y SI 6 (estabilidad estructural). Registrado en el registry (sustituye al placeholder CTE), asistente propio (Datos del edificio + Ocupación) y panel/informe dedicados. Valida la extensibilidad del module registry.
+  - Testing: backend 22/22 (iter8 11 + regresión iter7 11), frontend E2E RSCIEI evacuación + CTE DB-SI 100%. Sin issues.
+- 2026-07-20 (iter 1-7):
 - 2026-07-20 (iter 1-3): Auth JWT, dashboard, expedientes CRUD, estudios (autosave/compute/versionado), RSCIEI single-sector con motor Qs/NRI/sectorización/requisitos e informe con tablas resaltadas.
 - 2026-07-20 (iter 7 — REFACTOR MULTI-SECTOR, RD 164/2025):
   - Migración normativa a RD 164/2025 (Tabla 2.1.1 corregida: AV n6-8=NO ADMITIDO, AH n7=1500/n8=NO ADMITIDO, B/C actualizadas).

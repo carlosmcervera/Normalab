@@ -124,7 +124,7 @@ def _si4(uso, superficie, altura, ocupacion):
                       f"Exigible según uso {uso} y superficie ({superficie:.0f} m²) — DB-SI SI 4, Tabla 1.1."))
     alarma = ocupacion > 500
     inst.append(_inst("Sistema de alarma por voz", alarma, f"Exigible si la ocupación supera 500 personas (ocupación: {ocupacion})."))
-    hidrantes = superficie > 5000 or uso == "Aparcamiento" and superficie > 10000
+    hidrantes = superficie > 5000 or (uso == "Aparcamiento" and superficie > 10000)
     inst.append(_inst("Hidrantes exteriores", hidrantes, f"Exigibles según uso y superficie ({superficie:.0f} m²) — DB-SI SI 4."))
     rociadores = (uso == "Comercial" and superficie > 1500) or (uso == "Aparcamiento" and superficie > 10000)
     inst.append(_inst("Rociadores automáticos", rociadores, f"Exigibles según uso {uso} y superficie ({superficie:.0f} m²)."))
