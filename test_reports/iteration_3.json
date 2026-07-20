@@ -1,0 +1,28 @@
+{
+  "summary": "Iteración 3 — motor de requisitos RSCIEI (Anexo II construcción + Anexo III instalaciones). Backend 18/18 pytest OK (5 nuevos): schema paso1 expone situacion(select sobre/bajo_rasante), altura_evacuacion, superficie_establecimiento y cubierta_ligera; compute añade results.requisitos con estabilidad.valor / delimitadores.valor / cubierta_ligera / modo_predominante / instalaciones[]. Casuísticas verificadas: Tipo B sobre rasante ALTO 2000 m² produccion => R180 + EI240 + R15 y detección+BIE+rociadores+humos obligatorios (extintores/alarma/alumbrado/señalización siempre); Tipo C sobre rasante BAJO => R90 + EI120 y rociadores NO exigibles; Tipo AV ALTO => 'NO ADMITIDO'; columna seca obligatoria si altura_evacuacion≥15; hidrantes según superficie_establecimiento. Snapshot de versión contiene results.requisitos.instalaciones. Frontend E2E: ResultsPanel del wizard muestra 'Requisitos constructivos (Anexo II)' con R180/EI240/R15 y 'Instalaciones de protección (Anexo III)' con 10 filas cada una con data-testid instalacion-{i} y badge Obligatorio. StudyReportPage (/estudios/{id}/informe) incluye secciones 6 y 7 con listado y botón 'Descargar PDF'. Regresión OK: login admin, wizard paso1+paso2, compute (Qs=9622,5 nivel 7 ALTO en demo).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ResultsPanel (Anexo III)", "issues": ["Todas las filas muestran badge naranja 'Obligatorio' (no aparece 'No exigible' en el caso demo). En un escenario de riesgo BAJO se ve correctamente 'No exigible' — verificado por API."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "requirements.py: _threshold aplica la excepción any-BAJO-nivel1 solo cuando la tabla tiene clave 'any' (detección AV/AH). Para Detección B/C con categoría 'BAJO' se aplica el umbral (3000/4000/1500/3000). OK, coherente.",
+    "engine.py: modo_predominante se determina comparando superficies almacenamiento vs producción del sector; empate => 'produccion'. Comportamiento razonable.",
+    "report.py: sección 'instalaciones' no muestra ningún fallback si results.requisitos está ausente (por ejemplo estudios legacy sin recompute). Considerar renderizar placeholder o recomputar bajo demanda.",
+    "requirements.py: HIDRANTES/BIE/ROCIADORES no contemplan configuración 'D'/'E' de forma explícita salvo 'D' en BIE/HIDRANTES; para 'E' quedan como 'No exigibles', lo cual es consistente con espacio abierto.",
+    "requirements.py: los umbrales son orientativos según RD 2267/2004; sería recomendable versionar la tabla junto con el snapshot para trazabilidad histórica en versiones antiguas."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": { "backend": "100% (18/18)", "frontend": "100% flujos verificados" },
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Estudio demo preservado: SID 6a5e24e509a8190a58340a89 en proyecto DEMO-REQ. Los nuevos tests crean estudios TEST_* y los eliminan al final.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Ruta del informe en frontend es /estudios/{studyId}/informe (no /report). ResultsPanel del wizard renderiza results.requisitos.estabilidad/.delimitadores/.cubierta_ligera y results.requisitos.instalaciones[] con data-testid instalacion-{i}. Motor Anexo III en /app/backend/normative_modules/rsciei/requirements.py con tablas ESTABILIDAD, DELIMITADORES, DETECCION, BIE, ROCIADORES, HUMOS, HIDRANTES; edge cases: excepción any+BAJO+nivel1 excluye detección en AV/AH; base D/E => estabilidad 'No exigible'.",
+  "rca of the issue": "N/A — feature funciona según spec en backend, engine y ambas vistas del frontend."
+}

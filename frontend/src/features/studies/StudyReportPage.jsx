@@ -68,6 +68,22 @@ function Section({ s }) {
           </div>
         )}
 
+        {s.type === "instalaciones" && (
+          <div className="border border-border">
+            {s.items.map((it, i) => (
+              <div key={i} className="flex items-start justify-between gap-3 border-b border-border p-3 last:border-0">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{it.nombre}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{it.detalle}</p>
+                </div>
+                <span className={`shrink-0 rounded-sm border px-2 py-0.5 text-xs font-medium ${it.obligatorio ? "border-red-300 bg-red-50 text-red-800" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+                  {it.obligatorio ? "Obligatorio" : "No exigible"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {s.type === "observaciones" && (
           <ul className="space-y-2">
             {s.items.map((o, i) => (

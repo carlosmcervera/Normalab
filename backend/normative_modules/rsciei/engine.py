@@ -6,6 +6,8 @@ de fuego ponderada y corregida (Qs), determinación del nivel de riesgo intríns
 (NRI) y verificación de la superficie máxima admisible de sector de incendio.
 """
 
+from normative_modules.rsciei.requirements import build_requirements
+
 MCAL_PER_MJ = 1 / 4.184
 
 # Tabla 1.3: niveles de riesgo intrínseco (Qs en MJ/m²)
@@ -132,6 +134,13 @@ def compute(data: dict) -> dict:
     observaciones = _observaciones(nivel, categoria, sector, rociadores, config)
     estado = _estado_global(sector, observaciones)
 
+    # Modo predominante del sector (por superficie)
+    sup_alm = sum(float(z["superficie"]) for z in zonas if z.get("modo") == "almacenamiento")
+    sup_prod = sum(float(z["superficie"]) for z in zonas if z.get("modo") != "almacenamiento")
+    modo_pred = "almacenamiento" if sup_alm > sup_prod else "produccion"
+
+    requisitos = build_requirements(data, nivel, categoria, modo_pred)
+
     return {
         "calculo": {
             "numerador": round(numerador, 2),
@@ -148,6 +157,7 @@ def compute(data: dict) -> dict:
             "qs_mcal": round(qs_mcal, 2),
         },
         "sectorizacion": sector,
+        "requisitos": requisitos,
         "observaciones": observaciones,
         "estado_global": estado,
     }

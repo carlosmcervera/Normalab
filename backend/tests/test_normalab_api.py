@@ -279,6 +279,148 @@ class TestStudiesFlow:
         # Cleanup
         admin_session.delete(f"{API}/studies/{sid}")
 
+    def test_requisitos_schema_new_fields(self, admin_session):
+        """Iteración 3: schema RSCIEI paso 1 incluye nuevos campos para requisitos."""
+        r = admin_session.get(f"{API}/modules/RSCIEI/schema")
+        assert r.status_code == 200
+        s = r.json().get("schema", r.json())
+        step1 = next(st for st in s["steps"] if st["id"] == "establecimiento")
+        fmap = {f["name"]: f for f in step1["fields"]}
+        # situacion select
+        assert "situacion" in fmap and fmap["situacion"]["type"] == "select"
+        vals = {o["value"] for o in fmap["situacion"]["options"]}
+        assert {"sobre_rasante", "bajo_rasante"}.issubset(vals)
+        # altura_evacuacion number
+        assert fmap["altura_evacuacion"]["type"] == "number"
+        # superficie_establecimiento number
+        assert fmap["superficie_establecimiento"]["type"] == "number"
+        # cubierta_ligera boolean
+        assert fmap["cubierta_ligera"]["type"] == "boolean"
+
+    def _make_and_compute(self, admin_session, project_id, data, name="TEST req"):
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": name})
+        sid = r.json()["id"]
+        admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        cr = admin_session.post(f"{API}/studies/{sid}/compute")
+        assert cr.status_code == 200, cr.text
+        results = cr.json()["results"]
+        admin_session.delete(f"{API}/studies/{sid}")
+        return results
+
+    def test_requisitos_tipoB_alto_2000(self, admin_session, project_id):
+        """Tipo B, sobre rasante, riesgo ALTO, 2000 m² producción -> R180, EI240,
+        instalaciones obligatorias (detección, BIE, rociadores, humos)."""
+        data = {
+            "actividad": "Nave B alto",
+            "tipo_configuracion": "B",
+            "superficie_sector": 2000,
+            "superficie_establecimiento": 2000,
+            "situacion": "sobre_rasante",
+            "altura_evacuacion": 8,
+            "cubierta_ligera": True,
+            "ra": 1.5,
+            "zonas": [
+                {"descripcion": "Prod alto", "modo": "produccion",
+                 "qsi": 3000, "ci": 1.3, "superficie": 2000},
+            ],
+        }
+        res = self._make_and_compute(admin_session, project_id, data, "TEST req B alto")
+        req = res["requisitos"]
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        assert req["modo_predominante"] == "produccion"
+        assert req["estabilidad"]["valor"] == "R 180"
+        assert req["delimitadores"]["valor"] == "EI 240"
+        assert req["cubierta_ligera"] and req["cubierta_ligera"]["valor"] == "R 15"
+        # instalaciones
+        by_name = {i["nombre"]: i for i in req["instalaciones"]}
+        for always in ["Extintores portátiles", "Sistema manual de alarma (pulsadores)",
+                       "Alumbrado de emergencia", "Señalización de medios manuales"]:
+            assert by_name[always]["obligatorio"] is True, f"{always} debe ser obligatoria"
+        assert by_name["Detección automática de incendio"]["obligatorio"] is True
+        assert by_name["Bocas de incendio equipadas (BIE)"]["obligatorio"] is True
+        assert by_name["Rociadores automáticos de agua"]["obligatorio"] is True
+        assert by_name["Control de humos y calor"]["obligatorio"] is True
+        # columna seca: altura 8 < 15 => no obligatoria
+        assert by_name["Columna seca"]["obligatorio"] is False
+
+    def test_requisitos_tipoC_bajo(self, admin_session, project_id):
+        """Tipo C, sobre rasante, riesgo BAJO -> R 90, EI 120."""
+        data = {
+            "actividad": "Nave C bajo",
+            "tipo_configuracion": "C",
+            "superficie_sector": 500,
+            "situacion": "sobre_rasante",
+            "altura_evacuacion": 4,
+            "ra": 1.0,
+            "zonas": [
+                {"descripcion": "Prod bajo", "modo": "produccion",
+                 "qsi": 200, "ci": 1.0, "superficie": 500},
+            ],
+        }
+        res = self._make_and_compute(admin_session, project_id, data, "TEST req C bajo")
+        req = res["requisitos"]
+        assert res["nivel_riesgo"]["categoria"] == "BAJO"
+        assert req["estabilidad"]["valor"] == "R 90"
+        assert req["delimitadores"]["valor"] == "EI 120"
+        by_name = {i["nombre"]: i for i in req["instalaciones"]}
+        # Riesgo BAJO nivel 1 => detección no exigible por regla any-BAJO-1
+        # Para tipo B/C con BAJO existen umbrales altos; comprobamos que rociadores no obligatorios
+        assert by_name["Rociadores automáticos de agua"]["obligatorio"] is False
+        # columna seca no obligatoria (altura 4)
+        assert by_name["Columna seca"]["obligatorio"] is False
+
+    def test_requisitos_tipoA_alto_no_admitido(self, admin_session, project_id):
+        """Tipo AV riesgo ALTO -> estabilidad NO ADMITIDO."""
+        data = {
+            "actividad": "AV alto",
+            "tipo_configuracion": "AV",
+            "superficie_sector": 300,
+            "situacion": "sobre_rasante",
+            "altura_evacuacion": 20,
+            "ra": 2.0,
+            "zonas": [
+                {"descripcion": "Prod muy alto", "modo": "produccion",
+                 "qsi": 8000, "ci": 1.5, "superficie": 300},
+            ],
+        }
+        res = self._make_and_compute(admin_session, project_id, data, "TEST req AV alto")
+        req = res["requisitos"]
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        assert req["estabilidad"]["valor"] == "NO ADMITIDO"
+        by_name = {i["nombre"]: i for i in req["instalaciones"]}
+        # Columna seca obligatoria (altura 20 >= 15)
+        assert by_name["Columna seca"]["obligatorio"] is True
+
+    def test_requisitos_persist_in_version(self, admin_session, project_id):
+        """El snapshot de versión debe incluir results.requisitos."""
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": "TEST req version"})
+        sid = r.json()["id"]
+        data = {
+            "actividad": "Nave ver",
+            "tipo_configuracion": "B",
+            "superficie_sector": 1500,
+            "situacion": "sobre_rasante",
+            "ra": 1.2,
+            "zonas": [{"descripcion": "P", "modo": "produccion",
+                       "qsi": 1500, "ci": 1.1, "superficie": 1500}],
+        }
+        admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        admin_session.post(f"{API}/studies/{sid}/compute")
+        vr = admin_session.post(f"{API}/studies/{sid}/version", json={"note": "TEST req"})
+        assert vr.status_code == 200
+        v = vr.json()["version"]
+        gr = admin_session.get(f"{API}/studies/{sid}/versions/{v}")
+        assert gr.status_code == 200
+        snap = gr.json()
+        # snapshot may embed results at top-level or under results field
+        results = snap.get("results") or snap.get("snapshot", {}).get("results")
+        assert results is not None, f"No results in snapshot: keys={list(snap.keys())}"
+        assert "requisitos" in results
+        assert "instalaciones" in results["requisitos"]
+        admin_session.delete(f"{API}/studies/{sid}")
+
     def test_versioning(self, admin_session, study_id):
         r = admin_session.post(f"{API}/studies/{study_id}/version", json={"note": "TEST v1"})
         assert r.status_code == 200, r.text

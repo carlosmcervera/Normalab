@@ -29,6 +29,18 @@ def get_schema() -> dict:
                      "type": "boolean", "help": "Nota 2, Tabla 2.1: incrementa la superficie máxima ×1,25."},
                     {"name": "rociadores", "label": "Rociadores automáticos en todo el sector",
                      "type": "boolean", "help": "Nota 3, Tabla 2.1: incrementa la superficie máxima ×2."},
+                    {"name": "situacion", "label": "Situación del sector", "type": "select",
+                     "options": [
+                         {"value": "sobre_rasante", "label": "Planta sobre rasante"},
+                         {"value": "bajo_rasante", "label": "Planta bajo rasante (sótano)"},
+                     ], "default": "sobre_rasante"},
+                    {"name": "altura_evacuacion", "label": "Altura de evacuación (m)", "type": "number",
+                     "min": 0, "step": 0.5, "default": 0, "help": "Para columna seca (obligatoria si ≥ 15 m)."},
+                    {"name": "superficie_establecimiento", "label": "Superficie total del establecimiento (m²)",
+                     "type": "number", "min": 0, "step": 1,
+                     "help": "Para hidrantes exteriores. Si se deja vacío se usa la superficie del sector."},
+                    {"name": "cubierta_ligera", "label": "Cubierta ligera (no para evacuación, < 100 kg/m²)",
+                     "type": "boolean"},
                 ],
             },
             {

@@ -2,6 +2,18 @@
 from core.models import utcnow_iso
 
 
+def _constructivos_rows(req: dict) -> list:
+    rows = []
+    est = req.get("estabilidad") or {}
+    rows.append({"k": "Estabilidad al fuego estructura portante", "v": est.get("valor", "-")})
+    cub = req.get("cubierta_ligera")
+    if cub:
+        rows.append({"k": "Cubierta ligera", "v": cub.get("valor", "-")})
+    delim = req.get("delimitadores") or {}
+    rows.append({"k": "Resistencia elementos delimitadores del sector", "v": delim.get("valor", "-")})
+    return rows
+
+
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
     calc = results["calculo"]
     nri = results["nivel_riesgo"]
@@ -58,8 +70,20 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "body": sector.get("mensaje", "-"),
         },
         {
+            "id": "constructivos",
+            "title": "6. Requisitos constructivos (Anexo II)",
+            "type": "keyvalue",
+            "rows": _constructivos_rows(results.get("requisitos", {})),
+        },
+        {
+            "id": "instalaciones",
+            "title": "7. Instalaciones de protección contra incendios (Anexo III)",
+            "type": "instalaciones",
+            "items": results.get("requisitos", {}).get("instalaciones", []),
+        },
+        {
             "id": "observaciones",
-            "title": "6. Observaciones",
+            "title": "8. Observaciones",
             "type": "observaciones",
             "items": results.get("observaciones", []),
         },

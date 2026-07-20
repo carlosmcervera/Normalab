@@ -90,6 +90,51 @@ export function ResultsPanel({ results }) {
         <p className="mt-4 text-sm text-muted-foreground">{sectorizacion.mensaje}</p>
       </div>
 
+      {/* Requisitos constructivos + instalaciones */}
+      {results.requisitos && (
+        <>
+          <div className="border border-border bg-background p-5">
+            <h3 className="font-heading text-base">Requisitos constructivos (Anexo II)</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Estabilidad estructura portante</p>
+                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.estabilidad?.valor}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Elementos delimitadores</p>
+                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.delimitadores?.valor}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Cubierta ligera</p>
+                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.cubierta_ligera?.valor || "—"}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">{results.requisitos.estabilidad?.detalle}</p>
+          </div>
+
+          <div className="border border-border bg-background">
+            <div className="border-b border-border px-5 py-3">
+              <h3 className="font-heading text-base">Instalaciones de protección (Anexo III)</h3>
+            </div>
+            <div>
+              {results.requisitos.instalaciones.map((it, i) => (
+                <div key={i} className="flex items-start justify-between gap-4 border-b border-border p-4 last:border-0" data-testid={`instalacion-${i}`}>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{it.nombre}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{it.detalle}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-sm border px-2 py-1 text-xs font-medium ${
+                    it.obligatorio ? "border-red-300 bg-red-50 text-red-800" : "border-slate-300 bg-slate-50 text-slate-600"
+                  }`}>
+                    {it.obligatorio ? "Obligatorio" : "No exigible"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Observaciones */}
       <div className="space-y-2">
         <h3 className="font-heading text-base">Observaciones</h3>
