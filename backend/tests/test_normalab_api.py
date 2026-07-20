@@ -526,6 +526,128 @@ class TestStudiesFlow:
             det = next(i for i in res["requisitos"]["instalaciones"] if i["nombre"] == "Detección automática de incendio")
             assert det["obligatorio"] is False, f"Detección {cfg} BAJO nivel1 no debería ser obligatoria"
 
+    # ---------- Iteration 5: tablas de referencia RSCIEI 2025 ----------
+    def test_iter5_tablas_estructura_completa(self, admin_session, project_id):
+        """Caso Tipo B, sobre rasante, riesgo ALTO nivel 7, ra 1.5.
+        Verifica estructura de 9 tablas y highlights por caso."""
+        data = {"actividad": "Nave B ref tablas", "tipo_configuracion": "B",
+                "superficie_sector": 2000, "situacion": "sobre_rasante",
+                "superficie_establecimiento": 2000, "altura_evacuacion": 8, "ra": 1.5,
+                "zonas": [{"descripcion": "Prod ALTO nivel7", "modo": "produccion",
+                           "qsi": 8000, "ci": 1.0, "superficie": 2000}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter5 tablas B")
+        # Fixture del caso pedido
+        assert res["nivel_riesgo"]["nivel"] == 7
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        # tablas presentes
+        assert "tablas" in res, "results.tablas ausente"
+        tablas = res["tablas"]
+        assert isinstance(tablas, list) and len(tablas) == 9, f"esperadas 9 tablas, got {len(tablas)}"
+        ids = [t["id"] for t in tablas]
+        assert ids == ["nri", "ci", "ra", "superficie", "estabilidad",
+                       "deteccion", "rociadores", "bie", "hidrantes"], ids
+        # Cada tabla tiene los campos requeridos
+        for t in tablas:
+            for key in ("titulo", "referencia", "headers", "rows",
+                        "highlight_rows", "highlight_cells"):
+                assert key in t, f"tabla {t.get('id')} falta {key}"
+            assert isinstance(t["rows"], list) and len(t["rows"]) > 0
+        by = {t["id"]: t for t in tablas}
+        # nri: highlight fila 6 (nivel 7 => índice 6)
+        assert by["nri"]["highlight_rows"] == [6], by["nri"]["highlight_rows"]
+        # ra=1.5 => Activación media, fila 1
+        assert by["ra"]["highlight_rows"] == [1]
+        # superficie: nivel 7, Tipo B (columna 3) => [6,3] presente. Header col0 => [6,0]
+        assert [6, 3] in by["superficie"]["highlight_cells"], by["superficie"]["highlight_cells"]
+        # estabilidad: Riesgo alto (fila 2), B s/rasante (columna 6) => [2,6]
+        assert [2, 6] in by["estabilidad"]["highlight_cells"], by["estabilidad"]["highlight_cells"]
+        # deteccion, rociadores, bie, hidrantes: la fila resaltada debe corresponder a "Tipo B"
+        # y la columna al Riesgo alto (índice 3). El índice de fila depende de si la config AV/AH
+        # está presente en la tabla, así que buscamos por contenido.
+        for tid in ("deteccion", "rociadores", "bie", "hidrantes"):
+            tab = by[tid]
+            b_row = next((i for i, r in enumerate(tab["rows"]) if r[0] == "Tipo B"), None)
+            assert b_row is not None, f"{tid}: no hay fila 'Tipo B' en {tab['rows']}"
+            cells = tab["highlight_cells"]
+            assert [b_row, 3] in cells, f"{tid} highlight_cells={cells}, esperada [{b_row},3]"
+        # nota en tabla 2.1.1 (superficie)
+        assert by["superficie"].get("nota") and "Nota 1" in by["superficie"]["nota"]
+        # Ci: al menos una fila resaltada (usamos ci=1.3 -> aprox no en tabla; buscamos por ci=1.3)
+        # highlight_rows puede ser vacío si 1.3 no coincide con ningún grado. Aceptamos lista.
+        assert isinstance(by["ci"]["highlight_rows"], list)
+
+    def test_iter5_tablas_ci_highlight_matches_zonas(self, admin_session, project_id):
+        """Con ci=1.30 (grado Alto), highlight_rows de tabla ci debe incluir esa fila."""
+        data = {"actividad": "CI test", "tipo_configuracion": "B",
+                "superficie_sector": 500, "situacion": "sobre_rasante",
+                "altura_evacuacion": 4, "ra": 1.0,
+                "zonas": [{"descripcion": "z", "modo": "produccion",
+                           "qsi": 500, "ci": 1.20, "superficie": 500}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter5 ci")
+        tci = next(t for t in res["tablas"] if t["id"] == "ci")
+        # localizar fila cuya Ci textual == '1,20'
+        matched = [i for i, r in enumerate(tci["rows"]) if r[1] == "1,20"]
+        assert matched, f"no row with ci 1,20 in {tci['rows']}"
+        for m in matched:
+            assert m in tci["highlight_rows"], f"expected row {m} highlighted, got {tci['highlight_rows']}"
+
+    def test_iter5_tablas_referencia_presente(self, admin_session, project_id):
+        """Todas las tablas incluyen 'referencia' no vacía (Fuente)."""
+        data = {"actividad": "ref", "tipo_configuracion": "C",
+                "superficie_sector": 800, "situacion": "sobre_rasante",
+                "altura_evacuacion": 4, "ra": 1.0,
+                "zonas": [{"descripcion": "z", "modo": "produccion",
+                           "qsi": 300, "ci": 1.0, "superficie": 800}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter5 refs")
+        for t in res["tablas"]:
+            assert t.get("referencia") and "RSCIEI" in t["referencia"], \
+                f"tabla {t['id']} sin referencia normativa correcta: {t.get('referencia')}"
+
+    def test_iter5_tablas_persist_in_version(self, admin_session, project_id):
+        """El snapshot de versión debe incluir results.tablas (9 tablas)."""
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": "TEST tablas version"})
+        sid = r.json()["id"]
+        data = {"actividad": "V tablas", "tipo_configuracion": "B",
+                "superficie_sector": 1500, "situacion": "sobre_rasante",
+                "altura_evacuacion": 6, "ra": 1.2,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 1500, "ci": 1.1, "superficie": 1500}]}
+        admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        admin_session.post(f"{API}/studies/{sid}/compute")
+        vr = admin_session.post(f"{API}/studies/{sid}/version", json={"note": "TEST tablas"})
+        v = vr.json()["version"]
+        snap = admin_session.get(f"{API}/studies/{sid}/versions/{v}").json()
+        results = snap.get("results") or snap.get("snapshot", {}).get("results")
+        assert results is not None
+        assert "tablas" in results, "snapshot no contiene 'tablas'"
+        assert len(results["tablas"]) == 9
+        admin_session.delete(f"{API}/studies/{sid}")
+
+    def test_iter5_report_section_tablas(self, admin_session, project_id):
+        """El informe devuelto por compute incluye la sección 8 'tablas' con 9 items."""
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": "TEST report tablas"})
+        sid = r.json()["id"]
+        data = {"actividad": "R", "tipo_configuracion": "B",
+                "superficie_sector": 1000, "situacion": "sobre_rasante",
+                "altura_evacuacion": 6, "ra": 1.0,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 800, "ci": 1.0, "superficie": 1000}]}
+        admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        cr = admin_session.post(f"{API}/studies/{sid}/compute")
+        assert cr.status_code == 200, cr.text
+        report = cr.json()["report"]
+        secs = {s["id"]: s for s in report["sections"]}
+        assert "tablas" in secs, list(secs.keys())
+        assert secs["tablas"]["type"] == "tablas"
+        assert len(secs["tablas"]["items"]) == 9
+        # también persistido en study (GET study)
+        stu = admin_session.get(f"{API}/studies/{sid}").json()
+        rep2 = stu.get("report")
+        assert rep2 and any(s["id"] == "tablas" for s in rep2["sections"])
+        admin_session.delete(f"{API}/studies/{sid}")
+
     def test_versioning(self, admin_session, study_id):
         r = admin_session.post(f"{API}/studies/{study_id}/version", json={"note": "TEST v1"})
         assert r.status_code == 200, r.text

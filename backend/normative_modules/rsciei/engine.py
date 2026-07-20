@@ -141,6 +141,10 @@ def compute(data: dict) -> dict:
 
     requisitos = build_requirements(data, nivel, categoria, modo_pred)
 
+    from normative_modules.rsciei.tablas import build_tablas
+    used_ci = [z.get("ci") for z in zonas if z.get("ci")]
+    tablas = build_tablas(data, nivel, categoria, modo_pred, used_ci)
+
     return {
         "calculo": {
             "numerador": round(numerador, 2),
@@ -158,6 +162,7 @@ def compute(data: dict) -> dict:
         },
         "sectorizacion": sector,
         "requisitos": requisitos,
+        "tablas": tablas,
         "observaciones": observaciones,
         "estado_global": estado,
     }

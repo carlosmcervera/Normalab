@@ -1,0 +1,27 @@
+{
+  "summary": "Iteración 5 — verificación de la sección 8 'Tablas de referencia (Guía RSCIEI 2025)' en backend e informe. Backend 31/31 pytest OK (5 nuevos casos iter5). Se valida que results.tablas es una lista de 9 tablas (nri, ci, ra, superficie, estabilidad, deteccion, rociadores, bie, hidrantes) con titulo, referencia, headers, rows, highlight_rows y highlight_cells. Para el caso Tipo B, sobre rasante, riesgo ALTO nivel 7, ra 1.5 se verifica: nri highlight_rows=[6]; ra highlight_rows=[1] (Activación media); superficie highlight_cells incluye [6,3]; estabilidad highlight_cells incluye [2,6]; deteccion/rociadores/bie/hidrantes resaltan la fila 'Tipo B' con la columna 'Riesgo alto' (índice 3). Nota 1-4 presente en tabla 2.1.1. Todas las tablas incluyen referencia normativa. Snapshot de versión incluye results.tablas. Informe (build_report en respuesta de compute) incluye sección id='tablas' type='tablas' con 9 items en posición 8. Frontend Playwright OK sobre estudio demo SID 6a5e3d5a316744af6a86aa5e: 9 ref-table-{id} presentes, 9 ocurrencias de 'Fuente:', 14 celdas con bg-orange-500 y 3 filas con bg-orange-100, 'Nota 1' visible en tabla 2.1.1, botón 'Descargar PDF' presente. Confirmado visualmente: NRI fila 7 (Alto), Ci fila Alta 1,60, Ra Activación media 1,5, Superficie [7, Tipo B]=3.000, Estabilidad Riesgo alto ∩ B s/rasante=R120, Detección/Rociadores/BIE/Hidrantes fila Tipo B ∩ Riesgo alto todo resaltado en naranja. Regresión: login admin, wizard, versionado, secciones 1-7 y 9 siguen operativas.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "tablas.py:build_tablas() correcto: 9 tablas con referencia normativa y resaltado por caso (nivel, categoría, config, situación, ra, ci). Import diferido en engine.compute() evita import circular con requirements.",
+    "Sección 8 del informe (report.py) incluida entre '7. Instalaciones' y '9. Observaciones'. Consistente con el título 'Tablas de referencia (Guía RSCIEI 2025)'.",
+    "StudyReportPage.jsx RefTable aplica bg-orange-500 (celdas) y bg-orange-100 (filas) — buen contraste para la selección; la línea 'Fuente:' aparece en itálica con text-muted-foreground debajo de cada tabla, cumpliendo el requisito de trazabilidad.",
+    "Ci: identificación por igualdad numérica (float 1e-6). El campo Ci en el step2 usa valores discretos de CI_TABLE (1.00/1.20/1.40/1.60/1.44/1.68/1.92), por lo que el highlight funcionará siempre para las selecciones estándar; para Ci manuales fuera de tabla no habrá highlight (comportamiento aceptable).",
+    "Estabilidad EST_COL mapea 8 columnas AV/AH/B/C × bajo/sobre — coherente con headers de 8 columnas en la tabla 2.5.1.",
+    "Snapshot de versión ya contiene results.tablas (confirmado por test_iter5_tablas_persist_in_version) — así la vista de versión histórica renderiza las mismas tablas.",
+    "No se detectaron endpoints faltantes: no existe GET /api/studies/{id}/report separado, pero el compute y el study almacenado devuelven 'report' con la sección 'tablas' — el frontend lo consume directamente. Correcto."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": { "backend": "100% (31/31)", "frontend": "100% (9/9 ref-tables + Fuente + highlights + PDF)" },
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "No se creó seed adicional. Se usó el estudio demo existente SID 6a5e3d5a316744af6a86aa5e (proyecto DEMO-TAB).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter5 añade sección 8 'Tablas de referencia' con 9 tablas resaltadas y Fuente. Tests iter5 en test_normalab_api.py cubren estructura, highlights, referencias, persistencia en versión y presencia en report. Ci en producción confirmado en el modelo (engine.py línea 91-105: aporte = qsi*s*ci)."
+}

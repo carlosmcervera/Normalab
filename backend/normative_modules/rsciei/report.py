@@ -82,8 +82,14 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "items": results.get("requisitos", {}).get("instalaciones", []),
         },
         {
+            "id": "tablas",
+            "title": "8. Tablas de referencia (Guía RSCIEI 2025)",
+            "type": "tablas",
+            "items": results.get("tablas", []),
+        },
+        {
             "id": "observaciones",
-            "title": "8. Observaciones",
+            "title": "9. Observaciones",
             "type": "observaciones",
             "items": results.get("observaciones", []),
         },

@@ -7,6 +7,47 @@ import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+function RefTable({ t }) {
+  const hlRows = new Set(t.highlight_rows || []);
+  const hlCells = new Set((t.highlight_cells || []).map(([r, c]) => `${r}-${c}`));
+  return (
+    <div data-testid={`ref-table-${t.id}`}>
+      <p className="mb-2 text-sm font-semibold">{t.titulo}</p>
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-secondary/60 text-left uppercase tracking-wide text-muted-foreground">
+              {t.headers.map((h, i) => (
+                <th key={i} className="px-2.5 py-2 font-semibold">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-mono">
+            {t.rows.map((row, r) => {
+              const rowHl = hlRows.has(r);
+              return (
+                <tr key={r} className={`border-b border-border last:border-0 ${rowHl ? "bg-orange-100" : ""}`}>
+                  {row.map((cell, c) => {
+                    const cellHl = hlCells.has(`${r}-${c}`);
+                    return (
+                      <td key={c} className={`px-2.5 py-1.5 ${c === 0 ? "font-sans" : ""} ${cellHl ? "bg-orange-500 font-bold text-white" : ""}`}>
+                        {cell}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {t.nota && <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{t.nota}</p>}
+      <p className="mt-1 text-[11px] italic text-muted-foreground">Fuente: {t.referencia}</p>
+    </div>
+  );
+}
+
+
 function Section({ s }) {
   return (
     <section className="border-t border-border py-6 first:border-t-0">
@@ -65,6 +106,14 @@ function Section({ s }) {
               <p className="font-heading text-xl">Nivel {s.nivel} · {s.categoria}</p>
               <p className="font-mono text-sm text-muted-foreground">Qs = {num(s.qs_mj, 1)} MJ/m² ({num(s.qs_mcal, 1)} Mcal/m²)</p>
             </div>
+          </div>
+        )}
+
+        {s.type === "tablas" && (
+          <div className="space-y-6">
+            {s.items.map((t) => (
+              <RefTable key={t.id} t={t} />
+            ))}
           </div>
         )}
 
