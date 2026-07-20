@@ -1,153 +1,133 @@
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, XCircle, Building2, Users, Ruler } from "lucide-react";
 import { num, RISK_STYLES, STATE_META } from "@/lib/format";
 
-const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 const OBS_CLS = {
   info: "border-slate-200 bg-slate-50 text-slate-700",
   warning: "border-amber-200 bg-amber-50 text-amber-800",
   error: "border-red-200 bg-red-50 text-red-800",
 };
+const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
+
+function fmtMax(f) {
+  if (f.max_admisible != null) return `${num(f.max_admisible)} m²`;
+  return f.max_admisible_base || "—";
+}
+
+function SectorCard({ s }) {
+  const risk = RISK_STYLES[s.nivel_riesgo.categoria] || RISK_STYLES.MEDIO;
+  const sec = s.sectorizacion;
+  return (
+    <div className="border border-border" data-testid={`result-sector-${s.id}`}>
+      <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2.5">
+        <span className="font-heading text-sm">{s.nombre}</span>
+        <div className="flex items-center gap-2">
+          <span className={`flex h-7 w-7 items-center justify-center font-heading text-sm font-bold text-white ${risk.bg}`}>{s.nivel_riesgo.nivel}</span>
+          <span className={`text-sm font-medium ${risk.text}`}>{s.nivel_riesgo.categoria}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Qs</p><p className="mt-1 font-mono font-semibold">{num(s.calculo.qs_mj, 1)} MJ/m²</p></div>
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Superficie</p><p className="mt-1 font-mono">{num(s.calculo.A)} m²</p></div>
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Máx. admisible</p><p className="mt-1 font-mono">{fmtMax(sec)}</p></div>
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Ra</p><p className="mt-1 font-mono">{num(s.calculo.ra, 1)}</p></div>
+      </div>
+      <p className="border-t border-border px-4 py-2 text-sm text-muted-foreground">{sec.mensaje}</p>
+      <div className="grid grid-cols-1 gap-4 border-t border-border p-4 sm:grid-cols-3">
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Estabilidad estructura</p><p className="mt-1 font-mono font-semibold">{s.requisitos.estabilidad?.valor}</p></div>
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Delimitadores</p><p className="mt-1 font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
+        <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Evacuación (máx.)</p><p className="mt-1 font-mono font-semibold">{s.evacuacion?.distancia_maxima} m · {s.evacuacion?.num_salidas} sal.</p></div>
+      </div>
+      <div className="border-t border-border">
+        {s.requisitos.instalaciones.map((it, i) => (
+          <div key={i} className="flex items-start justify-between gap-3 border-b border-border px-4 py-2.5 last:border-0" data-testid={`sector-${s.id}-inst-${i}`}>
+            <div className="flex-1">
+              <p className="text-sm font-medium">{it.nombre}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{it.detalle}</p>
+            </div>
+            <span className={`shrink-0 rounded-sm border px-2 py-1 text-xs font-medium ${it.obligatorio ? "border-red-300 bg-red-50 text-red-800" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+              {it.obligatorio ? "Obligatorio" : "No exigible"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ResultsPanel({ results }) {
-  if (!results) return null;
-  const { calculo, nivel_riesgo, sectorizacion, observaciones, estado_global } = results;
-  const risk = RISK_STYLES[nivel_riesgo.categoria] || RISK_STYLES.MEDIO;
+  if (!results || !results.sectores) return null;
+  const { superficies, ocupacion, sectores, resumen_sectores, observaciones, estado_global } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
 
   return (
     <div className="space-y-6" data-testid="results-panel">
       {/* Summary tiles */}
-      <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-3">
-        <div className="bg-background p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Densidad de carga (Qs)</p>
-          <p className="mt-3 font-heading text-3xl font-light">{num(calculo.qs_mj, 1)} <span className="text-base text-muted-foreground">MJ/m²</span></p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">{num(calculo.qs_mcal, 1)} Mcal/m²</p>
-        </div>
-        <div className="bg-background p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Nivel de riesgo intrínseco</p>
-          <div className="mt-3 flex items-center gap-3">
-            <span className={`flex h-10 w-10 items-center justify-center font-heading text-lg font-bold text-white ${risk.bg}`}>{nivel_riesgo.nivel}</span>
-            <span className={`font-heading text-xl ${risk.text}`}>{nivel_riesgo.categoria}</span>
-          </div>
-        </div>
-        <div className="bg-background p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Resultado global</p>
-          <div className="mt-3">
-            <span className={`inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 text-sm font-medium ${state.cls}`} data-testid="global-state">
-              {estado_global === "cumple" ? <CheckCircle2 className="h-4 w-4" /> : estado_global === "no_cumple" ? <XCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-              {state.label}
-            </span>
-          </div>
+      <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-4">
+        <div className="bg-background p-5"><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground"><Building2 className="mr-1 inline h-3 w-3" />Sectores</p><p className="mt-2 font-heading text-3xl font-light">{sectores.length}</p></div>
+        <div className="bg-background p-5"><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground"><Ruler className="mr-1 inline h-3 w-3" />Sup. construida</p><p className="mt-2 font-heading text-3xl font-light">{num(superficies.total_construida)}<span className="text-sm text-muted-foreground"> m²</span></p></div>
+        <div className="bg-background p-5"><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground"><Users className="mr-1 inline h-3 w-3" />Ocupación</p><p className="mt-2 font-heading text-3xl font-light">{ocupacion.total}</p></div>
+        <div className="bg-background p-5"><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Resultado global</p>
+          <span className={`mt-3 inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 text-sm font-medium ${state.cls}`} data-testid="global-state">
+            {estado_global === "cumple" ? <CheckCircle2 className="h-4 w-4" /> : estado_global === "no_cumple" ? <XCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+            {state.label}
+          </span>
         </div>
       </div>
 
-      {/* Zonas table */}
+      {/* Resumen sectores */}
       <div className="border border-border bg-background">
-        <div className="border-b border-border px-5 py-3">
-          <h3 className="font-heading text-base">Cálculo por zonas</h3>
-        </div>
+        <div className="border-b border-border px-5 py-3"><h3 className="font-heading text-base">Resumen de sectores</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-2 font-semibold">Zona</th>
-                <th className="px-5 py-2 font-semibold">Tipo</th>
-                <th className="px-5 py-2 text-right font-semibold">Carga</th>
-                <th className="px-5 py-2 text-right font-semibold">Ci</th>
-                <th className="px-5 py-2 text-right font-semibold">Sup. (m²)</th>
-                <th className="px-5 py-2 text-right font-semibold">Aporte (MJ)</th>
+                <th className="px-4 py-2 font-semibold">Sector</th><th className="px-4 py-2 font-semibold">Config.</th>
+                <th className="px-4 py-2 text-right font-semibold">Sup. (m²)</th><th className="px-4 py-2 text-right font-semibold">Qs</th>
+                <th className="px-4 py-2 font-semibold">NRI</th><th className="px-4 py-2 font-semibold">Máx. adm.</th>
+                <th className="px-4 py-2 font-semibold">Estab.</th><th className="px-4 py-2 text-right font-semibold">Ocup.</th>
               </tr>
             </thead>
             <tbody className="font-mono">
-              {calculo.zonas.map((z, i) => (
-                <tr key={i} className="border-b border-border last:border-0">
-                  <td className="px-5 py-2 font-sans">{z.descripcion}</td>
-                  <td className="px-5 py-2 font-sans text-muted-foreground">{z.modo === "almacenamiento" ? "Almacenamiento" : "Producción"}</td>
-                  <td className="px-5 py-2 text-right">{z.modo === "almacenamiento" ? `${num(z.qvi)} MJ/m³ · ${num(z.hi, 1)} m` : `${num(z.qsi)} MJ/m²`}</td>
-                  <td className="px-5 py-2 text-right">{num(z.ci, 2)}</td>
-                  <td className="px-5 py-2 text-right">{num(z.superficie)}</td>
-                  <td className="px-5 py-2 text-right font-medium">{num(z.aporte)}</td>
-                </tr>
-              ))}
-              <tr className="bg-secondary/40">
-                <td className="px-5 py-2 font-sans font-medium" colSpan={5}>Σ ponderada · A = {num(calculo.A)} m² · Ra = {num(calculo.ra, 2)}</td>
-                <td className="px-5 py-2 text-right font-mono font-bold">{num(calculo.numerador)}</td>
-              </tr>
+              {resumen_sectores.map((f, i) => {
+                const risk = RISK_STYLES[f.categoria] || RISK_STYLES.MEDIO;
+                return (
+                  <tr key={i} className="border-b border-border last:border-0" data-testid={`resumen-row-${i}`}>
+                    <td className="px-4 py-2 font-sans font-medium">{f.nombre}</td>
+                    <td className="px-4 py-2 font-sans text-xs">{f.config}</td>
+                    <td className="px-4 py-2 text-right">{num(f.superficie)}</td>
+                    <td className="px-4 py-2 text-right">{num(f.qs_mj, 1)}</td>
+                    <td className="px-4 py-2"><span className={`font-sans font-semibold ${risk.text}`}>{f.nivel} · {f.categoria}</span></td>
+                    <td className="px-4 py-2">{f.max_admisible != null ? `${num(f.max_admisible)} m²` : (f.max_admisible_base || "—")}</td>
+                    <td className="px-4 py-2">{f.estabilidad}</td>
+                    <td className="px-4 py-2 text-right font-sans">{f.ocupacion}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Sectorización */}
-      <div className="border border-border bg-background p-5">
-        <h3 className="font-heading text-base">Sectorización (Tabla 2.1)</h3>
-        <div className="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-          <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Configuración</p><p className="mt-1 font-medium">{sectorizacion.config_label}</p></div>
-          <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Superficie sector</p><p className="mt-1 font-mono font-medium">{num(sectorizacion.superficie_sector)} m²</p></div>
-          <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Máx. admisible</p><p className="mt-1 font-mono font-medium">{sectorizacion.max_admisible != null ? `${num(sectorizacion.max_admisible)} m²` : (sectorizacion.max_admisible_base || "—")}</p></div>
-          <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Factor incremento</p><p className="mt-1 font-mono font-medium">×{num(sectorizacion.factor_incremento, 2)}</p></div>
-        </div>
-        <p className="mt-4 text-sm text-muted-foreground">{sectorizacion.mensaje}</p>
+      {/* Per-sector detail */}
+      <div className="space-y-4">
+        <h3 className="font-heading text-base">Detalle por sector</h3>
+        {sectores.map((s) => <SectorCard key={s.id} s={s} />)}
       </div>
-
-      {/* Requisitos constructivos + instalaciones */}
-      {results.requisitos && (
-        <>
-          <div className="border border-border bg-background p-5">
-            <h3 className="font-heading text-base">Requisitos constructivos (Anexo II)</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Estabilidad estructura portante</p>
-                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.estabilidad?.valor}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Elementos delimitadores</p>
-                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.delimitadores?.valor}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Cubierta ligera</p>
-                <p className="mt-1 font-mono text-lg font-semibold">{results.requisitos.cubierta_ligera?.valor || "—"}</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">{results.requisitos.estabilidad?.detalle}</p>
-          </div>
-
-          <div className="border border-border bg-background">
-            <div className="border-b border-border px-5 py-3">
-              <h3 className="font-heading text-base">Instalaciones de protección (Anexo III)</h3>
-            </div>
-            <div>
-              {results.requisitos.instalaciones.map((it, i) => (
-                <div key={i} className="flex items-start justify-between gap-4 border-b border-border p-4 last:border-0" data-testid={`instalacion-${i}`}>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{it.nombre}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{it.detalle}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-sm border px-2 py-1 text-xs font-medium ${
-                    it.obligatorio ? "border-red-300 bg-red-50 text-red-800" : "border-slate-300 bg-slate-50 text-slate-600"
-                  }`}>
-                    {it.obligatorio ? "Obligatorio" : "No exigible"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Observaciones */}
-      <div className="space-y-2">
-        <h3 className="font-heading text-base">Observaciones</h3>
-        {observaciones.map((o, i) => {
-          const Icon = OBS_ICON[o.tipo] || Info;
-          return (
-            <div key={i} className={`flex items-start gap-3 border p-3 text-sm ${OBS_CLS[o.tipo] || OBS_CLS.info}`} data-testid={`observation-${i}`}>
-              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{o.texto}</p>
-            </div>
-          );
-        })}
-      </div>
+      {observaciones.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-heading text-base">Observaciones</h3>
+          {observaciones.map((o, i) => {
+            const Icon = OBS_ICON[o.tipo] || Info;
+            return (
+              <div key={i} className={`flex items-start gap-3 border p-3 text-sm ${OBS_CLS[o.tipo] || OBS_CLS.info}`} data-testid={`observation-${i}`}>
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" /><p>{o.texto}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

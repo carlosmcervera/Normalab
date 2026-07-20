@@ -1,6 +1,12 @@
-"""Wizard schema for the RSCIEI module (dynamic, module-driven rendering)."""
+"""Wizard schema for the RSCIEI module (RD 164/2025, multi-sector flow).
+
+Flujo: 1) Establecimiento → 2) Cuadro de superficies + sectores → 3) Ocupación
+(CTE) → 4) Carga de fuego → 5) Resultados. Los pasos 2-4 se renderizan con
+componentes personalizados en el frontend; el schema aporta los catálogos.
+"""
 from normative_modules.rsciei.catalog import (
-    ACTIVITY_CATALOG, ACTIVITY_TYPES, CI_TABLE, CONFIG_TYPES, RA_TABLE,
+    ACTIVITY_CATALOG, ACTIVITY_TYPES, CI_TABLE, CONFIG_TYPES,
+    OCCUPANCY_DENSITIES, RA_TABLE,
 )
 
 
@@ -11,45 +17,25 @@ def get_schema() -> dict:
         "ra_table": RA_TABLE,
         "activity_catalog": ACTIVITY_CATALOG,
         "activity_types": ACTIVITY_TYPES,
+        "occupancy_densities": OCCUPANCY_DENSITIES,
         "steps": [
             {
                 "id": "establecimiento",
-                "title": "Datos del establecimiento",
-                "description": "Identificación de la actividad y configuración del sector de incendio.",
+                "title": "Establecimiento",
+                "description": "Identificación de la actividad y configuración general del establecimiento (Anexo I).",
                 "fields": [
-                    {"name": "actividad", "label": "Tipo de actividad", "type": "activity_combobox",
-                     "required": True, "placeholder": "Selecciona o escribe una actividad"},
-                    {"name": "tipo_configuracion", "label": "Tipo de configuración (Anexo I)",
-                     "type": "config_selector", "required": True},
-                    {"name": "superficie_sector", "label": "Superficie construida del sector, A (m²)",
-                     "type": "number", "required": True, "min": 1, "step": 1},
-                    {"name": "ra", "label": "Coef. de peligrosidad por activación (Ra)", "type": "ra_selector",
-                     "required": True, "min": 0.1, "step": 0.1, "default": 1.0,
-                     "help": "Según Tabla 1.3.4. Se sugiere automáticamente el Ra máximo de las actividades del sector."},
-                    {"name": "fachada_accesible", "label": "Fachada accesible ≥ 50% del perímetro",
-                     "type": "boolean", "help": "Nota 2, Tabla 2.1: incrementa la superficie máxima ×1,25."},
-                    {"name": "rociadores", "label": "Rociadores automáticos en todo el sector",
-                     "type": "boolean", "help": "Nota 3, Tabla 2.1: incrementa la superficie máxima ×2."},
-                    {"name": "situacion", "label": "Situación del sector", "type": "select",
-                     "options": [
-                         {"value": "sobre_rasante", "label": "Planta sobre rasante"},
-                         {"value": "bajo_rasante", "label": "Planta bajo rasante (sótano)"},
-                     ], "default": "sobre_rasante"},
-                    {"name": "altura_evacuacion", "label": "Altura de evacuación (m)", "type": "number",
-                     "min": 0, "step": 0.5, "default": 0, "help": "Para columna seca (obligatoria si ≥ 15 m)."},
-                    {"name": "superficie_establecimiento", "label": "Superficie total del establecimiento (m²)",
-                     "type": "number", "min": 0, "step": 1,
-                     "help": "Para hidrantes exteriores. Si se deja vacío se usa la superficie del sector."},
-                    {"name": "cubierta_ligera", "label": "Cubierta ligera (no para evacuación, < 100 kg/m²)",
-                     "type": "boolean"},
+                    {"name": "actividad", "label": "Actividad / denominación del establecimiento",
+                     "type": "activity_combobox", "required": True, "target": "establecimiento",
+                     "placeholder": "Selecciona o escribe una actividad"},
+                    {"name": "config", "label": "Tipo de configuración (Anexo I)",
+                     "type": "config_selector", "required": True, "target": "establecimiento"},
                 ],
             },
-            {
-                "id": "zonas",
-                "title": "Actividades del sector de incendio",
-                "description": ("Añada las actividades presentes en el sector. Cada actividad aporta carga "
-                                "de fuego; en almacenamiento se considera además la altura."),
-                "type": "activities",
-            },
+            {"id": "superficies", "title": "Superficies y sectores", "type": "superficies",
+             "description": "Introduzca el cuadro de superficies (útil y construida) de cada dependencia y agrúpelas por sectores de incendio."},
+            {"id": "ocupacion", "title": "Ocupación (CTE)", "type": "ocupacion",
+             "description": "Asigne la densidad de ocupación (m²/persona) a cada dependencia según el CTE para obtener la ocupación."},
+            {"id": "carga_fuego", "title": "Carga de fuego", "type": "carga_fuego",
+             "description": "Defina para cada dependencia la carga de fuego (producción o almacenamiento) y los parámetros de cada sector."},
         ],
     }

@@ -48,6 +48,55 @@ function RefTable({ t }) {
 }
 
 
+function SectorReport({ s }) {
+  const risk = RISK_STYLES[s.nivel_riesgo.categoria] || RISK_STYLES.MEDIO;
+  const sec = s.sectorizacion;
+  return (
+    <div className="mt-5 border border-border first:mt-0" data-testid={`report-sector-${s.id}`}>
+      <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2">
+        <span className="font-heading text-base">{s.nombre}</span>
+        <span className={`flex items-center gap-2 text-sm font-medium ${risk.text}`}>
+          <span className={`flex h-6 w-6 items-center justify-center text-xs font-bold text-white ${risk.bg}`}>{s.nivel_riesgo.nivel}</span>
+          {s.nivel_riesgo.categoria}
+        </span>
+      </div>
+      <table className="w-full text-sm">
+        <tbody className="font-mono">
+          {s.calculo.zonas.map((z, i) => (
+            <tr key={i} className="border-b border-border">
+              <td className="px-4 py-1.5 font-sans">{z.descripcion}</td>
+              <td className="px-4 py-1.5 font-sans text-muted-foreground">{z.modo === "almacenamiento" ? "Almac." : "Prod."}</td>
+              <td className="px-4 py-1.5 text-right">Ci {num(z.ci, 2)}</td>
+              <td className="px-4 py-1.5 text-right">{num(z.superficie)} m²</td>
+              <td className="px-4 py-1.5 text-right">{num(z.aporte)} MJ</td>
+            </tr>
+          ))}
+          <tr className="bg-secondary/40">
+            <td className="px-4 py-2 font-sans" colSpan={3}>A = {num(sec.superficie_sector)} m² · Ra = {num(s.calculo.ra, 1)}</td>
+            <td className="px-4 py-2 text-right font-bold" colSpan={2}>Qs = {num(s.calculo.qs_mj, 1)} MJ/m²</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="border-t border-border px-4 py-2 text-sm text-slate-700">{sec.mensaje}</p>
+      <div className="grid grid-cols-3 gap-3 border-t border-border p-4 text-sm">
+        <div><span className="text-xs uppercase text-muted-foreground">Estabilidad</span><p className="font-mono font-semibold">{s.requisitos.estabilidad?.valor}</p></div>
+        <div><span className="text-xs uppercase text-muted-foreground">Delimitadores</span><p className="font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
+        <div><span className="text-xs uppercase text-muted-foreground">Evacuación</span><p className="font-mono font-semibold">{s.evacuacion?.distancia_maxima} m · {s.evacuacion?.num_salidas} sal.</p></div>
+      </div>
+      <div className="border-t border-border">
+        {s.requisitos.instalaciones.map((it, i) => (
+          <div key={i} className="flex items-start justify-between gap-3 border-b border-border px-4 py-2 last:border-0">
+            <div className="flex-1"><p className="text-sm font-medium">{it.nombre}</p><p className="mt-0.5 text-xs text-muted-foreground">{it.detalle}</p></div>
+            <span className={`shrink-0 rounded-sm border px-2 py-0.5 text-xs font-medium ${it.obligatorio ? "border-red-300 bg-red-50 text-red-800" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+              {it.obligatorio ? "Obligatorio" : "No exigible"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Section({ s }) {
   return (
     <section className="border-t border-border py-6 first:border-t-0">
@@ -68,45 +117,86 @@ function Section({ s }) {
           </table>
         )}
 
-        {s.type === "zonas" && (
-          <div>
+        {s.type === "superficies" && (
+          <div className="overflow-x-auto border border-border">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                  <th className="py-2">Zona</th><th className="py-2">Tipo</th>
-                  <th className="py-2 text-right">Ci</th><th className="py-2 text-right">Sup.</th>
-                  <th className="py-2 text-right">Aporte (MJ)</th>
+                <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Dependencia</th><th className="px-3 py-2">Planta</th><th className="px-3 py-2">Sector</th>
+                  <th className="px-3 py-2 text-right">S. útil</th><th className="px-3 py-2 text-right">S. construida</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {s.zonas.map((z, i) => (
+                {s.data.filas.map((r, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
-                    <td className="py-2 font-sans">{z.descripcion}</td>
-                    <td className="py-2 font-sans">{z.modo === "almacenamiento" ? "Almac." : "Prod."}</td>
-                    <td className="py-2 text-right">{num(z.ci, 2)}</td>
-                    <td className="py-2 text-right">{num(z.superficie)}</td>
-                    <td className="py-2 text-right">{num(z.aporte)}</td>
+                    <td className="px-3 py-1.5 font-sans">{r.nombre}</td><td className="px-3 py-1.5 font-sans">{r.planta}</td>
+                    <td className="px-3 py-1.5 font-sans text-muted-foreground">{r.sector}</td>
+                    <td className="px-3 py-1.5 text-right">{num(r.sup_util, 2)}</td><td className="px-3 py-1.5 text-right">{num(r.sup_construida, 2)}</td>
                   </tr>
                 ))}
+                <tr className="bg-secondary/40 font-bold">
+                  <td className="px-3 py-2 font-sans" colSpan={3}>Total</td>
+                  <td className="px-3 py-2 text-right">{num(s.data.total_util, 2)}</td><td className="px-3 py-2 text-right">{num(s.data.total_construida, 2)}</td>
+                </tr>
               </tbody>
             </table>
-            <div className="mt-3 grid grid-cols-2 gap-2 border border-border bg-secondary/40 p-3 font-mono text-sm sm:grid-cols-4">
-              <span>A = {num(s.resumen.A)} m²</span>
-              <span>Ra = {num(s.resumen.ra, 2)}</span>
-              <span className="font-bold">Qs = {num(s.resumen.qs_mj, 1)} MJ/m²</span>
-              <span>{num(s.resumen.qs_mcal, 1)} Mcal/m²</span>
-            </div>
           </div>
         )}
 
-        {s.type === "nri" && (
-          <div className="flex items-center gap-4">
-            <span className={`flex h-14 w-14 items-center justify-center font-heading text-2xl font-bold text-white ${(RISK_STYLES[s.categoria] || RISK_STYLES.MEDIO).bg}`}>{s.nivel}</span>
-            <div>
-              <p className="font-heading text-xl">Nivel {s.nivel} · {s.categoria}</p>
-              <p className="font-mono text-sm text-muted-foreground">Qs = {num(s.qs_mj, 1)} MJ/m² ({num(s.qs_mcal, 1)} Mcal/m²)</p>
-            </div>
+        {s.type === "ocupacion" && (
+          <div className="overflow-x-auto border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Dependencia</th><th className="px-3 py-2">Sector</th><th className="px-3 py-2">Uso</th>
+                  <th className="px-3 py-2 text-right">Sup.</th><th className="px-3 py-2 text-right">Densidad</th><th className="px-3 py-2 text-right">Ocupación</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {s.data.filas.map((r, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-3 py-1.5 font-sans">{r.nombre}</td><td className="px-3 py-1.5 font-sans text-muted-foreground">{r.sector}</td>
+                    <td className="px-3 py-1.5 font-sans">{r.uso}</td><td className="px-3 py-1.5 text-right">{num(r.superficie, 2)}</td>
+                    <td className="px-3 py-1.5 text-right font-sans">{r.densidad}</td><td className="px-3 py-1.5 text-right font-bold">{r.ocupacion}</td>
+                  </tr>
+                ))}
+                <tr className="bg-secondary/40 font-bold">
+                  <td className="px-3 py-2 font-sans" colSpan={5}>Ocupación total</td>
+                  <td className="px-3 py-2 text-right">{s.data.total} pers.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        )}
+
+        {s.type === "resumen" && (
+          <div className="overflow-x-auto border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Sector</th><th className="px-3 py-2">Config.</th><th className="px-3 py-2 text-right">Sup.</th>
+                  <th className="px-3 py-2 text-right">Qs</th><th className="px-3 py-2">NRI</th><th className="px-3 py-2">Estab.</th><th className="px-3 py-2 text-right">Ocup.</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {s.filas.map((r, i) => {
+                  const risk = RISK_STYLES[r.categoria] || RISK_STYLES.MEDIO;
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-3 py-1.5 font-sans font-medium">{r.nombre}</td><td className="px-3 py-1.5 font-sans text-xs">{r.config}</td>
+                      <td className="px-3 py-1.5 text-right">{num(r.superficie)}</td><td className="px-3 py-1.5 text-right">{num(r.qs_mj, 1)}</td>
+                      <td className={`px-3 py-1.5 font-sans font-semibold ${risk.text}`}>{r.nivel} · {r.categoria}</td>
+                      <td className="px-3 py-1.5">{r.estabilidad}</td><td className="px-3 py-1.5 text-right font-sans">{r.ocupacion}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {s.type === "sectores" && (
+          <div>{s.items.map((sec) => <SectorReport key={sec.id} s={sec} />)}</div>
         )}
 
         {s.type === "tablas" && (

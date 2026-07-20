@@ -10,8 +10,8 @@ class RscieiModule(NormativeModule):
                    "verificación de superficies máximas admisibles. Módulo operativo.")
     category = "Protección contra incendios"
     status = "operativo"
-    version = "1.0.0"
-    legal_reference = "RD 2267/2004 (texto consolidado)"
+    version = "2.0.0"
+    legal_reference = "RD 164/2025 (RSCIEI)"
     icon = "flame"
     accent = "orange"
 

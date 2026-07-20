@@ -136,6 +136,24 @@ ACTIVITY_CATALOG = [
 
 ACTIVITY_TYPES = [c["category"] for c in ACTIVITY_CATALOG]
 
+# Densidades de ocupación (CTE DB-SI, Tabla 2.1). m²/persona; None = sin ocupación.
+OCCUPANCY_DENSITIES = [
+    {"uso": "Sin ocupación (mantenimiento/instalaciones)", "densidad": None},
+    {"uso": "Almacén / archivo (uso ocasional)", "densidad": 40},
+    {"uso": "Aparcamiento de vehículos", "densidad": 40},
+    {"uso": "Reserva / trastero", "densidad": 40},
+    {"uso": "Oficinas / administrativo", "densidad": 10},
+    {"uso": "Despacho", "densidad": 10},
+    {"uso": "Zona de servicio (cocinas)", "densidad": 10},
+    {"uso": "Taller / laboratorio", "densidad": 5},
+    {"uso": "Vestíbulo / probador / caja", "densidad": 5},
+    {"uso": "Aseos de planta", "densidad": 3},
+    {"uso": "Vestuarios", "densidad": 3},
+    {"uso": "Zona de ventas (comercial)", "densidad": 2},
+    {"uso": "Zona de público (sentado)", "densidad": 1.5},
+    {"uso": "Zona de público (de pie)", "densidad": 1},
+]
+
 # Tabla 1.3.4 · Criterios para determinar el coeficiente de activación (Ra / R)
 RA_TABLE = [
     {"ra": 0.8, "grado": "Reducido",

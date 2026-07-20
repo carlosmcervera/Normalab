@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 7 - RSCIEI refactor to multi-sector (RD 164/2025). Created new pytest suite /app/backend/tests/test_rsciei_multisector.py with 11 tests, ALL PASS. Backend compute returns the required multi-sector shape (superficies, ocupacion, sectores[], resumen_sectores, tablas, observaciones, estado_global) and each sector exposes calculo.qs_mj, nivel_riesgo, sectorizacion, requisitos.instalaciones (incluye 'Hidrante para llenado de camiones de bomberos' Tabla 3.3.1) y evacuacion. Validaciones 422 verificadas (dependencia sin sector, sector sin dependencias, ci/qsi=0). Aviso Rmin>Ra confirmado cuando sec.ra=1.0 explicito y dependencia rmin=1.4; no se emite cuando sec.ra queda vacio y el motor usa max(ra) automatico. Tabla 2.1.1 RD164/2025 correcta: C nivel2=12000, AH nivel7=1500, AV nivel7 no_admitido (max_admisible_base=None). Frontend E2E OK via Playwright con estudio seed 6a5e49bf3167dc3b35f25d3f: login admin, wizard 4 pasos (establecimiento -> superficies-step con 2 sectores y 5 dependencias precargadas -> ocupacion-step total 63 pers. -> carga-fuego-step -> results-panel con global-state='Cumple'), pagina /estudios/{id}/informe muestra 'Cuadro de superficies', 'Ocupacion', 'Resumen de sectores', tablas de referencia y boton print-report. Navegacion prev/next preserva las 5 dependencias y la actividad.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rsciei_multisector.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "NOTE: /app/backend/tests/test_normalab_api.py contiene tests iter1-6 basados en el schema single-sector obsoleto (superficie_sector/ra/zonas a nivel raiz, step 'zonas'). Ese archivo NO se ejecuto en esta iteracion porque el schema y el motor ya no aceptan ese modelo (paso 'zonas' ya no existe; ahora son 'superficies'+'ocupacion'+'carga_fuego'). Recomendacion al agente principal: migrar/reescribir esos tests al nuevo modelo multi-sector o marcarlos como obsoletos, para mantener una regresion coherente."
+  ],
+  "critical_code_review_comments": [
+    "engine.compute() lanza ValueError con todos los mensajes concatenados; server.py lo mapea a HTTP 422 correctamente.",
+    "MAX_SURFACE actualizada con valores RD 164/2025 (config 'E' eliminada; AV n7=1500 -> nota: AV n7 aparece como None en engine.py mientras test iter4 antiguo esperaba 1500 admitido; el motor actual devuelve no_admitido para AV n7. Puede ser una regresion respecto a iter4 o intencional segun RD 164/2025; se recomienda confirmar la tabla RD164 (guia oficial) - el nuevo test iteracion 7 valida AV n7=no_admitido en linea con MAX_SURFACE['AV'][7]=None).",
+    "requirements.build_requirements agrega la instalacion 'Hidrante para llenado de camiones de bomberos' basandose en superficie total del establecimiento (Tabla 3.3.1) con umbrales AV=1000, AH=2500, B=3500, C=5000, D=15000 - coherente.",
+    "El motor auto-usa max(ra dependencias) cuando sector.ra queda vacio; el warning Rmin<Ra solo aparece si el usuario fuerza sec.ra explicitamente por debajo del rmin - comportamiento correcto y verificado.",
+    "El schema devuelve config_types con imagenes URL http - se mantiene desde iter anteriores.",
+    "Frontend: data-testids consistentes (sector-{i}-nombre/tipo/config, dep-{i}-nombre/util/construida/sector, ocupacion-{i}-preset/densidad/result, fire-{i}-cat/sub, carga-{si}-situacion/salidas/ra) - facilitan automatizacion."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rsciei_multisector.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100% (11/11 nuevos multi-sector)", "frontend": "100% (wizard + results + informe)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Los tests crean y borran dinamicamente proyectos/estudios TEST-MS-*/TEST_ms/TEST_val/TEST_rmin/TEST_C_n2/TEST_AH_n7/TEST_AV_n7. Se aprovecha el estudio seed 6a5e49bf3167dc3b35f25d3f para el E2E frontend.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "El schema RSCIEI ahora expone steps=['establecimiento','superficies','ocupacion','carga_fuego']. El paso 'zonas' del modelo antiguo YA NO EXISTE. Los tests iter1-6 en test_normalab_api.py estan obsoletos (dependen de step 'zonas' y del payload single-sector). Los nuevos tests multi-sector viven en test_rsciei_multisector.py. Data-model: study.data = {establecimiento:{actividad,config}, sectores:[{id,nombre,tipo,config,situacion,num_salidas,fachada_accesible,rociadores,altura_evacuacion,ra?}], dependencias:[{id,nombre,planta,sup_util,sup_construida,sector_id,densidad,sin_ocupacion,uso_ocupacion,modo,qsi|qvi,ci,hi,ra,rmin?}]}. Endpoint /compute requiere >=1 sector y >=1 dependencia con ci>0 y qsi>0 (o qvi>0+hi>0 si modo='almacenamiento'), y cada dependencia debe apuntar a un sector existente."
+}

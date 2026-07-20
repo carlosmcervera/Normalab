@@ -1,33 +1,20 @@
-"""Non-binding report template for the RSCIEI module."""
+"""Non-binding report template for the RSCIEI module (RD 164/2025, multi-sector)."""
 from core.models import utcnow_iso
 
 
-def _constructivos_rows(req: dict) -> list:
-    rows = []
-    est = req.get("estabilidad") or {}
-    rows.append({"k": "Estabilidad al fuego estructura portante", "v": est.get("valor", "-")})
-    cub = req.get("cubierta_ligera")
-    if cub:
-        rows.append({"k": "Cubierta ligera", "v": cub.get("valor", "-")})
-    delim = req.get("delimitadores") or {}
-    rows.append({"k": "Resistencia elementos delimitadores del sector", "v": delim.get("valor", "-")})
-    return rows
-
-
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
-    calc = results["calculo"]
-    nri = results["nivel_riesgo"]
-    sector = results["sectorizacion"]
-
+    est = results.get("establecimiento", {})
     sections = [
         {
             "id": "objeto",
             "title": "1. Objeto del estudio",
             "type": "text",
             "body": ("El presente estudio tiene por objeto la determinación del nivel de riesgo "
-                     "intrínseco y la verificación de la superficie máxima admisible del sector de "
-                     "incendio conforme al Reglamento de seguridad contra incendios en los "
-                     "establecimientos industriales (RSCIEI, RD 2267/2004)."),
+                     "intrínseco, la verificación de la superficie máxima admisible de los sectores "
+                     "de incendio y de los requisitos de protección conforme al Reglamento de "
+                     "seguridad contra incendios en los establecimientos industriales (RSCIEI, "
+                     "RD 164/2025), incorporando el cuadro de superficies y el cálculo de ocupación "
+                     "(CTE) del establecimiento."),
         },
         {
             "id": "datos",
@@ -35,61 +22,46 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "type": "keyvalue",
             "rows": [
                 {"k": "Expediente", "v": f"{project.get('code','')} · {project.get('name','')}"},
-                {"k": "Actividad", "v": data.get("actividad", "-")},
-                {"k": "Configuración", "v": sector.get("config_label", "-")},
-                {"k": "Superficie del sector (A)", "v": f"{calc['A']:.0f} m²"},
-                {"k": "Coef. de activación (Ra)", "v": f"{calc['ra']:.2f}"},
+                {"k": "Actividad", "v": est.get("actividad", "-")},
+                {"k": "Configuración", "v": est.get("config", "-")},
+                {"k": "Nº de sectores de incendio", "v": str(len(results.get("sectores", [])))},
+                {"k": "Superficie total construida", "v": f"{results['superficies']['total_construida']:.0f} m²"},
+                {"k": "Ocupación total", "v": f"{results['ocupacion']['total']} personas"},
             ],
         },
         {
-            "id": "calculo",
-            "title": "3. Cálculo de la densidad de carga de fuego (Qs)",
-            "type": "zonas",
-            "zonas": calc["zonas"],
-            "resumen": {
-                "numerador": calc["numerador"],
-                "A": calc["A"],
-                "ra": calc["ra"],
-                "qs_mj": calc["qs_mj"],
-                "qs_mcal": calc["qs_mcal"],
-            },
+            "id": "superficies",
+            "title": "3. Cuadro de superficies",
+            "type": "superficies",
+            "data": results["superficies"],
         },
         {
-            "id": "nri",
-            "title": "4. Nivel de riesgo intrínseco",
-            "type": "nri",
-            "nivel": nri["nivel"],
-            "categoria": nri["categoria"],
-            "qs_mj": nri["qs_mj"],
-            "qs_mcal": nri["qs_mcal"],
+            "id": "ocupacion",
+            "title": "4. Ocupación (CTE DB-SI)",
+            "type": "ocupacion",
+            "data": results["ocupacion"],
         },
         {
-            "id": "sectorizacion",
-            "title": "5. Sectorización — superficie máxima admisible",
-            "type": "text",
-            "body": sector.get("mensaje", "-"),
+            "id": "resumen",
+            "title": "5. Resumen de sectores de incendio",
+            "type": "resumen",
+            "filas": results["resumen_sectores"],
         },
         {
-            "id": "constructivos",
-            "title": "6. Requisitos constructivos (Anexo II)",
-            "type": "keyvalue",
-            "rows": _constructivos_rows(results.get("requisitos", {})),
-        },
-        {
-            "id": "instalaciones",
-            "title": "7. Instalaciones de protección contra incendios (Anexo III)",
-            "type": "instalaciones",
-            "items": results.get("requisitos", {}).get("instalaciones", []),
+            "id": "sectores",
+            "title": "6. Cálculo y requisitos por sector (RSCIEI)",
+            "type": "sectores",
+            "items": results["sectores"],
         },
         {
             "id": "tablas",
-            "title": "8. Tablas de referencia (Guía RSCIEI 2025)",
+            "title": "7. Tablas de referencia (Guía RSCIEI 2025)",
             "type": "tablas",
             "items": results.get("tablas", []),
         },
         {
             "id": "observaciones",
-            "title": "9. Observaciones",
+            "title": "8. Observaciones",
             "type": "observaciones",
             "items": results.get("observaciones", []),
         },
