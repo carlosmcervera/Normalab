@@ -122,6 +122,14 @@ function SectorReport({ s }) {
 }
 
 function Section({ s }) {
+  if (s.type === "ambito_header") {
+    return (
+      <div className="mt-10 border-l-4 border-orange-500 bg-secondary/40 px-4 py-3" data-testid={`report-ambito-${s.id}`}>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{s.tipo}</p>
+        <h2 className="font-heading text-xl">{s.title}</h2>
+      </div>
+    );
+  }
   return (
     <section className="border-t border-border py-6 first:border-t-0">
       <h3 className="font-heading text-lg">{s.title}</h3>

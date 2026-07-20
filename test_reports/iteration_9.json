@@ -1,0 +1,22 @@
+{
+  "summary": "Validated phase-1 unified INCENDIOS module (RSCIEI + CTE DB-SI sub-engines). Backend: 7/7 pytest passing (module registry unifies INCENDIOS, removes standalone RSCIEI/CTE, keeps placeholders; schema exposes {rsciei,dbsi}; mixed compute returns per-ámbito results + estado_global; report merges with ambito_header sections; 422 validation for empty ámbitos and per-ámbito prefixed sub-errors). Frontend: login → /modulos shows 'Incendios · RSCIEI + CTE DB-SI' card; seeded study 6a5e8d366baf3a93ee959a97 wizard has 4 dynamic steps (Ámbitos, Nave A, Oficinas, Resultados); StepBody sub-forms render inside ambito-editor; navigating back/forward preserves per-ámbito data; results panel shows 2 blocks; report page shows 2 ambito_header separators with 'Nave A' + 'Oficinas' + RSCIEI + DB-SI references.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_unified.py",
+    "/app/test_reports/pytest/incendios_unified.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: the wizard button label switches to 'Calcular resultados' on penultimate step (nice UX) but tests should use data-testid=wizard-next rather than text.",
+    "Report endpoint: there is no separate GET /studies/{id}/report; the /compute response embeds both results and report — consistent, but worth documenting."
+  ],
+  "updated_files": ["/app/backend/tests/test_incendios_unified.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% of tested critical flows"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Reused seeded INCENDIOS study id 6a5e8d366baf3a93ee959a97 (Nave A + Oficinas). Tests temporarily PUT data variants and restore valid state at end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Study update uses PUT /api/studies/{id} (not PATCH). Schema endpoint returns {meta, schema:{rsciei,dbsi}}. Compute endpoint returns {results:{ambitos:[{tipo,results,...}], estado_global}, report:{sections:[text, ambito_header, ...]}}. Wizard navigation: use data-testid='wizard-next' (last-1 label is 'Calcular resultados'); results only render once compute finishes — wait ~2-3s after final click. Testids observed: ambitos-manager, add-ambito-industrial, add-ambito-edificacion, ambito-row-{i}, ambito-editor-{i}, incendios-results-panel, incendios-ambito-*, report-ambito-*, view-report-button, compute-button, recompute-button.",
+  "rca of the issue": "N/A — feature validation, no bugs found."
+}

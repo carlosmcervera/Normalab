@@ -6,18 +6,12 @@ import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DynamicField } from "@/features/studies/components/DynamicField";
+import { StepBody } from "@/features/studies/components/StepBody";
+import { AmbitosManager } from "@/features/studies/components/AmbitosManager";
+import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
-import { ActivityCombobox } from "@/features/studies/components/ActivityCombobox";
-import { ConfigSelector } from "@/features/studies/components/ConfigSelector";
-import { SuperficiesStep } from "@/features/studies/components/SuperficiesStep";
-import { OcupacionStep } from "@/features/studies/components/OcupacionStep";
-import { CargaFuegoStep } from "@/features/studies/components/CargaFuegoStep";
-import { EvacuacionStep } from "@/features/studies/components/EvacuacionStep";
-import { DbsiOcupacionStep } from "@/features/studies/components/DbsiOcupacionStep";
-import { DbsiResultsPanel } from "@/features/studies/components/DbsiResultsPanel";
 
-const EMPTY = { establecimiento: { config: "C" }, sectores: [], dependencias: [] };
+const defaultData = (code) => (code === "INCENDIOS" ? { ambitos: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
 
 export default function StudyWizardPage() {
   const { studyId } = useParams();
@@ -36,14 +30,26 @@ export default function StudyWizardPage() {
 
   useEffect(() => {
     if (study && data === null) {
-      const d = study.data || {};
-      setData({ ...EMPTY, ...d, establecimiento: { ...EMPTY.establecimiento, ...(d.establecimiento || {}) } });
+      setData({ ...defaultData(study.module_code), ...(study.data || {}) });
       if (study.results) setResults(study.results);
     }
   }, [study, data]);
 
   const schema = schemaQ.data?.schema;
-  const steps = useMemo(() => (schema ? [...schema.steps, { id: "resultados", title: "Resultados", synthetic: true }] : []), [schema]);
+  const isIncendios = study?.module_code === "INCENDIOS";
+
+  const steps = useMemo(() => {
+    if (!schema) return [];
+    if (isIncendios) {
+      const ambitos = data?.ambitos || [];
+      return [
+        { id: "ambitos", type: "ambitos", title: "Ámbitos del proyecto", description: "Define los ámbitos: establecimientos industriales (RSCIEI) y/o edificación (CTE DB-SI)." },
+        ...ambitos.map((a, i) => ({ id: a.id, title: a.nombre || `Ámbito ${i + 1}`, ambitoIndex: i })),
+        { id: "resultados", synthetic: true, title: "Resultados" },
+      ];
+    }
+    return [...schema.steps, { id: "resultados", synthetic: true, title: "Resultados" }];
+  }, [schema, data?.ambitos, isIncendios]);
   const totalSteps = steps.length;
 
   const saveMut = useMutation({ mutationFn: (d) => api.put(`/studies/${studyId}`, { data: d }) });
@@ -62,27 +68,37 @@ export default function StudyWizardPage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
-  const getVal = (f) => (f.target ? (data[f.target] || {})[f.name] : data[f.name]);
-  const setVal = (f, v) => setData((d) => (f.target ? { ...d, [f.target]: { ...(d[f.target] || {}), [f.name]: v } } : { ...d, [f.name]: v }));
-
   const goTo = async (target) => {
     await saveMut.mutateAsync(data);
-    setStep(target);
+    setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     if (target === totalSteps - 1) computeMut.mutate();
     window.scrollTo(0, 0);
   };
 
-  const current = steps[step];
+  const current = steps[step] || steps[0];
 
-  const renderField = (f) => {
-    if (f.type === "activity_combobox")
-      return <ActivityCombobox value={getVal(f)} onChange={(v) => setVal(f, v)} options={schema.activity_types || []} testid={`field-${f.name}`} />;
-    if (f.type === "config_selector")
-      return <ConfigSelector value={getVal(f)} onChange={(v) => setVal(f, v)} options={schema.config_types || []} testid={`field-${f.name}`} />;
-    return <DynamicField field={f} value={getVal(f)} onChange={(v) => setVal(f, v)} testidPrefix="field" />;
+  const renderAmbito = () => {
+    const a = data.ambitos[current.ambitoIndex];
+    if (!a) return null;
+    const subSchema = a.tipo === "industrial" ? schema.rsciei : schema.dbsi;
+    const setAmbito = (fn) => setData((d) => {
+      const arr = [...d.ambitos];
+      arr[current.ambitoIndex] = typeof fn === "function" ? fn(arr[current.ambitoIndex]) : fn;
+      return { ...d, ambitos: arr };
+    });
+    return (
+      <div className="space-y-8" data-testid={`ambito-editor-${current.ambitoIndex}`}>
+        <Badge variant="outline" className="rounded-sm">{a.tipo === "industrial" ? "Establecimiento industrial · RSCIEI" : "Edificación · CTE DB-SI"}</Badge>
+        {subSchema.steps.map((sub) => (
+          <div key={sub.id} className="border-t border-border pt-6 first:border-t-0 first:pt-0">
+            <h3 className="font-heading text-base">{sub.title}</h3>
+            {sub.description && <p className="mb-4 mt-0.5 text-sm text-muted-foreground">{sub.description}</p>}
+            <StepBody step={sub} schema={subSchema} data={a} setData={setAmbito} />
+          </div>
+        ))}
+      </div>
+    );
   };
-
-  const isCte = study.module_code === "CTE";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -116,33 +132,16 @@ export default function StudyWizardPage() {
         {current.description && <p className="mt-1 text-sm text-muted-foreground">{current.description}</p>}
 
         <div className="mt-6">
-          {current.fields && !current.type && !current.synthetic && (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {current.fields.map((f) => {
-                const custom = f.type === "config_selector" || f.type === "activity_combobox";
-                const wide = f.type === "boolean" || custom || f.full;
-                return (
-                  <div key={f.name} className={wide ? "sm:col-span-2" : ""}>
-                    {custom && <span className="mb-1.5 block text-sm">{f.label} {f.required && <span className="text-destructive">*</span>}</span>}
-                    {renderField(f)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {current.type === "superficies" && <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />}
-          {current.type === "ocupacion" && <OcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />}
-          {current.type === "carga_fuego" && <CargaFuegoStep data={data} setData={setData} catalog={schema.activity_catalog || []} ciTable={schema.ci_table || []} />}
-          {current.type === "evacuacion" && <EvacuacionStep data={data} setData={setData} />}
-          {current.type === "dbsi_ocupacion" && <DbsiOcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />}
+          {current.type === "ambitos" && <AmbitosManager data={data} setData={setData} />}
+          {current.ambitoIndex !== undefined && renderAmbito()}
+          {!isIncendios && !current.synthetic && <StepBody step={current} schema={schema} data={data} setData={setData} />}
 
           {current.synthetic && (
             <div>
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                isCte ? <DbsiResultsPanel results={results} /> : <ResultsPanel results={results} />
+                isIncendios ? <IncendiosResultsPanel results={results} /> : <ResultsPanel results={results} />
               ) : (
                 <div className="border border-dashed border-border py-12 text-center">
                   <p className="text-sm text-muted-foreground">Pulsa «Calcular» para ejecutar el motor de reglas.</p>
