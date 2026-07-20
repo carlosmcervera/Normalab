@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 
 export default function ProjectsPage() {
@@ -60,6 +60,7 @@ export default function ProjectsPage() {
             <DialogContent className="rounded-sm">
               <DialogHeader>
                 <DialogTitle className="font-heading">Nuevo expediente</DialogTitle>
+                <DialogDescription>Crea un expediente para agrupar sus estudios normativos.</DialogDescription>
               </DialogHeader>
               <form onSubmit={submit} className="space-y-4" data-testid="project-form">
                 <div className="grid grid-cols-2 gap-4">

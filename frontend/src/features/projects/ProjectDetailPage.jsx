@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -73,7 +73,10 @@ export default function ProjectDetailPage() {
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-sm">
-              <DialogHeader><DialogTitle className="font-heading">Nuevo estudio normativo</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle className="font-heading">Nuevo estudio normativo</DialogTitle>
+                <DialogDescription>Selecciona la normativa y asigna un nombre al estudio.</DialogDescription>
+              </DialogHeader>
               <form onSubmit={submit} className="space-y-4" data-testid="study-form">
                 <div className="space-y-1.5">
                   <Label>Normativa *</Label>
