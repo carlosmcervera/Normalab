@@ -30,7 +30,8 @@ DETECCION = {
                    "C": {"BAJO": 4000, "MEDIO": 3000, "ALTO": 2000}},
     "almacenamiento": {"AV": {"any": 150}, "AH": {"any": 150},
                        "B": {"BAJO": 1500, "MEDIO": 1000, "ALTO": 500},
-                       "C": {"BAJO": 3000, "MEDIO": 1500, "ALTO": 800}},
+                       "C": {"BAJO": 3000, "MEDIO": 1500, "ALTO": 800},
+                       "D": {"ALTO": 5000}},
 }
 
 BIE = {"AV": {"BAJO": 300, "MEDIO": 300, "ALTO": 300},
@@ -47,14 +48,26 @@ ROCIADORES = {
 HUMOS = {"produccion": {"MEDIO": 2000, "ALTO": 1000},
          "almacenamiento": {"MEDIO": 1000, "ALTO": 800}}
 
-# Hidrantes de impulsión directa: riesgo alto ≥2500, riesgo medio ≥3500
-HIDRANTES = {"AH": {"MEDIO": 3500, "ALTO": 2500}, "B": {"MEDIO": 3500, "ALTO": 2500},
-             "C": {"MEDIO": 3500, "ALTO": 2500}, "D": {"MEDIO": 10000, "ALTO": 10000}}
+# Hidrantes exteriores de impulsión directa (RD 164/2025, Anexo III):
+# obligatorios si la superficie del sector ≥ umbral (riesgo medio ≥ 2.500, alto ≥ 3.500).
+HIDRANTES = {"AH": {"MEDIO": 2500, "ALTO": 3500}, "B": {"MEDIO": 2500, "ALTO": 3500},
+             "C": {"MEDIO": 2500, "ALTO": 3500}, "D": {"MEDIO": 10000, "ALTO": 10000}}
 
-# Tabla 3.3.1 · Hidrante para llenado de camiones de bomberos.
-# Superficie total construida del establecimiento (m²) a partir de la cual es
-# obligatorio disponer de un hidrante exterior accesible (a < 100 m).
-HIDRANTE_CAMION = {"AV": 1000, "AH": 2500, "B": 3500, "C": 5000, "D": 15000}
+# Tabla 3.3.1 · Hidrante para llenado de vehículos de bomberos (RD 164/2025, Anexo III).
+# Superficie del sector (m²) por configuración y nivel de riesgo a partir de la cual es
+# obligatorio un hidrante exterior accesible situado a < 100 m de fachadas accesibles.
+HIDRANTE_CAMION = {
+    "AV": {"BAJO": 300, "MEDIO": 1000, "ALTO": 1000},
+    "AH": {"BAJO": 600, "MEDIO": 1000, "ALTO": 1000},
+    "B": {"BAJO": 1000, "MEDIO": 2500, "ALTO": 3500},
+    "C": {"BAJO": 2500, "MEDIO": 3500, "ALTO": 5000},
+    "D": {"BAJO": 5000, "MEDIO": 5000, "ALTO": 5000},
+}
+
+# Sistema de comunicación de alarma por voz (RD 164/2025, Anexo III):
+# obligatorio si la superficie total del establecimiento ≥ 10.000 m²
+# (y densidad de ocupación > 3 personas/100 m²).
+COMUNICACION_ALARMA_MIN = 10000
 
 
 def _threshold(table, config, categoria, nivel):
@@ -145,12 +158,19 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
         inst.append(_inst("Hidrantes exteriores (impulsión directa)", False,
                           "No exigibles por superficie en riesgo bajo."))
 
-    # Tabla 3.3.1 · hidrante para llenado de camiones de bomberos
-    cam_thr = HIDRANTE_CAMION.get(config, 5000)
-    cam_obl = S_est >= cam_thr
-    inst.append(_inst("Hidrante para llenado de camiones de bomberos", cam_obl,
-                      f"Tabla 3.3.1: obligatorio un hidrante exterior accesible (a < 100 m) si la superficie total "
-                      f"del establecimiento (tipo {config}) ≥ {cam_thr:.0f} m² (total: {S_est:.0f} m²)."))
+    # Tabla 3.3.1 · hidrante para llenado de vehículos de bomberos (por sector, configuración × riesgo)
+    cam_thr = HIDRANTE_CAMION.get(config, {}).get(categoria)
+    cam_obl = cam_thr is not None and A >= cam_thr
+    inst.append(_inst("Hidrante para llenado de vehículos de bomberos", cam_obl,
+                      (f"Tabla 3.3.1 (RD 164/2025): hidrante exterior accesible a < 100 m si la superficie del sector "
+                       f"(tipo {config}, riesgo {categoria.lower()}) ≥ {cam_thr:.0f} m² (sector: {A:.0f} m²)."
+                       if cam_thr is not None else
+                       f"No exigible por superficie para tipo {config} en riesgo {categoria.lower()}.")))
+
+    # Sistema de comunicación de alarma por voz
+    inst.append(_inst("Sistema de comunicación de alarma por voz", S_est >= COMUNICACION_ALARMA_MIN,
+                      f"Obligatorio si la superficie total del establecimiento ≥ {COMUNICACION_ALARMA_MIN:.0f} m² "
+                      f"y densidad de ocupación > 3 pers./100 m² (total: {S_est:.0f} m²)."))
 
     cs_obl = h_evac >= 15
     inst.append(_inst("Columna seca", cs_obl,
