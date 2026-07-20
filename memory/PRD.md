@@ -29,6 +29,11 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
 - Informe incluye: cuadro de superficies, ocupación, resumen de sectores, detalle+instalaciones por sector, tablas de referencia resaltadas.
 
 ## Implementado
+- 2026-07-20 (iter 10 — P0: DB-SI COMPLETO SI 1–SI 6 + tabla maestra):
+  - **Tabla maestra oficial** `cte_dbsi/tablas_oficiales.py` como única fuente de verdad (SI1 Tabla 1.1/1.2/2.2, SI3 Tabla 3.1/4.1/5.1, SI5 vial/maniobra, SI6 Tabla 3.1/3.2).
+  - Motor DB-SI reescrito: cubre **SI 1** (sector, delimitadores, riesgo especial, reacción al fuego), **SI 2** (propagación exterior + chequeo de distancia a colindantes), **SI 3** (salidas, recorridos, ancho A≥P/200, protección de escaleras, humos, PMR), **SI 4** (dotación por uso, Tabla 1.1), **SI 5** (vial/espacio de maniobra/accesibilidad bomberos), **SI 6** (estructura por uso/altura/rasante + riesgo especial). Salida como lista `secciones` con estado por sección.
+  - Frontend: `DbsiResultsPanel` iterando SI 1–SI 6 con badges de estado; informe con secciones SI + tablas de referencia resaltadas. Nuevos campos en el asistente DB-SI.
+  - **Test integral único** `tests/test_incendios_complete.py`: 49/49 (referencia la tabla maestra). Frontend 4/4 escenarios. Sin issues.
 - 2026-07-20 (iter 9 — MÓDULO UNIFICADO «Incendios»):
   - Unificación de RSCIEI (RD 164/2025) y CTE DB-SI en un único módulo operativo **INCENDIOS** (reemplaza las entradas separadas; sub-motores reutilizados).
   - Soporte de **proyectos mixtos**: un estudio se compone de «ámbitos», cada uno de tipo industrial (RSCIEI) o edificación (DB-SI). Motor enruta cada ámbito a su sub-motor; resultados y estado global agregados.
@@ -50,9 +55,9 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
   - Testing: backend 11/11 (test_rsciei_multisector.py), frontend E2E 100%. Sin issues.
 
 ## Backlog
-- **P0 (siguiente): Completar DB-SI 100% método tabulado** dentro del módulo Incendios: SI 1 (locales de riesgo especial, reacción al fuego, Tabla 1.2), SI 2 (propagación exterior: fachadas/medianerías/cubiertas), SI 3 completo (dimensionado puertas/pasillos/escaleras, protección de escaleras Tabla 5.1, control de humos, evacuación PMR), SI 4 (dotación completa Tabla 1.1), SI 5 (aproximación/accesibilidad bomberos), SI 6 (Tabla 3.2 riesgo especial).
-- **P1 (fase 2): Anejos de cálculo estructural DB-SI** (B tiempo equivalente; C hormigón; D acero; E madera; F fábrica).
-- P1: Bloque de evacuación ampliado en RSCIEI (recorridos reales — HECHO iter 8).
+- **P1 (fase 2): Anejos de cálculo estructural DB-SI** (B tiempo equivalente; C hormigón; D acero; E madera; F fábrica) — calculadoras de ingeniería.
+- P1: Verificar/contrastar los umbrales del Anexo III RSCIEI y la Tabla 3.3.1 contra el texto literal del RD 164/2025 (hoy valores de ingeniería consolidados).
+- P1: Refinar SI 4 (dotación) con matices por planta y por zona; SI 2 con separación de huecos por ángulo (Fig. 1.1).
 - P1: Completar Tabla 1.3.5 exhaustiva del catálogo de actividades + Rmin por actividad — HECHO (2026-07-20): 131 actividades en 12 categorías con qsi/qvi, Ci orientativo y Rmin, mapeando MJ/m²→producción y MJ/m³→almacenamiento.
 - P1: Bloque de evacuación ampliado (recorridos reales por origen, coeficientes nota 4/5 Tabla 2.3.1).
 - P1: Módulos CTE DB-SI, REBT, RITE, RD Accesibilidad 2023 (schema+engine+report).
