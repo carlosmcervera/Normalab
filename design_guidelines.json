@@ -1,0 +1,78 @@
+{
+  "theme": "light",
+  "archetype": "Swiss & High-Contrast (Authority, Clarity, Truth) adapted for Engineering Compliance",
+  "typography": {
+    "headings": "Chivo",
+    "body": "IBM Plex Sans",
+    "mono": "JetBrains Mono",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-light",
+      "h2": "text-2xl sm:text-3xl tracking-tight",
+      "h3": "text-xl font-medium",
+      "body": "text-sm text-slate-700 dark:text-slate-300",
+      "labels": "text-xs tracking-[0.2em] uppercase font-bold text-slate-500"
+    }
+  },
+  "colors": {
+    "base": "Stark White (#FFFFFF)",
+    "surface": "Tinted Grey (e.g. Slate 50, #F8FAFC)",
+    "primary": "Obsidian/Dark Slate (#0A0A0A)",
+    "accent_success": "Emerald Green (#10B981) for 'Cumple'",
+    "accent_error": "Signal Red (#EF4444) for 'No Cumple'",
+    "accent_warning": "Warning Amber (#F59E0B) for 'Observación'",
+    "border": "Subtle Grey (#E2E8F0)",
+    "rules": "No generic full-screen gradients. 95% monochrome UI. Color is function only. Use accent colors strictly for status/validation indicators."
+  },
+  "visual_enhancers": {
+    "surface_strategy": "GRID BORDERS (The Technical Look) - Use 1px solid borders (border-collapse style) for data-heavy sections, dashboards, and tables.",
+    "shadows": "Minimal to None. Rely on crisp 1px borders instead of soft shadows to establish hierarchy. Use hard bottom borders for headers.",
+    "textures": "Flat Solid surfaces. NO glassmorphism. Technical/engineering apps require maximum clarity without visual refraction."
+  },
+  "layouts": {
+    "dashboard": "High Density Grid (Mode B): grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6. Use F-pattern for data scanning.",
+    "spacing": "Generous inner padding (p-6) for module cards to prevent text collision. Use p-8 to p-12 between major vertical sections.",
+    "alignment": "Left-align all paragraphs, labels, dense content, and tabular data. Optical alignment for icons.",
+    "general": "Modular UI with progressive disclosure. Show summary metrics first, reveal deep technical specs on click/expand."
+  },
+  "components": {
+    "wizard_stepper": "Clean vertical or horizontal progress list with stark contrast for the active step. Muted styles for upcoming steps.",
+    "module_cards": "Flat rectangular cards representing CTE, RSCIEI, REBT, etc., with 1px border, high-contrast typography, and hover lift (-translate-y-1).",
+    "data_tables": "Dense Shadcn tables. Clear status pill badges (Cumple/No Cumple) in dedicated columns. Left-aligned text.",
+    "forms": "Shadcn Form, Input, Select. Strict automatic validations. Data-dense but grouped logically.",
+    "report_panel": "Split view: Rules engine results panel on the left/top + PDF preview or summary on the right/bottom."
+  },
+  "motion": {
+    "interactions": "Hover states must explicitly set text and background color (e.g. hover:bg-slate-900 hover:text-white). Focus states must have higher contrast.",
+    "page_transitions": "Instant or fast fade (0.15s). Efficiency over delight in professional engineering tools.",
+    "reduced_motion": "Respect prefers-reduced-motion via Tailwind modifiers."
+  },
+  "accessibility": {
+    "contrast": "APCA preferred. Min 4.5:1 for small text. No grey-on-grey text.",
+    "testing": "CRITICAL: All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='login-submit', data-testid='create-estudio').",
+    "forms": "Clear error states with descriptive text below inputs, not just red borders."
+  },
+  "instructions_to_main_agent": [
+    "Language MUST be Spanish (Spanish/Catalan locale rules).",
+    "Use Shadcn components heavily customized to match the Swiss Brutalist/Technical aesthetic (sharp edges, max 4px radius).",
+    "Do NOT use raw HTML components for dropdowns, date pickers, or selects. Use Shadcn components for accessibility.",
+    "Create a toggle for Dark/Light mode. Default to Light for daytime engineering environments.",
+    "Navigation bar must be visible on desktop. Ensure a SOLID background for the header to avoid transparent overlaps.",
+    "Use Lucide-React or Phosphor icons for dense technical iconography.",
+    "Do NOT center align the app container. Use standard block/flex layouts.",
+    "Ensure the 'RSCIEI' module is treated as the fully operative MVP focal point.",
+    "Files should be .js/.jsx as per project structure, do not assume .tsx."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic outputs. Break the 'AI slop' aesthetic by making it look like a high-end precise technical tool (Linear/Notion vibes).",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts. Use F-pattern data-dense grids.",
+    "Create depth through layered design elements with z-index hierarchy and crisp 1px borders.",
+    "Use Flat Solid backgrounds instead of glassmorphism for this technical context.",
+    "You MUST NOT apply universal transition (e.g., transition: all). Add transitions to specific properties only.",
+    "You MUST NOT center align the app container in css (no text-align: center on root).",
+    "Always use crisp, technical button styles (sharp corners or subtle 4px radius) with explicit interaction animations.",
+    "NEVER use AI assistant Emoji characters (like robot, brain, lightbulb) for icons. Use proper icon libraries.",
+    "Use sonner for toasts, expected in /app/frontend/src/components/ui/sonner.jsx.",
+    "All interactive elements MUST include a data-testid attribute."
+  ]
+}
