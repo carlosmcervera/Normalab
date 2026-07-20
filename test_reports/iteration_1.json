@@ -1,0 +1,30 @@
+{
+  "summary": "First iteration end-to-end testing of NormaLab MVP (RSCIEI). Backend: 11/11 pytest cases passing (auth login/register/me, invalid creds, modules list+schema, projects CRUD, studies create, placeholder-block, PUT persistence, RSCIEI compute with numeric validation, invalid data 422, versioning). Frontend: full happy-path E2E via Playwright — admin login sets httpOnly cookies, dashboard shows 5 modules (RSCIEI Operativo + 4 Próximamente), create project, create RSCIEI study, wizard step1 (all fields incl. Shadcn select + switches), step2 (2 zonas produccion/almacenamiento), step3 compute returns Qs=2736.0 MJ/m² NRI 5 MEDIO with factor ×2.5 (fachada ×1.25 · rociadores ×2) and max_admisible=12500 m² (matches engine math), save version v1, informe view renders all sections (Objeto, Datos, Cálculo, Nivel, Sectorización, Observaciones).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dialogs (Nuevo expediente / Nuevo estudio)", "issues": ["Radix DialogContent falta aria-describedby (warning en consola). Añadir DialogDescription para accesibilidad."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Menor) Añadir <DialogDescription/> o aria-describedby a los DialogContent para eliminar warnings de accesibilidad de Radix.",
+    "(Opcional) Considerar añadir campo/etiqueta explícita con la palabra 'disclaimer' o 'no vinculante' en pie del informe — actualmente el aviso existe pero el texto 'disclaimer' no aparece literal (aceptable si UX no lo requiere)."
+  ],
+  "critical_code_review_comments": [
+    "core cookies: secure=False en set_cookie está OK para preview HTTP local pero en producción debería derivarse del scheme (samesite=lax + secure=True cuando HTTPS).",
+    "features/auth/router.py: login_attempts usa clave IP:email — comportamiento correcto de rate-limit; considerar limpieza periódica (TTL index) de la colección.",
+    "features/studies/router.py: compute + version repiten mod.compute y build_report; extraer helper para DRY.",
+    "normative_modules/rsciei/engine.py _nri_for: la lógica de rangos es correcta (low < qs <= high) y coincide con Tabla 1.3.",
+    "server.py CORS: allow_origins toma sólo FRONTEND_URL — bien para prod, pero .env tiene CORS_ORIGINS='*' que no se usa. Limpiar."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": { "backend": "100% (11/11)", "frontend": "100% flujo principal" },
+  "test_credentials": "admin@normalab.com / Admin1234! (auto-seed en startup, verificado).",
+  "seed_data_creation": "Tests crean expedientes/estudios con prefijo TEST_ / TEST- (no se limpian automáticamente; volumen mínimo).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend estable; usar /app/backend/tests/test_normalab_api.py como base de regresión. Schema RSCIEI se devuelve como {meta, schema:{steps,presets,ci_help}} — no plano. Registro de usuarios lower-cases el email. Compute RSCIEI verificado numéricamente (fórmula Qs=(Σ qsi·Si·Ci + qvi·Ci·hi·Si)/A · Ra) con factores de sector 1.25 (fachada) y 2 (rociadores)."
+}

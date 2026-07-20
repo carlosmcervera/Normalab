@@ -1,55 +1,39 @@
-import { useEffect } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+import { AuthProvider } from "@/features/auth/AuthContext";
+import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
+import { AppShell } from "@/components/layout/AppShell";
+import LoginPage from "@/features/auth/LoginPage";
+import DashboardPage from "@/features/dashboard/DashboardPage";
+import ProjectsPage from "@/features/projects/ProjectsPage";
+import ProjectDetailPage from "@/features/projects/ProjectDetailPage";
+import ModulesPage from "@/features/modules/ModulesPage";
+import StudyWizardPage from "@/features/studies/StudyWizardPage";
+import StudyReportPage from "@/features/studies/StudyReportPage";
 
 function App() {
   return (
-    <div className="App">
+    <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/expedientes" element={<ProjectsPage />} />
+            <Route path="/expedientes/:projectId" element={<ProjectDetailPage />} />
+            <Route path="/modulos" element={<ModulesPage />} />
+            <Route path="/estudios/:studyId" element={<StudyWizardPage />} />
+            <Route path="/estudios/:studyId/informe" element={<StudyReportPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
-    </div>
+    </AuthProvider>
   );
 }
 
