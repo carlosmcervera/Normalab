@@ -1,0 +1,27 @@
+{
+  "summary": "Iteración 4 — verificación del BUG de recálculo (frontend) y correcciones normativas RSCIEI 2025 (backend). Backend 26/26 pytest OK (8 nuevos casos iter4). Frontend Playwright OK: al modificar superficie_sector 1000→2000 y volver a Resultados, Qs se recalcula de 600,0 MJ/m² a 300,0 MJ/m² (antes quedaba obsoleto). El selector visual de configuración muestra únicamente A(AV/AH), B, C y D — 'Tipo E' eliminado. Backend verificaciones: (1) GET /api/modules/RSCIEI/schema devuelve 5 config_types sin E; (2) estabilidad B sobre rasante ALTO => R 120 (antes R 180), AV sobre MEDIO => R 120, C bajo rasante BAJO => R 60, C sobre BAJO => R 30; (3) sectorización con situacion=bajo_rasante divide max_admisible_base entre 2 (C nivel 2 bajo => 6000 = 12000/2); (4) MAX_SURFACE AV nivel 7 = 1500 admitido (antes NO ADMITIDO), AH nivel 7 = None (NO ADMITIDO); (5) hidrantes AH/B/C ALTO umbral 2500 y MEDIO 3500 verificados; (6) detección automática riesgo BAJO nivel 1 => obligatorio=false para AV/AH/B/C. Regresión: login admin, wizard 3 pasos, versionado, informe siguen operativos.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StudyWizardPage.goTo(): la llamada a computeMut.mutate() se dispara SIEMPRE al entrar al paso de resultados (línea 68). Correcto: garantiza que los resultados reflejen el estado actual. onError de computeMut hace setResults(null) para evitar mostrar cálculos obsoletos si el nuevo compute falla.",
+    "engine.py MAX_SURFACE: valores actualizados a AV{6:None,7:1500,8:None} y AH{7:None,8:None} conforme a la Tabla 2.1 corregida. La rama 'valor is None' correctamente marca no_admitido con max_admisible_base=None.",
+    "engine._sectorizacion: al dividir por 2 en bajo_rasante añade una entrada en factores_aplicados. Nota: si el usuario cambia 'situacion' de sobre→bajo entre computes, el listado de factores refleja el estado actual porque se genera desde cero en cada compute. OK.",
+    "requirements.ESTABILIDAD: tabla ahora modela AV, AH, B, C (D queda 'No exigible'). Coherente con Tabla 2.5.1 de la Guía RSCIEI 2025.",
+    "requirements.HIDRANTES: umbrales unificados AH/B/C MEDIO=3500 ALTO=2500. D queda 10000/10000 (orientativo). Aceptable.",
+    "Backend: no expone histórico de tablas normativas versionadas. Si hubiera revisiones futuras, los snapshots de version guardarían el resultado, pero no el 'origen normativo' de cada valor. Considerar añadir metadata { normativa: 'RSCIEI 2025 rev X' } al results."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": { "backend": "100% (26/26)", "frontend": "100% (bug de recálculo verificado, selector sin E)" },
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Se creó y eliminó el proyecto TEST-BUG-RECALC (id 6a5e3ad0e943f069c54ebd62) con estudio 'TEST recalc bug' (id 6a5e3ad6e943f069c54ebd63) para la verificación UI del recálculo.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Bug de recálculo del wizard: reproducible únicamente por UI. Test cubierto: crear estudio con superficie=1000 → ir a resultados (Qs=600) → volver al paso 1 → cambiar superficie a 2000 → resultados debe mostrar Qs=300. Config selector debe mostrar 5 tarjetas (AV, AH, B, C, D). Tabla ESTABILIDAD y MAX_SURFACE están en /app/backend/normative_modules/rsciei/requirements.py y engine.py.",
+  "rca of the issue": "El bug de resultados obsoletos se debía a que goTo() no volvía a llamar a computeMut.mutate cuando se navegaba al paso de resultados con datos ya calculados. Fix aplicado por E1: 'if (target === totalSteps - 1) computeMut.mutate();' en goTo (StudyWizardPage.jsx:68) + onError: setResults(null) para no mostrar cálculo obsoleto si el nuevo falla. Verificado end-to-end."
+}

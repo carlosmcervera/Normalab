@@ -89,11 +89,13 @@ class TestModules:
         step_ids = [st["id"] for st in s["steps"]]
         assert "establecimiento" in step_ids and "zonas" in step_ids
         # New schema pieces (iteration 2)
-        assert "config_types" in s and len(s["config_types"]) == 6
+        assert "config_types" in s and len(s["config_types"]) == 5, \
+            f"Expected 5 config_types (AV, AH, B, C, D) — iteration 4 removed 'E'. Got: {[c['value'] for c in s['config_types']]}"
         for ct in s["config_types"]:
             assert "value" in ct and "label" in ct and "image" in ct
             assert ct["image"].startswith("http")
-        assert {c["value"] for c in s["config_types"]} == {"AV", "AH", "B", "C", "D", "E"}
+        assert {c["value"] for c in s["config_types"]} == {"AV", "AH", "B", "C", "D"}, \
+            "Config type 'E' must be removed per RSCIEI 2025 guide"
         assert "ci_table" in s and len(s["ci_table"]) == 7
         for row in s["ci_table"]:
             assert "grado" in row and "ci" in row and isinstance(row["ci"], (int, float))
@@ -329,7 +331,7 @@ class TestStudiesFlow:
         req = res["requisitos"]
         assert res["nivel_riesgo"]["categoria"] == "ALTO"
         assert req["modo_predominante"] == "produccion"
-        assert req["estabilidad"]["valor"] == "R 180"
+        assert req["estabilidad"]["valor"] == "R 120"  # Iteration 4 correction: B sobre rasante ALTO -> R 120 (was R 180)
         assert req["delimitadores"]["valor"] == "EI 240"
         assert req["cubierta_ligera"] and req["cubierta_ligera"]["valor"] == "R 15"
         # instalaciones
@@ -361,7 +363,7 @@ class TestStudiesFlow:
         res = self._make_and_compute(admin_session, project_id, data, "TEST req C bajo")
         req = res["requisitos"]
         assert res["nivel_riesgo"]["categoria"] == "BAJO"
-        assert req["estabilidad"]["valor"] == "R 90"
+        assert req["estabilidad"]["valor"] == "R 30"  # C sobre rasante BAJO -> R 30 per Tabla 2.5.1
         assert req["delimitadores"]["valor"] == "EI 120"
         by_name = {i["nombre"]: i for i in req["instalaciones"]}
         # Riesgo BAJO nivel 1 => detección no exigible por regla any-BAJO-1
@@ -420,6 +422,109 @@ class TestStudiesFlow:
         assert "requisitos" in results
         assert "instalaciones" in results["requisitos"]
         admin_session.delete(f"{API}/studies/{sid}")
+
+    # ---------- Iteration 4 corrections ----------
+    def test_iter4_estabilidad_B_sobre_alto_R120(self, admin_session, project_id):
+        """B sobre rasante riesgo ALTO -> R 120 (corregido en iter4)."""
+        data = {"actividad": "B alto", "tipo_configuracion": "B",
+                "superficie_sector": 1000, "situacion": "sobre_rasante",
+                "altura_evacuacion": 8, "ra": 1.5,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 5000, "ci": 1.5, "superficie": 1000}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 B alto")
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        assert res["requisitos"]["estabilidad"]["valor"] == "R 120"
+
+    def test_iter4_estabilidad_AV_sobre_medio_R120(self, admin_session, project_id):
+        data = {"actividad": "AV medio", "tipo_configuracion": "AV",
+                "superficie_sector": 500, "situacion": "sobre_rasante",
+                "altura_evacuacion": 6, "ra": 1.0,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 1500, "ci": 1.2, "superficie": 500}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 AV medio")
+        assert res["nivel_riesgo"]["categoria"] == "MEDIO"
+        assert res["requisitos"]["estabilidad"]["valor"] == "R 120"
+
+    def test_iter4_estabilidad_C_bajo_rasante_bajo_R60(self, admin_session, project_id):
+        data = {"actividad": "C bajo", "tipo_configuracion": "C",
+                "superficie_sector": 500, "situacion": "bajo_rasante",
+                "altura_evacuacion": 3, "ra": 1.0,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 200, "ci": 1.0, "superficie": 500}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 C bajo bajo")
+        assert res["nivel_riesgo"]["categoria"] == "BAJO"
+        assert res["requisitos"]["estabilidad"]["valor"] == "R 60"
+
+    def test_iter4_sectorizacion_bajo_rasante_divide_por_2(self, admin_session, project_id):
+        """C nivel 2 bajo rasante => max_admisible_base = 12000/2 = 6000."""
+        # Force nivel 2 (Qs entre 425 y 850)
+        data = {"actividad": "C bajo", "tipo_configuracion": "C",
+                "superficie_sector": 800, "situacion": "bajo_rasante",
+                "altura_evacuacion": 3, "ra": 1.0,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 700, "ci": 1.0, "superficie": 800}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 C bajo nivel2")
+        assert res["nivel_riesgo"]["nivel"] == 2
+        sec = res["sectorizacion"]
+        assert sec["max_admisible_base"] == 6000, f"expected 6000 (12000/2), got {sec['max_admisible_base']}"
+
+    def test_iter4_max_surface_AV_nivel7_admitido_1500(self, admin_session, project_id):
+        """AV nivel 7 admite 1500 m² (antes NO ADMITIDO)."""
+        data = {"actividad": "AV nivel7", "tipo_configuracion": "AV",
+                "superficie_sector": 300, "situacion": "sobre_rasante",
+                "altura_evacuacion": 8, "ra": 2.0,
+                "zonas": [{"descripcion": "Alm", "modo": "almacenamiento",
+                           "qvi": 1000, "ci": 1.5, "hi": 4, "superficie": 300}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 AV nivel7")
+        assert res["nivel_riesgo"]["nivel"] == 7, f"nivel={res['nivel_riesgo']['nivel']}"
+        sec = res["sectorizacion"]
+        # NO ADMITIDO would set state 'no_admitido' with base=None. Ahora debe estar admitido con 1500
+        assert sec["estado"] != "no_admitido", "AV nivel 7 debe estar admitido en iter4"
+        assert sec["max_admisible_base"] == 1500, f"expected 1500, got {sec['max_admisible_base']}"
+
+    def test_iter4_max_surface_AH_nivel7_no_admitido(self, admin_session, project_id):
+        data = {"actividad": "AH nivel7", "tipo_configuracion": "AH",
+                "superficie_sector": 300, "situacion": "sobre_rasante",
+                "altura_evacuacion": 6, "ra": 2.0,
+                "zonas": [{"descripcion": "Alm", "modo": "almacenamiento",
+                           "qvi": 1000, "ci": 1.5, "hi": 4, "superficie": 300}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 AH nivel7")
+        assert res["nivel_riesgo"]["nivel"] == 7
+        assert res["sectorizacion"]["estado"] == "no_admitido"
+
+    def test_iter4_hidrantes_thresholds(self, admin_session, project_id):
+        """Hidrantes: tipo B/C/AH riesgo ALTO obligatorios si >=2500, MEDIO si >=3500."""
+        # B, riesgo ALTO, superficie 2500 => obligatorio
+        data = {"actividad": "B alto 2500", "tipo_configuracion": "B",
+                "superficie_sector": 2500, "situacion": "sobre_rasante",
+                "altura_evacuacion": 8, "superficie_establecimiento": 2500, "ra": 1.5,
+                "zonas": [{"descripcion": "P", "modo": "produccion",
+                           "qsi": 5000, "ci": 1.5, "superficie": 2500}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter4 hid B alto 2500")
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        hid = next(i for i in res["requisitos"]["instalaciones"] if i["nombre"] == "Hidrantes exteriores")
+        assert hid["obligatorio"] is True, f"hidrantes B ALTO 2500 debería ser obligatorio: {hid['detalle']}"
+
+        # B, riesgo ALTO, superficie 2000 => NO obligatorio
+        data2 = dict(data); data2["superficie_sector"] = 2000; data2["superficie_establecimiento"] = 2000
+        data2["zonas"] = [{"descripcion": "P", "modo": "produccion", "qsi": 5000, "ci": 1.5, "superficie": 2000}]
+        res2 = self._make_and_compute(admin_session, project_id, data2, "TEST iter4 hid B alto 2000")
+        assert res2["nivel_riesgo"]["categoria"] == "ALTO"
+        hid2 = next(i for i in res2["requisitos"]["instalaciones"] if i["nombre"] == "Hidrantes exteriores")
+        assert hid2["obligatorio"] is False, "hidrantes B ALTO 2000 NO debe ser obligatorio (<2500)"
+
+    def test_iter4_deteccion_bajo_nivel1_no_exige_todas_config(self, admin_session, project_id):
+        """riesgo BAJO nivel 1 => detección no obligatoria para todas las configuraciones."""
+        for cfg in ["AV", "AH", "B", "C"]:
+            data = {"actividad": f"{cfg} n1", "tipo_configuracion": cfg,
+                    "superficie_sector": 200, "situacion": "sobre_rasante",
+                    "altura_evacuacion": 4, "ra": 1.0,
+                    "zonas": [{"descripcion": "P", "modo": "produccion",
+                               "qsi": 200, "ci": 1.0, "superficie": 200}]}
+            res = self._make_and_compute(admin_session, project_id, data, f"TEST iter4 det {cfg}")
+            assert res["nivel_riesgo"]["nivel"] == 1
+            det = next(i for i in res["requisitos"]["instalaciones"] if i["nombre"] == "Detección automática de incendio")
+            assert det["obligatorio"] is False, f"Detección {cfg} BAJO nivel1 no debería ser obligatoria"
 
     def test_versioning(self, admin_session, study_id):
         r = admin_session.post(f"{API}/studies/{study_id}/version", json={"note": "TEST v1"})

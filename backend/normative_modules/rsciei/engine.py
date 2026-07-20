@@ -25,8 +25,8 @@ NRI_TABLE = [
 # Tabla 2.1: superficie máxima admisible del sector de incendio (m²)
 # None = NO ADMITIDO ; "SIN_LIMITE" = sin límite establecido
 MAX_SURFACE = {
-    "AV": {1: 2000, 2: 1000, 3: 500, 4: 400, 5: 300, 6: None, 7: None, 8: None},
-    "AH": {1: 6000, 2: 4000, 3: 3500, 4: 3000, 5: 2500, 6: 2000, 7: 1500, 8: None},
+    "AV": {1: 2000, 2: 1000, 3: 500, 4: 400, 5: 300, 6: None, 7: 1500, 8: None},
+    "AH": {1: 6000, 2: 4000, 3: 3500, 4: 3000, 5: 2500, 6: 2000, 7: None, 8: None},
     "B": {1: 12000, 2: 8000, 3: 7000, 4: 6000, 5: 5000, 6: 4000, 7: 3000, 8: None},
     "C": {1: "SIN_LIMITE", 2: 12000, 3: 10000, 4: 8000, 5: 7000, 6: 6000, 7: 5000, 8: 4000},
 }
@@ -37,7 +37,6 @@ CONFIG_LABELS = {
     "B": "Tipo B",
     "C": "Tipo C",
     "D": "Tipo D (espacio abierto)",
-    "E": "Tipo E (espacio abierto)",
 }
 
 
@@ -129,7 +128,8 @@ def compute(data: dict) -> dict:
         factor *= 2.0
         factores_aplicados.append("Rociadores automáticos en todo el sector (×2)")
 
-    sector = _sectorizacion(config, nivel, A, factor, factores_aplicados)
+    sector = _sectorizacion(config, nivel, A, factor, factores_aplicados,
+                            data.get("situacion", "sobre_rasante"))
 
     observaciones = _observaciones(nivel, categoria, sector, rociadores, config)
     estado = _estado_global(sector, observaciones)
@@ -163,7 +163,8 @@ def compute(data: dict) -> dict:
     }
 
 
-def _sectorizacion(config, nivel, A, factor, factores_aplicados):
+def _sectorizacion(config, nivel, A, factor, factores_aplicados, situacion="sobre_rasante"):
+    bajo_rasante = situacion == "bajo_rasante"
     base = {
         "config": config,
         "config_label": CONFIG_LABELS.get(config, config),
@@ -171,7 +172,7 @@ def _sectorizacion(config, nivel, A, factor, factores_aplicados):
         "factor_incremento": round(factor, 3),
         "factores_aplicados": factores_aplicados,
     }
-    if config in ("D", "E"):
+    if config in ("D",):
         base.update({
             "estado": "no_aplica",
             "max_admisible": None,
@@ -199,10 +200,13 @@ def _sectorizacion(config, nivel, A, factor, factores_aplicados):
         })
         return base
 
-    max_adm = valor * factor
+    base_val = valor / 2 if bajo_rasante else valor
+    if bajo_rasante:
+        factores_aplicados.append("Planta bajo rasante: superficie base ÷ 2 (nota 1, Tabla 2.1)")
+    max_adm = base_val * factor
     cumple = A <= max_adm
     base.update({
-        "max_admisible_base": valor,
+        "max_admisible_base": base_val,
         "max_admisible": round(max_adm, 2),
         "estado": "cumple" if cumple else "no_cumple",
         "mensaje": (f"Superficie {A:.0f} m² ≤ máx. admisible {max_adm:.0f} m²."
@@ -235,11 +239,11 @@ def _observaciones(nivel, categoria, sector, rociadores, config):
             "texto": "Para niveles de riesgo medio-alto, valore la instalación de rociadores "
                      "automáticos: duplican la superficie máxima admisible de sector (nota 3, Tabla 2.1).",
         })
-    if config in ("D", "E"):
+    if config in ("D",):
         obs.append({
             "tipo": "info",
             "texto": "Establecimiento en espacio abierto: aplique los requisitos específicos "
-                     "de las configuraciones tipo D/E del Anexo II.",
+                     "de la configuración tipo D del Anexo II.",
         })
     return obs
 

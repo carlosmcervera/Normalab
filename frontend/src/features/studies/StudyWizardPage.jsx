@@ -42,7 +42,7 @@ export default function StudyWizardPage() {
   const computeMut = useMutation({
     mutationFn: () => api.post(`/studies/${studyId}/compute`).then((r) => r.data),
     onSuccess: (res) => { setResults(res.results); qc.invalidateQueries({ queryKey: ["study", studyId] }); toast.success("Cálculo realizado"); },
-    onError: (e) => toast.error(apiError(e)),
+    onError: (e) => { setResults(null); toast.error(apiError(e)); },
   });
   const versionMut = useMutation({
     mutationFn: () => api.post(`/studies/${studyId}/version`, { note: null }).then((r) => r.data),
@@ -65,7 +65,7 @@ export default function StudyWizardPage() {
   const goTo = async (target) => {
     await saveMut.mutateAsync(data);
     setStep(target);
-    if (target === totalSteps - 1 && !results) computeMut.mutate();
+    if (target === totalSteps - 1) computeMut.mutate();
     window.scrollTo(0, 0);
   };
 

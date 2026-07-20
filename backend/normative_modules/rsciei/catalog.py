@@ -18,11 +18,8 @@ CONFIG_TYPES = [
      "description": "Ocupa uno o varios edificios a distancia > 3 m de los edificios más próximos de otros establecimientos.",
      "image": f"{IMG}/20eb765073b37c606cae592f818b9bc799246bf8b46af886e0a2e5d698971919.png"},
     {"value": "D", "label": "Tipo D · espacio abierto",
-     "description": "El establecimiento ocupa un espacio abierto descubierto (sin cerramientos ni cubierta).",
+     "description": "El establecimiento ocupa un espacio abierto que puede estar total o parcialmente cubierto, siempre que el porcentaje de superficie ocupada por la construcción y el material combustible cumpla los límites del Anexo I.",
      "image": f"{IMG}/1e88e13a9097ec172b9858beb61e2d1988b21181c13b4a0baa508c8c38ad3332.png"},
-    {"value": "E", "label": "Tipo E · espacio abierto cubierto",
-     "description": "Espacio abierto cubierto total o parcialmente por estructuras sin cerramientos laterales.",
-     "image": f"{IMG}/c49fb19cd986e9a6ac61740c4fdbade79674517865e228cd52cfb8d4b036d009.png"},
 ]
 
 # Tabla del coeficiente adimensional de peligrosidad por combustibilidad (Ci)
