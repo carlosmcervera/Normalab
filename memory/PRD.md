@@ -42,6 +42,7 @@ App web interna para despacho técnico de ingeniería/arquitectura. Plataforma m
 - Testing iteración 2: backend 13/13 pytest, frontend E2E 100%, sin bugs.
 
 ## Backlog
+- P1: Motor de requisitos RSCIEI (Anexo II + III) inspirado en konstruir.com — HECHO (iter 3).
 - P1: Completar módulos CTE (Parte I + DB), REBT, RITE, RD Accesibilidad (schema+engine+report por módulo).
 - P1: Gestión de usuarios/roles desde UI (panel admin); recuperación de contraseña por email.
 - P2: Exportación PDF server-side con maquetación oficial; comparador de versiones (diff).
