@@ -35,6 +35,12 @@ App web interna para despacho técnico de ingeniería/arquitectura. Plataforma m
 - Panel de resultados + Informe no vinculante imprimible (PDF) + histórico de versiones.
 - Testing: backend 11/11 pytest, frontend E2E happy-path 100%.
 
+## Mejora RSCIEI (iteración 2, 2026-07-20)
+- Catálogo jerárquico RSCIEI (`catalog.py`): 13 categorías con subactividades (qsi/qvi, Ci, Ra), tabla Ci (7 grados) y 6 tipos de configuración con imágenes esquemáticas generadas.
+- Paso 1: combobox de tipo de actividad (catálogo + crear personalizada) y selector visual de configuración con tarjetas de imagen + zoom.
+- Paso 2: editor de actividades por sector — actividad principal → subactividad autocompleta densidad/Ci/Ra; tabla Ci seleccionable en diálogo; altura hi para almacenamiento; varias actividades suman carga; Ra del sector auto-ajustado al máximo.
+- Testing iteración 2: backend 13/13 pytest, frontend E2E 100%, sin bugs.
+
 ## Backlog
 - P1: Completar módulos CTE (Parte I + DB), REBT, RITE, RD Accesibilidad (schema+engine+report por módulo).
 - P1: Gestión de usuarios/roles desde UI (panel admin); recuperación de contraseña por email.
