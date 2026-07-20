@@ -242,12 +242,26 @@ def test_rsciei_validation_errors():
 
 
 # --------------------------------------------------------------------------- #
-# 7 · CTE DB-SI
+# 7 · CTE DB-SI (SI 1 a SI 6) — apoyado en la tabla maestra tablas_oficiales
 # --------------------------------------------------------------------------- #
-def dbsi_data(uso="Administrativo", sup=1200, alt=9, salidas=2, rec=30, bajo=False, deps=None):
-    return {"uso": uso, "superficie_construida": sup, "altura_evacuacion": alt,
-            "num_salidas": salidas, "recorrido_max_real": rec, "bajo_rasante": bajo,
-            "dependencias": deps or [{"id": "z1", "nombre": "P1", "superficie": 1000, "densidad": 10, "uso_ocupacion": "Administrativo"}]}
+from normative_modules.cte_dbsi import tablas_oficiales as TO
+
+
+def dbsi_data(uso="Administrativo", sup=1200, alt=9, salidas=2, rec=30, bajo=False, deps=None, **extra):
+    d = {"uso": uso, "superficie_construida": sup, "altura_evacuacion": alt,
+         "num_salidas": salidas, "recorrido_max_real": rec, "bajo_rasante": bajo,
+         "dependencias": deps or [{"id": "z1", "nombre": "P1", "superficie": 1000, "densidad": 10, "uso_ocupacion": "Administrativo"}]}
+    d.update(extra)
+    return d
+
+
+def _sec(res, sid):
+    return next(s for s in res["secciones"] if s["id"] == sid)
+
+
+def test_dbsi_covers_si1_to_si6():
+    res = db.compute(dbsi_data())
+    assert [s["id"] for s in res["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
 
 
 def test_dbsi_occupancy_ceil():
@@ -255,26 +269,60 @@ def test_dbsi_occupancy_ceil():
     assert r["ocupacion"]["total"] == math.ceil(1005 / 10)  # 101
 
 
-def test_dbsi_si3_salidas_and_recorrido():
-    # ocupación 101 > 100 => 2 salidas requeridas
+def test_dbsi_si1_sector_max_from_master_table():
+    assert db.compute(dbsi_data(uso="Administrativo", sup=3000))["secciones"][0]["estado"] == "no_cumple"
+    assert db.compute(dbsi_data(uso="Aparcamiento", sup=99999))["secciones"][0]["estado"] == "cumple"
+    # coherencia con la tabla maestra
+    assert TO.SI1_SECTOR_MAX["Docente"] == 4000 and TO.SI1_SECTOR_MAX["Aparcamiento"] is None
+
+
+def test_dbsi_si1_delimitador_ei():
+    assert TO.si1_delimitador_ei(10, False) == "EI 60"
+    assert TO.si1_delimitador_ei(20, False) == "EI 90"
+    assert TO.si1_delimitador_ei(40, False) == "EI 120"
+    assert TO.si1_delimitador_ei(10, True) == "EI 120"
+
+
+def test_dbsi_si2_distance_check():
+    ok = db.compute(dbsi_data(distancia_colindantes=5))
+    ko = db.compute(dbsi_data(distancia_colindantes=1))
+    assert _sec(ok, "SI2")["estado"] == "cumple"
+    assert _sec(ko, "SI2")["estado"] == "no_cumple"
+
+
+def test_dbsi_si3_salidas_recorrido_ancho():
+    # ocupación 101 > 100 => 2 salidas; una proyectada => no cumple
     r = db.compute(dbsi_data(salidas=1, deps=[{"id": "z1", "superficie": 1010, "densidad": 10}]))
-    assert r["si3"]["salidas_requeridas"] == 2
-    assert r["si3"]["salidas_ok"] is False
-    # ancho = max(0.8, P/200)
-    assert r["si3"]["ancho_calculado"] == pytest.approx(max(0.8, r["ocupacion"]["total"] / 200), abs=0.01)
+    assert _sec(r, "SI3")["estado"] == "no_cumple"
+    # recorrido real excesivo
+    r2 = db.compute(dbsi_data(rec=99))
+    assert _sec(r2, "SI3")["estado"] == "no_cumple"
 
 
-def test_dbsi_si6_by_use_height():
-    assert db._si6("Administrativo", 10, False)["estabilidad"] == "R 60"
-    assert db._si6("Administrativo", 20, False)["estabilidad"] == "R 90"
-    assert db._si6("Comercial", 10, False)["estabilidad"] == "R 90"
-    assert db._si6("Administrativo", 5, True)["estabilidad"] == "R 120"
-    assert db._si6("Aparcamiento", 30, False)["estabilidad"] == "R 90"
+def test_dbsi_si3_proteccion_escalera_master():
+    assert TO.si3_proteccion_escalera(10) == "No protegida"
+    assert TO.si3_proteccion_escalera(20) == "Protegida"
+    assert TO.si3_proteccion_escalera(40) == "Especialmente protegida"
 
 
-def test_dbsi_si1_max_sector():
-    assert db._si1("Administrativo", 3000)["cumple"] is False   # >2500
-    assert db._si1("Aparcamiento", 99999)["cumple"] is True     # sin límite
+def test_dbsi_si4_installations_present():
+    inst = _sec(db.compute(dbsi_data(uso="Comercial", sup=1200)), "SI4")["instalaciones"]
+    nombres = {i["nombre"] for i in inst}
+    assert "Extintores portátiles" in nombres and "Bocas de incendio equipadas (BIE)" in nombres
+    assert [i for i in inst if i["nombre"] == "Extintores portátiles"][0]["obligatorio"] is True
+
+
+def test_dbsi_si5_espacio_maniobra():
+    assert _sec(db.compute(dbsi_data(alt=12)), "SI5")["filas"][1]["v"].startswith("Obligatorio")
+    assert _sec(db.compute(dbsi_data(alt=6)), "SI5")["filas"][1]["v"].startswith("No exigible")
+
+
+def test_dbsi_si6_by_use_height_master():
+    assert TO.si6_estructura("Administrativo", 10, False) == "R 60"
+    assert TO.si6_estructura("Administrativo", 20, False) == "R 90"
+    assert TO.si6_estructura("Comercial", 10, False) == "R 90"
+    assert TO.si6_estructura("Administrativo", 5, True) == "R 120"
+    assert TO.si6_estructura("Aparcamiento", 30, False) == "R 90"
 
 
 def test_dbsi_validation():
@@ -310,7 +358,8 @@ def test_unified_mixed_compute():
     assert [a["tipo"] for a in r["ambitos"]] == ["industrial", "edificacion"]
     assert r["estado_global"] in ("cumple", "observaciones", "no_cumple")
     assert "sectores" in r["ambitos"][0]["results"]
-    assert "si3" in r["ambitos"][1]["results"]
+    assert "secciones" in r["ambitos"][1]["results"]
+    assert [s["id"] for s in r["ambitos"][1]["results"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
 
 
 def test_unified_estado_global_is_worst():

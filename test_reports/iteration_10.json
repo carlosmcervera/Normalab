@@ -1,0 +1,19 @@
+{
+  "summary": "FRONTEND validation of expanded CTE DB-SI (SI 1..SI 6) inside the unified INCENDIOS module. All 4 P0 scenarios PASS: (1) DB-SI wizard 'Datos del edificio' renders every new field (uso, superficie_construida, altura_evacuacion, sentido_evacuacion, num_salidas, ancho_salidas_proyectado, recorrido_max_real, distancia_colindantes, local_riesgo_especial, bajo_rasante, vial_aproximacion_ok) with correct control types (select/select/select for enums, switches for booleans); Ocupación step adds zones and shows total (910). (2) Resultados renders DbsiResultsPanel with SIX section cards data-testid dbsi-seccion-SI1..SI6, each with estado badge, key/value rows, SI 4 shows 10 installations (dbsi-inst-0..9), global badge shows 'No cumple', 3 observaciones. Coherence with the seeded Comercial (dist=2, ancho=3.5, 910 ocup) is correct: SI 2 'No cumple', SI 3 'No cumple', SI 1 'Cumple', SI 4/5/6 'Informativo', global 'No cumple' — Observaciones match (SI2 huecos EI/retranqueo; SI3 3.50<4.55). (3) Report page /estudios/{id}/informe renders ámbito_header 'Centro comercial · Edificación · CTE DB-SI', Ocupación table (2 zonas + total 910), SI 1..SI 6 as keyvalue sections, SI 4 as instalaciones list, reference tables (SI1, SI3, SI6) with highlighted rows/cells (11 highlighted cells), Observaciones, and 'Descargar PDF' print button (data-testid print-report). (4) Mixed regression (seeded study 6a5e8d366baf3a93ee959a97) still renders both ambitos: RSCIEI ResultsPanel for 'Nave A' (industrial) and the new SI1-SI6 DbsiResultsPanel for 'Oficinas' (edificacion) in the same incendios-results-panel; each ámbito is its own wizard step. No console errors, no broken selectors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DbsiResultsPanel.jsx is compact and correct; suggestion (non-blocking): SEC_LABEL uses 'Con observaciones' for estado 'observaciones' but the engine now emits only cumple|no_cumple|info, so the observaciones branch is dead — harmless.",
+    "Route is /estudios/:studyId (Spanish). Iteration-9 context note said 'PUT /api/studies/{id}' — for the FE study page the correct URL prefix is /estudios (matches App.js). Documenting for future agents."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (skipped per request; backend already 49/49 pytest)", "frontend": "100% (4/4 scenarios)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Reused seeded study 6a5e936b365ed47629ca083a (Centro comercial, DB-SI, high occupancy) and 6a5e8d366baf3a93ee959a97 (mixed RSCIEI+DB-SI Nave A + Oficinas). No mutation.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend routes are Spanish: /estudios/{id} (wizard) and /estudios/{id}/informe (report). Wizard structure: step-0 Ámbitos → step-N per ámbito editor (data-testid ambito-editor-{i}) → last step Resultados (incendios-results-panel). DB-SI panel testids: dbsi-results-panel, dbsi-global-state, dbsi-seccion-SI1..SI6, dbsi-inst-{i}, dbsi-observation-{i}; DB-SI fields via DynamicField: field-{name}. Report page has print-report button ('Descargar PDF'). After navigating to Resultados step, if state was 'borrador' compute-button appears; for already computed studies, results render directly with recompute-button + view-report-button.",
+  "rca of the issue": "N/A — feature validation, no bugs found."
+}

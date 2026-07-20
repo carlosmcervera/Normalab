@@ -1,14 +1,12 @@
-"""Motor de cálculo del módulo CTE DB-SI (Seguridad en caso de incendio).
+"""Motor CTE DB-SI completo (método tabulado): SI 1 a SI 6.
 
-Cubre un subconjunto operativo del Documento Básico DB-SI: SI 1
-(compartimentación), SI 3 (evacuación de ocupantes), SI 4 (instalaciones de
-protección) y SI 6 (resistencia al fuego de la estructura). Carácter orientativo.
+Devuelve una lista de `secciones` (una por SI) con sus verificaciones, filas
+resumen e instalaciones. Se apoya en la tabla maestra `tablas_oficiales`.
+Carácter orientativo.
 """
 import math
 
-from normative_modules.cte_dbsi.catalog import (
-    SI1_MAX_SECTOR, SI3_RECORRIDO, SI3_RECORRIDO_ESPECIAL, SI6_GRUPO2,
-)
+from normative_modules.cte_dbsi import tablas_oficiales as T
 
 
 def _validate(data):
@@ -22,14 +20,21 @@ def _validate(data):
     return errors
 
 
+def _num(v, d=0.0):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return d
+
+
 def _dep_ocupacion(d):
     if d.get("sin_ocupacion"):
         return 0
     dens = d.get("densidad")
-    if dens is None or float(dens) <= 0:
+    if dens is None or _num(dens) <= 0:
         return None
-    sup = float(d.get("superficie") or 0)
-    return 0 if sup <= 0 else math.ceil(sup / float(dens))
+    sup = _num(d.get("superficie"))
+    return 0 if sup <= 0 else math.ceil(sup / _num(dens))
 
 
 def _build_ocupacion(deps):
@@ -40,97 +45,171 @@ def _build_ocupacion(deps):
             total += o
         filas.append({"nombre": d.get("nombre", "-"), "sector": "—",
                       "uso": d.get("uso_ocupacion", "-"),
-                      "superficie": round(float(d.get("superficie") or 0), 2),
+                      "superficie": round(_num(d.get("superficie")), 2),
                       "densidad": ("Sin ocupación" if d.get("sin_ocupacion") else (f"{d.get('densidad')} m²/p" if d.get("densidad") else "-")),
                       "ocupacion": o if o is not None else "-"})
     return {"filas": filas, "total": total}
 
 
-def _si1(uso, superficie):
-    maxs = SI1_MAX_SECTOR.get(uso, 2500)
+def _sec(id, titulo, ref, estado, filas, instalaciones=None, obs=None):
+    return {"id": id, "titulo": titulo, "referencia": ref, "estado": estado,
+            "filas": filas, "instalaciones": instalaciones, "observaciones": obs or []}
+
+
+def _kv(k, v):
+    return {"k": k, "v": v}
+
+
+def _si1(uso, sup, altura, bajo_rasante, local_re):
+    maxs = T.SI1_SECTOR_MAX.get(uso, 2500)
     if maxs is None:
-        return {"superficie": round(superficie, 2), "max_sector": None, "cumple": True,
-                "mensaje": f"Uso {uso}: sin límite general de superficie de sector (condiciones específicas del DB-SI)."}
-    cumple = superficie <= maxs
-    return {"superficie": round(superficie, 2), "max_sector": maxs, "cumple": cumple,
-            "mensaje": (f"Superficie {superficie:.0f} m² ≤ máx. {maxs:.0f} m² por sector (uso {uso})."
-                        if cumple else
-                        f"Superficie {superficie:.0f} m² SUPERA el máximo de {maxs:.0f} m² por sector (uso {uso}): es necesario compartimentar.")}
-
-
-def _si3(uso, ocupacion, num_salidas, recorrido_real):
-    num_salidas = int(num_salidas or 1)
-    salidas_requeridas = 1 if ocupacion <= 100 else 2
-    salidas_ok = num_salidas >= salidas_requeridas
-    varias = num_salidas >= 2
-    tabla = SI3_RECORRIDO_ESPECIAL.get(uso, SI3_RECORRIDO)
-    rec_max = tabla["varias"] if varias else tabla["una"]
-    recorrido_real = float(recorrido_real or 0)
-    recorrido_ok = recorrido_real <= rec_max if recorrido_real > 0 else True
-    ancho_min = 0.80
-    ancho_calc = max(ancho_min, round(ocupacion / 200.0, 2))
-    return {
-        "ocupacion": ocupacion,
-        "salidas_requeridas": salidas_requeridas,
-        "salidas_proyectadas": num_salidas,
-        "salidas_ok": salidas_ok,
-        "recorrido_max_permitido": rec_max,
-        "recorrido_real": recorrido_real,
-        "recorrido_ok": recorrido_ok,
-        "ancho_minimo": ancho_min,
-        "ancho_calculado": ancho_calc,
-        "detalle": (f"Con {ocupacion} ocupantes se requieren {salidas_requeridas} salida(s); "
-                    f"recorrido máximo {rec_max} m (DB-SI SI 3). Ancho de salida A ≥ P/200 = {ancho_calc:.2f} m."),
-    }
-
-
-def _si6(uso, altura, bajo_rasante):
-    grupo2 = uso in SI6_GRUPO2
-    if bajo_rasante:
-        val = "R 120" if not grupo2 else "R 180"
-        det = "Planta bajo rasante (sótano). DB-SI SI 6, Tabla 3.1."
+        cumple, msg = True, "Un sector por planta / sin límite general de superficie (condiciones específicas del uso)."
+        max_txt = "Un sector por planta"
     else:
-        if altura <= 15:
-            val = "R 90" if grupo2 else "R 60"
-        elif altura <= 28:
-            val = "R 120" if grupo2 else "R 90"
+        cumple = sup <= maxs
+        max_txt = f"{maxs:.0f} m²"
+        msg = (f"Superficie {sup:.0f} m² ≤ máximo {maxs:.0f} m²." if cumple
+               else f"Superficie {sup:.0f} m² SUPERA el máximo de {maxs:.0f} m²: es necesario compartimentar.")
+    ei = T.si1_delimitador_ei(altura, bajo_rasante)
+    filas = [
+        _kv("Superficie construida", f"{sup:.0f} m²"),
+        _kv("Superficie máx. por sector (Tabla 1.1)", max_txt),
+        _kv("Resistencia de elementos delimitadores (Tabla 1.2)", ei),
+        _kv("Reacción al fuego de revestimientos (Tabla 4.1)", T.SI1_REACCION),
+    ]
+    obs = [] if cumple else [msg]
+    if local_re and local_re != "ninguno":
+        c = T.SI1_RIESGO_ESPECIAL[local_re]
+        filas += [
+            _kv(f"Local de riesgo especial ({local_re})", f"Estructura {c['R']} · paredes/techos {c['EI']}"),
+            _kv("Vestíbulo de independencia", "Sí" if c["vestibulo"] else "No exigible"),
+            _kv("Puertas del local", c["puerta"]),
+            _kv("Recorrido máx. hasta salida del local", f"{c['recorrido']} m"),
+        ]
+    return _sec("SI1", "SI 1 · Compartimentación en sectores de incendio",
+                "CTE DB-SI · SI 1 (Tablas 1.1, 1.2, 2.2 y 4.1)",
+                "cumple" if cumple else "no_cumple", filas, None, obs)
+
+
+def _si2(dist_colindantes):
+    filas = [
+        _kv("Medianerías y muros colindantes", T.SI2_MEDIANERIA),
+        _kv("Fachadas (limitación de propagación)", T.SI2_FACHADA),
+        _kv("Cubiertas", T.SI2_CUBIERTA),
+    ]
+    estado, obs = "info", []
+    d = _num(dist_colindantes, -1)
+    if d >= 0:
+        filas.append(_kv("Separación a edificios/linderos colindantes", f"{d:.1f} m"))
+        if d < T.SI2_DIST_MIN:
+            estado = "no_cumple"
+            obs.append(f"Separación {d:.1f} m < {T.SI2_DIST_MIN:.0f} m: los huecos de fachada requieren protección EI o retranqueo (SI 2).")
         else:
-            val = "R 180" if grupo2 else "R 120"
-        det = f"Planta sobre rasante, altura de evacuación {altura:.1f} m. DB-SI SI 6, Tabla 3.1."
-    if uso == "Aparcamiento":
-        val = "R 90"
-        det = "Uso Aparcamiento: R 90 (DB-SI SI 6)."
-    return {"estabilidad": val, "detalle": det}
+            estado = "cumple"
+    return _sec("SI2", "SI 2 · Propagación exterior", "CTE DB-SI · SI 2", estado, filas, None, obs)
+
+
+def _si3(uso, ocupacion, num_salidas, recorrido_real, ancho_proyectado, altura, sentido):
+    num_salidas = int(num_salidas or 1)
+    varias = num_salidas >= 2
+    salidas_req = 1 if ocupacion <= 100 else 2
+    salidas_ok = num_salidas >= salidas_req
+
+    tabla = T.SI3_RECORRIDO_ESPECIAL.get(uso, T.SI3_RECORRIDO)
+    rec_max = tabla["varias"] if varias else tabla["una"]
+    recorrido_real = _num(recorrido_real)
+    recorrido_ok = recorrido_real <= rec_max if recorrido_real > 0 else True
+
+    ancho_req = max(T.SI3_ANCHO_MIN["puerta"], round(ocupacion / T.SI3_MODULO, 2))
+    ancho_proyectado = _num(ancho_proyectado)
+    ancho_ok = ancho_proyectado >= ancho_req if ancho_proyectado > 0 else True
+
+    escalera = T.si3_proteccion_escalera(altura, sentido)
+    humos = uso == "Aparcamiento" or (uso in ("Comercial", "Pública concurrencia") and ocupacion > 1000)
+    pmr = altura > 14 and uso != "Aparcamiento"
+
+    filas = [
+        _kv("Ocupación total (Tabla 2.1)", f"{ocupacion} personas"),
+        _kv("Nº de salidas (requeridas / proyectadas)", f"{salidas_req} / {num_salidas}"),
+        _kv("Recorrido máx. admisible (Tabla 3.1)", f"{rec_max} m"),
+        _kv("Recorrido real", f"{recorrido_real:.1f} m" if recorrido_real else "—"),
+        _kv("Ancho de salida A ≥ P/200 (Tabla 4.1)", f"req. {ancho_req:.2f} m · proy. {ancho_proyectado:.2f} m" if ancho_proyectado else f"requerido {ancho_req:.2f} m (mín. 0,80 m)"),
+        _kv("Protección de escaleras (Tabla 5.1)", f"{escalera} (evac. {sentido})"),
+        _kv("Control de humos (SI 3.8)", "Obligatorio" if humos else "No exigible"),
+        _kv("Evacuación de PMR / zona de refugio (SI 3.9)", "Zona de refugio exigible (altura > 14 m)" if pmr else "No exigible"),
+    ]
+    obs = []
+    if not salidas_ok:
+        obs.append(f"Se proyectan {num_salidas} salida(s) pero se requieren {salidas_req} (ocupación {ocupacion}).")
+    if not recorrido_ok:
+        obs.append(f"El recorrido real ({recorrido_real:.1f} m) supera el máximo ({rec_max} m).")
+    if not ancho_ok:
+        obs.append(f"El ancho proyectado ({ancho_proyectado:.2f} m) es inferior al requerido ({ancho_req:.2f} m).")
+    estado = "no_cumple" if obs else "cumple"
+    return _sec("SI3", "SI 3 · Evacuación de ocupantes",
+                "CTE DB-SI · SI 3 (Tablas 3.1, 4.1 y 5.1)", estado, filas, None, obs)
 
 
 def _inst(nombre, obligatorio, detalle):
     return {"nombre": nombre, "obligatorio": obligatorio, "detalle": detalle}
 
 
-def _si4(uso, superficie, altura, ocupacion):
-    inst = []
-    inst.append(_inst("Extintores portátiles", True, "Uno de eficacia 21A-113B cada 15 m de recorrido en cada planta (DB-SI SI 4)."))
-    bie = superficie >= 500 and uso in ("Comercial", "Pública concurrencia", "Aparcamiento", "Hospitalario") \
-        or (uso == "Administrativo" and superficie >= 2000)
-    inst.append(_inst("Bocas de incendio equipadas (BIE)", bie,
-                      f"Exigibles según uso {uso} y superficie ({superficie:.0f} m²) — DB-SI SI 4, Tabla 1.1."))
-    col_seca = altura >= 24
-    inst.append(_inst("Columna seca", col_seca, f"Obligatoria si la altura de evacuación ≥ 24 m (altura: {altura:.1f} m)."))
-    deteccion = (uso == "Administrativo" and superficie > 2000) or \
-                (uso == "Comercial" and superficie > 1000) or \
-                (uso in ("Hospitalario", "Residencial Público")) or \
-                (uso == "Pública concurrencia" and superficie > 1000)
-    inst.append(_inst("Sistema de detección y alarma", deteccion,
-                      f"Exigible según uso {uso} y superficie ({superficie:.0f} m²) — DB-SI SI 4, Tabla 1.1."))
-    alarma = ocupacion > 500
-    inst.append(_inst("Sistema de alarma por voz", alarma, f"Exigible si la ocupación supera 500 personas (ocupación: {ocupacion})."))
-    hidrantes = superficie > 5000 or (uso == "Aparcamiento" and superficie > 10000)
-    inst.append(_inst("Hidrantes exteriores", hidrantes, f"Exigibles según uso y superficie ({superficie:.0f} m²) — DB-SI SI 4."))
-    rociadores = (uso == "Comercial" and superficie > 1500) or (uso == "Aparcamiento" and superficie > 10000)
-    inst.append(_inst("Rociadores automáticos", rociadores, f"Exigibles según uso {uso} y superficie ({superficie:.0f} m²)."))
-    inst.append(_inst("Alumbrado de emergencia", True, "Recorridos de evacuación y locales de riesgo (DB-SUA 4)."))
-    inst.append(_inst("Señalización de evacuación e instalaciones", True, "Señalización de salidas y medios de protección (DB-SI SI 3.7 / SI 4.2)."))
-    return {"instalaciones": inst}
+def _si4(uso, sup, altura, ocup):
+    bie = {"Comercial": sup >= 500, "Pública concurrencia": sup >= 500, "Aparcamiento": sup > 500,
+           "Hospitalario": True, "Administrativo": sup >= 2000, "Docente": sup >= 2000,
+           "Residencial Público": sup >= 2000, "Residencial Vivienda": False}.get(uso, sup >= 2000)
+    det = {"Residencial Vivienda": altura > 50, "Administrativo": sup > 2000, "Docente": sup > 2000,
+           "Comercial": sup > 1000, "Pública concurrencia": sup > 1000, "Hospitalario": True,
+           "Residencial Público": sup > 500, "Aparcamiento": sup > 500}.get(uso, sup > 2000)
+    alarma = {"Administrativo": sup > 5000, "Comercial": sup > 1000, "Pública concurrencia": ocup > 500,
+              "Hospitalario": True, "Residencial Público": True, "Docente": sup > 5000,
+              "Residencial Vivienda": altura > 50, "Aparcamiento": False}.get(uso, ocup > 500)
+    hid = {"Comercial": sup > 1000, "Pública concurrencia": sup > 5000, "Hospitalario": True,
+           "Administrativo": sup > 5000, "Docente": sup > 5000, "Aparcamiento": sup > 1000,
+           "Residencial Público": sup > 5000, "Residencial Vivienda": sup > 5000}.get(uso, sup > 5000)
+    roc = (uso == "Comercial" and sup > 1500) or (uso == "Aparcamiento" and sup > 10000)
+    inst = [
+        _inst("Extintores portátiles", True, "Eficacia 21A-113B a ≤ 15 m de recorrido en cada planta y en zonas de riesgo especial."),
+        _inst("Bocas de incendio equipadas (BIE)", bie, f"Uso {uso}, superficie {sup:.0f} m² (DB-SI SI 4, Tabla 1.1)."),
+        _inst("Columna seca", altura > 24, f"Obligatoria si la altura de evacuación > 24 m (altura: {altura:.1f} m)."),
+        _inst("Sistema de detección automática", det, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
+        _inst("Sistema de alarma", bool(alarma) or ocup > 500, f"Uso {uso}, ocupación {ocup} (Tabla 1.1)."),
+        _inst("Hidrantes exteriores", hid, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
+        _inst("Rociadores automáticos", roc, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
+        _inst("Ascensor de emergencia", altura > 28, f"Obligatorio si la altura de evacuación > 28 m (altura: {altura:.1f} m)."),
+        _inst("Alumbrado de emergencia", True, "Recorridos de evacuación y locales de riesgo (DB-SUA 4)."),
+        _inst("Señalización de evacuación y de medios de protección", True, "DB-SI SI 3.7 y SI 4.2."),
+    ]
+    return _sec("SI4", "SI 4 · Instalaciones de protección contra incendios",
+                "CTE DB-SI · SI 4 (Tabla 1.1)", "info", [], inst, [])
+
+
+def _si5(altura, vial_ok):
+    v = T.SI5_VIAL
+    espacio = altura > T.SI5_ALTURA_ESPACIO_MANIOBRA
+    filas = [
+        _kv("Vial de aproximación", f"anchura ≥ {v['anchura']} m · gálibo ≥ {v['altura_libre']} m · capacidad ≥ {v['capacidad_portante']:.0f} kN/m²"),
+        _kv("Espacio de maniobra en fachada", "Obligatorio (altura de evacuación > 9 m)" if espacio else "No exigible por altura"),
+        _kv("Accesibilidad por fachada", "Huecos practicables ≤ cada 25 m, ≥ 0,80 × 1,20 m, alféizar ≤ 1,20 m"),
+    ]
+    obs = []
+    estado = "info"
+    if vial_ok is False:
+        estado = "no_cumple"
+        obs.append("El vial de aproximación no cumple las condiciones mínimas de SI 5.")
+    return _sec("SI5", "SI 5 · Intervención de los bomberos", "CTE DB-SI · SI 5", estado, filas, None, obs)
+
+
+def _si6(uso, altura, bajo_rasante, local_re):
+    r = T.si6_estructura(uso, altura, bajo_rasante)
+    filas = [
+        _kv("Resistencia de la estructura portante (Tabla 3.1)", r),
+        _kv("Situación", "Planta bajo rasante" if bajo_rasante else f"Sobre rasante · h {altura:.1f} m"),
+    ]
+    if local_re and local_re != "ninguno":
+        filas.append(_kv(f"Estructura en local de riesgo especial ({local_re}) (Tabla 3.2)", T.SI6_RIESGO_ESPECIAL_R[local_re]))
+    return _sec("SI6", "SI 6 · Resistencia al fuego de la estructura",
+                "CTE DB-SI · SI 6 (Tablas 3.1 y 3.2)", "info", filas, None, [])
 
 
 def compute(data: dict) -> dict:
@@ -139,37 +218,42 @@ def compute(data: dict) -> dict:
         raise ValueError(" ".join(errors))
 
     uso = data["uso"]
-    superficie = float(data["superficie_construida"])
-    altura = float(data.get("altura_evacuacion") or 0)
+    sup = _num(data["superficie_construida"])
+    altura = _num(data.get("altura_evacuacion"))
     bajo_rasante = bool(data.get("bajo_rasante"))
+    local_re = data.get("local_riesgo_especial") or "ninguno"
+    sentido = data.get("sentido_evacuacion") or "descendente"
     deps = data.get("dependencias") or []
 
     ocupacion = _build_ocupacion(deps)
-    si1 = _si1(uso, superficie)
-    si3 = _si3(uso, ocupacion["total"], data.get("num_salidas", 1), data.get("recorrido_max_real"))
-    si6 = _si6(uso, altura, bajo_rasante)
-    si4 = _si4(uso, superficie, altura, ocupacion["total"])
+    secciones = [
+        _si1(uso, sup, altura, bajo_rasante, local_re),
+        _si2(data.get("distancia_colindantes")),
+        _si3(uso, ocupacion["total"], data.get("num_salidas", 1), data.get("recorrido_max_real"),
+             data.get("ancho_salidas_proyectado"), altura, sentido),
+        _si4(uso, sup, altura, ocupacion["total"]),
+        _si5(altura, data.get("vial_aproximacion_ok")),
+        _si6(uso, altura, bajo_rasante, local_re),
+    ]
 
     from normative_modules.cte_dbsi.tablas import build_tablas
-    tablas = build_tablas(uso, altura, bajo_rasante, si3)
+    tablas = build_tablas(uso, altura, bajo_rasante)
 
-    observaciones = [{"tipo": "info", "texto": f"Uso previsto: {uso}. Ocupación total calculada: {ocupacion['total']} personas (DB-SI Tabla 2.1)."}]
-    if not si1["cumple"]:
-        observaciones.append({"tipo": "error", "texto": si1["mensaje"]})
-    if not si3["salidas_ok"]:
-        observaciones.append({"tipo": "error", "texto": f"Se proyectan {si3['salidas_proyectadas']} salida(s) pero se requieren {si3['salidas_requeridas']} (SI 3)."})
-    if not si3["recorrido_ok"]:
-        observaciones.append({"tipo": "error", "texto": f"El recorrido real ({si3['recorrido_real']:.1f} m) supera el máximo admisible ({si3['recorrido_max_permitido']} m) (SI 3)."})
+    observaciones = [{"tipo": "info", "texto": f"Uso previsto: {uso}. Ocupación total: {ocupacion['total']} personas (DB-SI, Tabla 2.1)."}]
+    for s in secciones:
+        for o in s["observaciones"]:
+            observaciones.append({"tipo": "error", "texto": f"{s['id']}: {o}"})
 
-    if any(o["tipo"] == "error" for o in observaciones):
+    estados = [s["estado"] for s in secciones]
+    if "no_cumple" in estados:
         estado_global = "no_cumple"
-    elif any(o["tipo"] == "warning" for o in observaciones):
+    elif "observaciones" in estados:
         estado_global = "observaciones"
     else:
         estado_global = "cumple"
 
     return {
-        "uso": uso, "superficie": round(superficie, 2), "altura": altura,
-        "ocupacion": ocupacion, "si1": si1, "si3": si3, "si4": si4, "si6": si6,
+        "uso": uso, "superficie": round(sup, 2), "altura": altura,
+        "ocupacion": ocupacion, "secciones": secciones,
         "tablas": tablas, "observaciones": observaciones, "estado_global": estado_global,
     }
