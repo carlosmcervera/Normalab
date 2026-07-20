@@ -148,25 +148,71 @@ def _sectorizacion(config, nivel, A, factor, factores_aplicados, situacion):
     return base
 
 
-def _evacuacion(categoria, num_salidas, ocupacion):
-    e = EVAC_TABLE.get(categoria, EVAC_TABLE["MEDIO"])
-    varias = int(num_salidas or 1) >= 2
-    dist = e["varias"] if varias else e["una"]
-    salidas_ok = True
-    nota = None
+EVAC_COEF_FACTOR = {"nota4a": 1.25, "nota4b": 1.25, "nota4c": 2.0}
+EVAC_COEF_LABEL = {
+    "ninguno": "Sin incremento",
+    "nota4a": "Nota 4a · extinción automática de agua (+25%)",
+    "nota4b": "Nota 4b · control de humos y calor (+25%)",
+    "nota4c": "Nota 4c · planta de salida, ≥2 salidas directas, h≥8 m y extinción automática (+100%)",
+    "nota5": "Nota 5 · riesgo bajo nivel 1 con materiales incombustibles (A1/A2, 95% masa)",
+}
+
+
+def _evac_base(cat, varias, tipo):
+    e = EVAC_TABLE.get(cat, EVAC_TABLE["MEDIO"])
+    if tipo == "sin_alternativa":
+        return e["sin_alt"] if varias else e["una"]
+    return e["varias"] if varias else e["una"]
+
+
+def _evac_max(cat, nivel, varias, tipo, coef):
+    if coef == "nota5" and cat == "BAJO" and nivel == 1:
+        if not varias:
+            return 100.0
+        return 100.0 if tipo == "sin_alternativa" else 150.0
+    base = _evac_base(cat, varias, tipo)
+    return round(base * EVAC_COEF_FACTOR.get(coef, 1.0), 2)
+
+
+def _evacuacion(sec, categoria, nivel, ocupacion):
+    num_salidas = int(sec.get("num_salidas") or 1)
+    varias = num_salidas >= 2
+    coef = sec.get("evac_coeficiente") or "ninguno"
+    if coef == "nota5" and not (categoria == "BAJO" and nivel == 1):
+        coef = "ninguno"  # Nota 5 solo aplica a riesgo bajo nivel 1
+
+    recorridos, all_ok = [], True
+    for r in (sec.get("recorridos") or []):
+        tipo = r.get("tipo") or "hasta_salida"
+        dmax = _evac_max(categoria, nivel, varias, tipo, coef)
+        dreal = float(r.get("distancia_real") or 0)
+        cumple = dreal <= dmax if dreal > 0 else True
+        if not cumple:
+            all_ok = False
+        recorridos.append({"origen": r.get("origen") or "Origen de evacuación", "tipo": tipo,
+                           "distancia_real": dreal, "distancia_max": dmax, "cumple": cumple})
+
+    dist_hasta = _evac_max(categoria, nivel, varias, "hasta_salida", coef)
+    dist_sin = _evac_max(categoria, nivel, varias, "sin_alternativa", coef)
+    salidas_ok, nota = True, None
     if (ocupacion or 0) > 100 and not varias:
         salidas_ok = False
         nota = "Ocupación > 100 personas: se requieren al menos 2 salidas alternativas."
     return {
-        "num_salidas": int(num_salidas or 1),
+        "num_salidas": num_salidas,
         "ocupacion": ocupacion or 0,
         "categoria": categoria,
-        "distancia_maxima": dist,
-        "recorrido_sin_alternativa": e["sin_alt"] if varias else dist,
+        "coeficiente": coef,
+        "coeficiente_label": EVAC_COEF_LABEL.get(coef, "Sin incremento"),
+        "distancia_maxima": dist_hasta,
+        "recorrido_sin_alternativa": dist_sin,
+        "recorridos": recorridos,
+        "recorridos_cumplen": all_ok,
         "salidas_suficientes": salidas_ok,
         "nota": nota,
         "detalle": (f"Riesgo {categoria.lower()}, {'2 o más salidas' if varias else 'una salida'}: "
-                    f"recorrido de evacuación máximo {dist} m (Tabla 2.3.1)."),
+                    f"recorrido de evacuación máximo {dist_hasta} m; sin alternativa {dist_sin} m (Tabla 2.3.1"
+                    f"{'' if coef == 'ninguno' else '; ' + EVAC_COEF_LABEL.get(coef, '')})."),
     }
 
 
@@ -232,7 +278,7 @@ def _compute_sector(sec, deps, establecimiento):
     req_sec["config"] = config
     requisitos = build_requirements(req_sec, nivel, categoria, modo_pred, A, total_est)
 
-    evacuacion = _evacuacion(categoria, sec.get("num_salidas", 1), ocupacion_sector)
+    evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
     observaciones = []
     observaciones.append({"tipo": "info", "texto": f"Sector «{sec.get('nombre','?')}»: nivel de riesgo intrínseco {nivel} ({categoria}), Tabla 1.3.1."})
@@ -244,11 +290,13 @@ def _compute_sector(sec, deps, establecimiento):
         observaciones.append({"tipo": "error", "texto": sector["mensaje"]})
     if not evacuacion["salidas_suficientes"]:
         observaciones.append({"tipo": "error", "texto": f"Sector «{sec.get('nombre','?')}»: {evacuacion['nota']}"})
+    if not evacuacion["recorridos_cumplen"]:
+        observaciones.append({"tipo": "error", "texto": f"Sector «{sec.get('nombre','?')}»: algún recorrido de evacuación supera la distancia máxima admisible (Tabla 2.3.1)."})
     if categoria == "ALTO":
         observaciones.append({"tipo": "warning", "texto": f"Sector «{sec.get('nombre','?')}»: riesgo ALTO, revise requisitos reforzados de estabilidad e instalaciones."})
 
     estado = "cumple"
-    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"]:
+    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"]:
         estado = "no_cumple"
     elif any(o["tipo"] == "warning" for o in observaciones):
         estado = "observaciones"

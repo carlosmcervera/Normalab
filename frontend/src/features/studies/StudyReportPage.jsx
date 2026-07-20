@@ -83,6 +83,30 @@ function SectorReport({ s }) {
         <div><span className="text-xs uppercase text-muted-foreground">Delimitadores</span><p className="font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
         <div><span className="text-xs uppercase text-muted-foreground">Evacuación</span><p className="font-mono font-semibold">{s.evacuacion?.distancia_maxima} m · {s.evacuacion?.num_salidas} sal.</p></div>
       </div>
+      {s.evacuacion?.recorridos?.length > 0 && (
+        <div className="border-t border-border p-4">
+          <p className="mb-2 text-xs uppercase text-muted-foreground">Recorridos de evacuación{s.evacuacion.coeficiente !== "ninguno" ? ` · ${s.evacuacion.coeficiente_label}` : ""}</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="py-1.5">Origen</th><th className="py-1.5">Tipo</th>
+                <th className="py-1.5 text-right">Real</th><th className="py-1.5 text-right">Máx.</th><th className="py-1.5 text-right">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {s.evacuacion.recorridos.map((r, i) => (
+                <tr key={i} className="border-b border-border last:border-0">
+                  <td className="py-1.5 font-sans">{r.origen}</td>
+                  <td className="py-1.5 font-sans text-muted-foreground">{r.tipo === "sin_alternativa" ? "Sin alternativa" : "Hasta salida"}</td>
+                  <td className="py-1.5 text-right">{num(r.distancia_real, 1)} m</td>
+                  <td className="py-1.5 text-right">{num(r.distancia_max, 1)} m</td>
+                  <td className={`py-1.5 text-right font-sans font-semibold ${r.cumple ? "text-emerald-700" : "text-red-700"}`}>{r.cumple ? "Cumple" : "No cumple"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="border-t border-border">
         {s.requisitos.instalaciones.map((it, i) => (
           <div key={i} className="flex items-start justify-between gap-3 border-b border-border px-4 py-2 last:border-0">

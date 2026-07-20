@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 8 validated (A) RSCIEI evacuation extension and (B) new CTE DB-SI operative module. Backend: created /app/backend/tests/test_iter8_new_features.py with 11 tests, ALL PASS. Ran iter-7 regression suite too (11 pass, 1 pre-existing assertion updated to new 5-step schema including 'evacuacion'). Frontend E2E via Playwright: (1) RSCIEI seed 6a5e49bf3167dc3b35f25d3f – nueva pestaña 'Evacuación' visible; se selecciona coef 'Nota 4a', se añade recorrido (evac-0-add) con origen 'Punto trabajo A' y distancia 40 m; en Resultados se muestra 'RECORRIDOS DE EVACUACIÓN · NOTA 4A · EXTINCIÓN AUTOMÁTICA DE AGUA (+25%)' con máx 62,5 m y estado Cumple; el informe también renderiza el bloque de recorridos con Origen/Tipo/Real/Máx/Estado. (2) CTE seed 6a5e5a2cc5c1d9e32becdc3b – wizard 3 pasos (Datos del edificio, Ocupación, Resultados), DbsiResultsPanel muestra tiles Ocupación 620, Salidas 2/2, Estabilidad R 90, Resultado Cumple; bloques SI1, SI3, SI4 (9 tiles instalaciones), SI6 renderizan; informe CTE con secciones Ocupación (tabla), SI1/SI3/SI6 (keyvalue) y SI4 Instalaciones y tablas DB-SI de referencia. Modules list contiene CTE con status 'operativo'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_new_features.py",
+    "/app/backend/tests/test_rsciei_multisector.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RSCIEI engine._evac_max: aplica correctamente EVAC_COEF_FACTOR (nota4a/4b=1.25, nota4c=2.0) y trata Nota 5 solo cuando categoría=BAJO y nivel=1; en otros niveles cae a 'ninguno' (verificado en tests).",
+    "RSCIEI engine._evacuacion añade observación tipo 'error' y marca sector estado='no_cumple' cuando algún recorrido supera la distancia máxima (verificado).",
+    "CTE DB-SI engine._si4: hidrantes usa un `or` sin paréntesis: 'superficie > 5000 or uso == \"Aparcamiento\" and superficie > 10000' — por precedencia funciona pero es frágil; recomendable paréntesis para claridad.",
+    "CTE DB-SI schema: campo 'altura_evacuacion' default 0; conviene validar cuando bajo_rasante=False y altura=0 → informar en observaciones (no crítico).",
+    "CTE DB-SI engine._validate acepta cualquier 'uso'; no cruza contra USOS del catálogo. Pydantic-level enum sería más robusto.",
+    "Los data-testids nuevos (evac-*, dbsi-*, field-*) están presentes y son consistentes; facilita regresión automatizada."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter8_new_features.py (nuevo)",
+    "/app/backend/tests/test_rsciei_multisector.py (actualizado: schema ahora contiene 5 pasos incl. 'evacuacion')"
+  ],
+  "success_rate": {"backend": "100% (11/11 iter8 + 11/11 iter7 regresión)", "frontend": "100% (RSCIEI evacuación + CTE DB-SI E2E)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Los tests crean/borran proyectos y estudios TEST-IT8-*/TEST_evac_*/TEST_nota*/TEST_cte_*. Se reutilizan los estudios seed 6a5e49bf3167dc3b35f25d3f (RSCIEI) y 6a5e5a2cc5c1d9e32becdc3b (CTE) para el E2E frontend.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "RSCIEI schema ahora expone 5 steps: establecimiento, superficies, ocupacion, carga_fuego, evacuacion. Modelo de datos por sector añade opcionalmente evac_coeficiente (ninguno|nota4a|nota4b|nota4c|nota5) y recorridos:[{id,origen,tipo(hasta_salida|sin_alternativa),distancia_real}]. Módulo CTE code='CTE' status='operativo' con schema {steps:[edificio(fields), ocupacion(type dbsi_ocupacion)], uses, occupancy_densities}. Model CTE study.data = {uso, superficie_construida, altura_evacuacion, num_salidas, recorrido_max_real, bajo_rasante, dependencias:[{id,nombre,superficie,densidad,uso_ocupacion,sin_ocupacion}]}. Data-testids: evac-sector-{i}, evac-{i}-coef/add/rec-{r}-origen/tipo/dist/remove; dbsi-add-dep, dbsi-dep-{i}-*, dbsi-ocupacion-total, dbsi-results-panel, dbsi-global-state, dbsi-inst-{i}, field-uso/superficie_construida/altura_evacuacion/num_salidas/recorrido_max_real/bajo_rasante."
+}

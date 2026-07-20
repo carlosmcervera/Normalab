@@ -37,5 +37,7 @@ def get_schema() -> dict:
              "description": "Asigne la densidad de ocupación (m²/persona) a cada dependencia según el CTE para obtener la ocupación."},
             {"id": "carga_fuego", "title": "Carga de fuego", "type": "carga_fuego",
              "description": "Defina para cada dependencia la carga de fuego (producción o almacenamiento) y los parámetros de cada sector."},
+            {"id": "evacuacion", "title": "Evacuación", "type": "evacuacion",
+             "description": "Introduzca los recorridos reales de evacuación por origen y, si procede, los coeficientes de incremento (notas 4 y 5 de la Tabla 2.3.1)."},
         ],
     }

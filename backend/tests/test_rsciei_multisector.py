@@ -100,7 +100,7 @@ class TestMultiSectorCompute:
         assert r.status_code == 200
         s = r.json().get("schema", r.json())
         ids = [st["id"] for st in s["steps"]]
-        assert ids == ["establecimiento", "superficies", "ocupacion", "carga_fuego"], ids
+        assert ids == ["establecimiento", "superficies", "ocupacion", "carga_fuego", "evacuacion"], ids
         # types
         smap = {st["id"]: st for st in s["steps"]}
         assert smap["superficies"].get("type") == "superficies"

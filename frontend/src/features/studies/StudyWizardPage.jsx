@@ -13,6 +13,9 @@ import { ConfigSelector } from "@/features/studies/components/ConfigSelector";
 import { SuperficiesStep } from "@/features/studies/components/SuperficiesStep";
 import { OcupacionStep } from "@/features/studies/components/OcupacionStep";
 import { CargaFuegoStep } from "@/features/studies/components/CargaFuegoStep";
+import { EvacuacionStep } from "@/features/studies/components/EvacuacionStep";
+import { DbsiOcupacionStep } from "@/features/studies/components/DbsiOcupacionStep";
+import { DbsiResultsPanel } from "@/features/studies/components/DbsiResultsPanel";
 
 const EMPTY = { establecimiento: { config: "C" }, sectores: [], dependencias: [] };
 
@@ -59,7 +62,8 @@ export default function StudyWizardPage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
-  const setEstField = (name, value) => setData((d) => ({ ...d, establecimiento: { ...d.establecimiento, [name]: value } }));
+  const getVal = (f) => (f.target ? (data[f.target] || {})[f.name] : data[f.name]);
+  const setVal = (f, v) => setData((d) => (f.target ? { ...d, [f.target]: { ...(d[f.target] || {}), [f.name]: v } } : { ...d, [f.name]: v }));
 
   const goTo = async (target) => {
     await saveMut.mutateAsync(data);
@@ -70,13 +74,15 @@ export default function StudyWizardPage() {
 
   const current = steps[step];
 
-  const renderEstField = (f) => {
+  const renderField = (f) => {
     if (f.type === "activity_combobox")
-      return <ActivityCombobox value={data.establecimiento[f.name]} onChange={(v) => setEstField(f.name, v)} options={schema.activity_types || []} testid={`field-${f.name}`} />;
+      return <ActivityCombobox value={getVal(f)} onChange={(v) => setVal(f, v)} options={schema.activity_types || []} testid={`field-${f.name}`} />;
     if (f.type === "config_selector")
-      return <ConfigSelector value={data.establecimiento[f.name]} onChange={(v) => setEstField(f.name, v)} options={schema.config_types || []} testid={`field-${f.name}`} />;
-    return <DynamicField field={f} value={data.establecimiento[f.name]} onChange={(v) => setEstField(f.name, v)} testidPrefix="field" />;
+      return <ConfigSelector value={getVal(f)} onChange={(v) => setVal(f, v)} options={schema.config_types || []} testid={`field-${f.name}`} />;
+    return <DynamicField field={f} value={getVal(f)} onChange={(v) => setVal(f, v)} testidPrefix="field" />;
   };
+
+  const isCte = study.module_code === "CTE";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -110,27 +116,33 @@ export default function StudyWizardPage() {
         {current.description && <p className="mt-1 text-sm text-muted-foreground">{current.description}</p>}
 
         <div className="mt-6">
-          {current.id === "establecimiento" && (
-            <div className="grid grid-cols-1 gap-5">
-              {current.fields.map((f) => (
-                <div key={f.name}>
-                  <span className="mb-1.5 block text-sm">{f.label} {f.required && <span className="text-destructive">*</span>}</span>
-                  {renderEstField(f)}
-                </div>
-              ))}
+          {current.fields && !current.type && !current.synthetic && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {current.fields.map((f) => {
+                const custom = f.type === "config_selector" || f.type === "activity_combobox";
+                const wide = f.type === "boolean" || custom || f.full;
+                return (
+                  <div key={f.name} className={wide ? "sm:col-span-2" : ""}>
+                    {custom && <span className="mb-1.5 block text-sm">{f.label} {f.required && <span className="text-destructive">*</span>}</span>}
+                    {renderField(f)}
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {current.type === "superficies" && <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />}
           {current.type === "ocupacion" && <OcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />}
           {current.type === "carga_fuego" && <CargaFuegoStep data={data} setData={setData} catalog={schema.activity_catalog || []} ciTable={schema.ci_table || []} />}
+          {current.type === "evacuacion" && <EvacuacionStep data={data} setData={setData} />}
+          {current.type === "dbsi_ocupacion" && <DbsiOcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />}
 
           {current.synthetic && (
             <div>
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                <ResultsPanel results={results} />
+                isCte ? <DbsiResultsPanel results={results} /> : <ResultsPanel results={results} />
               ) : (
                 <div className="border border-dashed border-border py-12 text-center">
                   <p className="text-sm text-muted-foreground">Pulsa «Calcular» para ejecutar el motor de reglas.</p>

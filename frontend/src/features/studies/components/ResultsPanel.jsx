@@ -37,6 +37,19 @@ function SectorCard({ s }) {
         <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Delimitadores</p><p className="mt-1 font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
         <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Evacuación (máx.)</p><p className="mt-1 font-mono font-semibold">{s.evacuacion?.distancia_maxima} m · {s.evacuacion?.num_salidas} sal.</p></div>
       </div>
+      {s.evacuacion?.recorridos?.length > 0 && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Recorridos de evacuación{s.evacuacion.coeficiente !== "ninguno" ? ` · ${s.evacuacion.coeficiente_label}` : ""}</p>
+          <div className="space-y-1">
+            {s.evacuacion.recorridos.map((r, i) => (
+              <div key={i} className="flex items-center justify-between text-sm" data-testid={`sector-${s.id}-rec-${i}`}>
+                <span>{r.origen} <span className="text-muted-foreground">({r.tipo === "sin_alternativa" ? "sin alternativa" : "hasta salida"})</span></span>
+                <span className="font-mono">{num(r.distancia_real, 1)} / {num(r.distancia_max, 1)} m <span className={r.cumple ? "text-emerald-700" : "text-red-700"}>{r.cumple ? "✓" : "✗"}</span></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="border-t border-border">
         {s.requisitos.instalaciones.map((it, i) => (
           <div key={i} className="flex items-start justify-between gap-3 border-b border-border px-4 py-2.5 last:border-0" data-testid={`sector-${s.id}-inst-${i}`}>
