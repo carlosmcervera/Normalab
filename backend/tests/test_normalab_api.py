@@ -84,10 +84,38 @@ class TestModules:
         assert r.status_code == 200
         payload = r.json()
         s = payload.get("schema", payload)
-        assert "steps" in s and "presets" in s
+        assert "steps" in s
         assert len(s["steps"]) >= 2
         step_ids = [st["id"] for st in s["steps"]]
         assert "establecimiento" in step_ids and "zonas" in step_ids
+        # New schema pieces (iteration 2)
+        assert "config_types" in s and len(s["config_types"]) == 6
+        for ct in s["config_types"]:
+            assert "value" in ct and "label" in ct and "image" in ct
+            assert ct["image"].startswith("http")
+        assert {c["value"] for c in s["config_types"]} == {"AV", "AH", "B", "C", "D", "E"}
+        assert "ci_table" in s and len(s["ci_table"]) == 7
+        for row in s["ci_table"]:
+            assert "grado" in row and "ci" in row and isinstance(row["ci"], (int, float))
+        assert "activity_catalog" in s and len(s["activity_catalog"]) == 13
+        for cat in s["activity_catalog"]:
+            assert "category" in cat and "subactivities" in cat and len(cat["subactivities"]) >= 1
+            for sub in cat["subactivities"]:
+                assert "name" in sub and "modo" in sub and "ci" in sub and "ra" in sub
+                assert sub["modo"] in ("produccion", "almacenamiento")
+                if sub["modo"] == "produccion":
+                    assert "qsi" in sub
+                else:
+                    assert "qvi" in sub
+        assert "activity_types" in s and len(s["activity_types"]) == 13
+        # Step 2 must be 'activities' type
+        step2 = next(st for st in s["steps"] if st["id"] == "zonas")
+        assert step2.get("type") == "activities"
+        # Step 1 field types
+        step1 = next(st for st in s["steps"] if st["id"] == "establecimiento")
+        fmap = {f["name"]: f for f in step1["fields"]}
+        assert fmap["actividad"]["type"] == "activity_combobox"
+        assert fmap["tipo_configuracion"]["type"] == "config_selector"
 
 
 # ---------- Projects + Studies + Compute ----------
@@ -141,6 +169,84 @@ class TestStudiesFlow:
         got = r2.json()["data"]
         assert got["superficie_sector"] == 2000
         assert len(got["zonas"]) == 2
+
+    def test_compute_multiple_activities_sum(self, admin_session, project_id):
+        """Iteración 2: al añadir varias actividades al sector, la carga se suma."""
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": "TEST multiactividad"
+        })
+        sid = r.json()["id"]
+        # 3 actividades: 2 producción + 1 almacenamiento
+        data = {
+            "actividad": "Nave multi",
+            "tipo_configuracion": "C",
+            "superficie_sector": 4000,
+            "ra": 1.4,
+            "fachada_accesible": False,
+            "rociadores": True,
+            "zonas": [
+                {"descripcion": "Carpintería · producción con depósito intermedio",
+                 "modo": "produccion", "qsi": 1700, "ci": 1.2, "superficie": 1500},
+                {"descripcion": "Muebles tapizados · fabricación",
+                 "modo": "produccion", "qsi": 550, "ci": 1.44, "superficie": 500},
+                {"descripcion": "Carpintería · almacenamiento",
+                 "modo": "almacenamiento", "qvi": 3200, "ci": 1.2, "hi": 4, "superficie": 800},
+            ],
+        }
+        pr = admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        assert pr.status_code == 200
+        cr = admin_session.post(f"{API}/studies/{sid}/compute")
+        assert cr.status_code == 200, cr.text
+        res = cr.json()["results"]
+        # Numerador esperado
+        # 1700*1500*1.2 = 3,060,000
+        # 550*500*1.44 = 396,000
+        # 3200*1.2*4*800 = 12,288,000
+        # Total = 15,744,000
+        # qs = 15744000/4000 * 1.4 = 5510.4
+        expected_num = 1700 * 1500 * 1.2 + 550 * 500 * 1.44 + 3200 * 1.2 * 4 * 800
+        expected_qs = (expected_num / 4000) * 1.4
+        assert abs(res["calculo"]["numerador"] - expected_num) < 1.0
+        assert abs(res["nivel_riesgo"]["qs_mj"] - expected_qs) < 1.0
+        # 3 zones in results
+        assert len(res["calculo"]["zonas"]) == 3
+        # Level for qs≈5510 => nivel 6 ALTO
+        assert res["nivel_riesgo"]["nivel"] == 6
+        assert res["nivel_riesgo"]["categoria"] == "ALTO"
+        # Sectorization factor: rociadores only -> 2.0; base C nivel 6 = 6000 -> max 12000
+        assert res["sectorizacion"]["factor_incremento"] == 2.0
+        assert res["sectorizacion"]["max_admisible"] == 12000.0
+        admin_session.delete(f"{API}/studies/{sid}")
+
+    def test_compute_storage_uses_hi(self, admin_session, project_id):
+        """Iteración 2: modo almacenamiento usa altura hi en el aporte (qvi·Ci·hi·Si)."""
+        r = admin_session.post(f"{API}/studies", json={
+            "project_id": project_id, "module_code": "RSCIEI", "name": "TEST alm hi"
+        })
+        sid = r.json()["id"]
+        data = {
+            "actividad": "Almacén test",
+            "tipo_configuracion": "B",
+            "superficie_sector": 1000,
+            "ra": 1.0,
+            "zonas": [
+                {"descripcion": "Cartón bobinas",
+                 "modo": "almacenamiento", "qvi": 14700, "ci": 1.2, "hi": 5, "superficie": 1000},
+            ],
+        }
+        admin_session.put(f"{API}/studies/{sid}", json={"data": data})
+        cr = admin_session.post(f"{API}/studies/{sid}/compute")
+        assert cr.status_code == 200
+        res = cr.json()["results"]
+        # numerador = 14700*1.2*5*1000 = 88,200,000; qs = 88200000/1000 = 88200
+        assert abs(res["calculo"]["numerador"] - 88200000.0) < 1.0
+        assert abs(res["nivel_riesgo"]["qs_mj"] - 88200.0) < 1.0
+        assert res["nivel_riesgo"]["nivel"] == 8
+        # Verify the aporte formula
+        z = res["calculo"]["zonas"][0]
+        assert z["modo"] == "almacenamiento"
+        assert z.get("hi") == 5
+        admin_session.delete(f"{API}/studies/{sid}")
 
     def test_compute_rsciei(self, admin_session, study_id):
         r = admin_session.post(f"{API}/studies/{study_id}/compute")

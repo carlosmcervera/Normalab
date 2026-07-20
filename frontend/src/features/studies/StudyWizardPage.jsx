@@ -1,21 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Calculator, Save, FileText, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Plus, Calculator, Save, FileText, Check } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { DynamicField } from "@/features/studies/components/DynamicField";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
-
-function visible(field, item) {
-  if (!field.show_if) return true;
-  return Object.entries(field.show_if).every(([k, v]) => item[k] === v);
-}
+import { ActivityCombobox } from "@/features/studies/components/ActivityCombobox";
+import { ConfigSelector } from "@/features/studies/components/ConfigSelector";
+import { ZonaActivityEditor } from "@/features/studies/components/ZonaActivityEditor";
 
 export default function StudyWizardPage() {
   const { studyId } = useParams();
@@ -61,15 +56,11 @@ export default function StudyWizardPage() {
 
   const setField = (name, value) => setData((d) => ({ ...d, [name]: value }));
 
-  const setZona = (idx, name, value) =>
-    setData((d) => ({ ...d, zonas: d.zonas.map((z, i) => (i === idx ? { ...z, [name]: value } : z)) }));
-  const addZona = () => setData((d) => ({ ...d, zonas: [...(d.zonas || []), { modo: "produccion", ci: 1.0 }] }));
+  const updateZona = (idx, newZona) =>
+    setData((d) => ({ ...d, zonas: d.zonas.map((z, i) => (i === idx ? newZona : z)) }));
+  const addZona = () => setData((d) => ({ ...d, zonas: [...(d.zonas || []), { modo: "produccion", ci: 1.2 }] }));
   const removeZona = (idx) => setData((d) => ({ ...d, zonas: d.zonas.filter((_, i) => i !== idx) }));
-  const applyPreset = (idx, preset) =>
-    setData((d) => ({ ...d, zonas: d.zonas.map((z, i) => (i === idx ? {
-      ...z, descripcion: preset.label, modo: preset.modo, ci: preset.ci,
-      ...(preset.modo === "produccion" ? { qsi: preset.qsi } : { qvi: preset.qvi }),
-    } : z)) }));
+  const bumpRa = (ra) => setData((d) => (Number(ra) > (Number(d.ra) || 0) ? { ...d, ra } : d));
 
   const goTo = async (target) => {
     await saveMut.mutateAsync(data);
@@ -79,7 +70,14 @@ export default function StudyWizardPage() {
   };
 
   const current = steps[step];
-  const presets = schema.presets || [];
+
+  const renderField = (f) => {
+    if (f.type === "activity_combobox")
+      return <ActivityCombobox value={data[f.name]} onChange={(v) => setField(f.name, v)} options={schema.activity_types || []} testid={`field-${f.name}`} />;
+    if (f.type === "config_selector")
+      return <ConfigSelector value={data[f.name]} onChange={(v) => setField(f.name, v)} options={schema.config_types || []} testid={`field-${f.name}`} />;
+    return <DynamicField field={f} value={data[f.name]} onChange={(v) => setField(f.name, v)} testidPrefix="field" />;
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -119,51 +117,45 @@ export default function StudyWizardPage() {
 
         <div className="mt-6">
           {/* Regular fields step */}
-          {!current.synthetic && current.type !== "repeater" && (
+          {!current.synthetic && !current.type && (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {current.fields.map((f) => (
-                <div key={f.name} className={f.type === "boolean" ? "sm:col-span-2" : ""}>
-                  <DynamicField field={f} value={data[f.name]} onChange={(v) => setField(f.name, v)} testidPrefix="field" />
-                </div>
-              ))}
+              {current.fields.map((f) => {
+                const custom = f.type === "activity_combobox" || f.type === "config_selector";
+                return (
+                  <div key={f.name} className={f.type === "boolean" || f.type === "config_selector" ? "sm:col-span-2" : ""}>
+                    {custom && (
+                      <span className="mb-1.5 block text-sm">{f.label} {f.required && <span className="text-destructive">*</span>}</span>
+                    )}
+                    {renderField(f)}
+                    {custom && f.help && <p className="mt-1 text-xs text-muted-foreground">{f.help}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* Repeater step */}
-          {current.type === "repeater" && (
+          {/* Activities step */}
+          {current.type === "activities" && (
             <div className="space-y-4">
               {(data.zonas || []).length === 0 && (
                 <p className="border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                  No hay zonas. Añade la primera zona del sector.
+                  Sin actividades. Añade la primera actividad del sector de incendio.
                 </p>
               )}
               {(data.zonas || []).map((z, idx) => (
-                <div key={idx} className="border border-border p-4" data-testid={`zona-${idx}`}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{current.item_label} {idx + 1}</p>
-                    <div className="flex items-center gap-2">
-                      {presets.length > 0 && (
-                        <Select onValueChange={(val) => applyPreset(idx, presets[Number(val)])}>
-                          <SelectTrigger className="h-8 w-48 rounded-sm text-xs" data-testid={`preset-${idx}`}><SelectValue placeholder="Cargar preset…" /></SelectTrigger>
-                          <SelectContent>
-                            {presets.map((p, pi) => <SelectItem key={pi} value={String(pi)}>{p.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-sm text-muted-foreground hover:text-destructive" onClick={() => removeZona(idx)} data-testid={`remove-zona-${idx}`}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-                    {current.fields.filter((f) => visible(f, z)).map((f) => (
-                      <DynamicField key={f.name} field={f} value={z[f.name]} onChange={(v) => setZona(idx, f.name, v)} testidPrefix={`zona-${idx}`} />
-                    ))}
-                  </div>
-                </div>
+                <ZonaActivityEditor
+                  key={idx}
+                  zona={z}
+                  index={idx}
+                  catalog={schema.activity_catalog || []}
+                  ciTable={schema.ci_table || []}
+                  onChange={(nz) => updateZona(idx, nz)}
+                  onRemove={() => removeZona(idx)}
+                  onBumpRa={bumpRa}
+                />
               ))}
               <Button variant="outline" className="rounded-sm" onClick={addZona} data-testid="add-zona">
-                <Plus className="mr-2 h-4 w-4" /> Añadir zona
+                <Plus className="mr-2 h-4 w-4" /> Añadir actividad
               </Button>
             </div>
           )}

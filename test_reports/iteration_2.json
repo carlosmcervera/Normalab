@@ -1,0 +1,32 @@
+{
+  "summary": "Iteración 2 (mejora módulo RSCIEI: combobox de actividad, tarjetas de configuración con imagen, tabla Ci en diálogo, editor de actividades con actividad principal→subactividad autocompletable, altura hi de almacenamiento, actividad personalizada, bumpRa). Backend: 13/13 pytest OK — schema expone config_types(6+image), ci_table(7), activity_catalog(13 categorías) y activity_types; compute con 3 actividades (2 producción + 1 almacenamiento) suma correctamente los aportes (numerador 15.744.000; Qs=5510,4 MJ/m² nivel 6 ALTO); compute con almacenamiento único verifica fórmula qvi·Ci·hi·Si. Frontend E2E: login + wizard step1 (combobox creando actividad personalizada 'Nave custom TEST', 6 tarjetas AV/AH/B/C/D/E, lupa abre diálogo con imagen grande, selección B), step2 (subactividad Carpintería·producción autocompleta qsi=1700 y ci=1,20; tabla Ci abre 7 filas y seleccionar fila 1 fija ci=1,40; segunda actividad almacenamiento muestra campo altura hi; opción '+ Actividad personalizada' habilita input de descripción), paso resultados: Qs=7929 MJ/m² nivel 7 ALTO, tabla de zonas muestra nombres de subactividad, sectorización Tipo B factor ×1,00 max 3000 m² 'cumple'.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ConfigSelector zoom", "issues": ["El botón lupa (config-zoom-*) usa opacity-0 group-hover:opacity-100 y está sobre otro <button> (accesibilidad: nested interactive elements). Funcional pero considerar reestructurar el markup."]},
+      {"screen": "Step 1 form", "issues": ["El texto de ayuda de Ra ('Se sugiere automáticamente el Ra máximo…') solo se muestra para campos custom (activity/config). Para inputs normales el help no se renderiza al lado del DynamicField."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Opcional) Añadir un test-id explícito para el aporte visible por zona (p.ej. zona-{i}-aporte) para facilitar E2E futuros.",
+    "(Opcional) Mostrar el help text de los campos del step1 también cuando f.type es 'number' (actualmente solo se renderiza para activity_combobox/config_selector).",
+    "(Opcional) ConfigSelector: sustituir el <span> con onClick de la lupa por un <button> hermano fuera del button principal (evitar nested interactive elements)."
+  ],
+  "critical_code_review_comments": [
+    "ActivityCombobox: cmdk filtra por 'value' — para catálogos grandes se filtra bien; ok.",
+    "ZonaActivityEditor: al cambiar categoría se resetea subactividad/qsi/qvi pero NO se resetea ci; puede quedarse un Ci antiguo tras cambiar de categoría (comportamiento aceptable, pero considerar limpiarlo o dejarlo intencionalmente).",
+    "bumpRa solo aumenta Ra, nunca lo reduce si eliminas la actividad más peligrosa. Aceptable según UX declarada, pero podría documentarse.",
+    "Al abrir el diálogo de zoom desde una tarjeta activa, el clic en la lupa hace stopPropagation correctamente para no reseleccionar; verificado."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": { "backend": "100% (13/13)", "frontend": "100% flujo mejorado" },
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Los tests crean expedientes/estudios con prefijo TEST_; se autolimpian los estudios creados dentro de test_compute_multiple_activities_sum, test_compute_storage_uses_hi y test_compute_invalid_no_zonas. Para E2E manual se ha creado 1 proyecto TEST-UI-* + estudio 'TEST wizard UI' (no crítico).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL: https://normlab.preview.emergentagent.com. Schema RSCIEI ahora incluye config_types(6+image), ci_table(7), activity_catalog(13) y activity_types. Los shadcn Select requieren wait_for_timeout(400) tras abrir. Para autocompletado de subactividad: seleccionar categoría → subactividad, y verificar zona-{i}-densidad y zona-{i}-ci automáticamente. En almacenamiento aparece zona-{i}-altura. La actividad personalizada se activa con la opción '+ Actividad personalizada' en zona-{i}-categoria y expone zona-{i}-descripcion. En StudyWizardPage el navigate post-login va a '/' (no /dashboard).",
+  "rca of the issue": "N/A — no bugs detectados en esta iteración."
+}
