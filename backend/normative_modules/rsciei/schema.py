@@ -1,6 +1,6 @@
 """Wizard schema for the RSCIEI module (dynamic, module-driven rendering)."""
 from normative_modules.rsciei.catalog import (
-    ACTIVITY_CATALOG, ACTIVITY_TYPES, CI_TABLE, CONFIG_TYPES,
+    ACTIVITY_CATALOG, ACTIVITY_TYPES, CI_TABLE, CONFIG_TYPES, RA_TABLE,
 )
 
 
@@ -8,6 +8,7 @@ def get_schema() -> dict:
     return {
         "config_types": CONFIG_TYPES,
         "ci_table": CI_TABLE,
+        "ra_table": RA_TABLE,
         "activity_catalog": ACTIVITY_CATALOG,
         "activity_types": ACTIVITY_TYPES,
         "steps": [
@@ -22,9 +23,9 @@ def get_schema() -> dict:
                      "type": "config_selector", "required": True},
                     {"name": "superficie_sector", "label": "Superficie construida del sector, A (m²)",
                      "type": "number", "required": True, "min": 1, "step": 1},
-                    {"name": "ra", "label": "Coef. de peligrosidad por activación (Ra)", "type": "number",
+                    {"name": "ra", "label": "Coef. de peligrosidad por activación (Ra)", "type": "ra_selector",
                      "required": True, "min": 0.1, "step": 0.1, "default": 1.0,
-                     "help": "Se sugiere automáticamente el Ra máximo de las actividades añadidas al sector."},
+                     "help": "Según Tabla 1.3.4. Se sugiere automáticamente el Ra máximo de las actividades del sector."},
                     {"name": "fachada_accesible", "label": "Fachada accesible ≥ 50% del perímetro",
                      "type": "boolean", "help": "Nota 2, Tabla 2.1: incrementa la superficie máxima ×1,25."},
                     {"name": "rociadores", "label": "Rociadores automáticos en todo el sector",

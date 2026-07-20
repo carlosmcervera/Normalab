@@ -2,7 +2,7 @@
 resaltando la opción/valor aplicable al estudio. Cada tabla incluye su
 referencia normativa."""
 
-from normative_modules.rsciei.catalog import CI_TABLE
+from normative_modules.rsciei.catalog import CI_TABLE, RA_TABLE
 from normative_modules.rsciei.engine import MAX_SURFACE, NRI_TABLE
 from normative_modules.rsciei.requirements import (
     BIE, DETECCION, ESTABILIDAD, HIDRANTES, ROCIADORES,
@@ -56,16 +56,15 @@ def _t_ci(used):
 
 
 def _t_ra(ra):
-    tabla = [("Baja", "1,0", 1.0), ("Media", "1,5", 1.5), ("Alta", "2,0", 2.0)]
     rows, hl = [], []
-    for i, (lab, val, num) in enumerate(tabla):
-        rows.append([f"Activación {lab.lower()}", val])
-        if abs(float(ra) - num) < 1e-6:
+    for i, r in enumerate(RA_TABLE):
+        rows.append([f"{r['ra']:.1f}".replace(".", ","), r["grado"], r["criterio"]])
+        if abs(float(ra) - r["ra"]) < 1e-6:
             hl.append(i)
     return {
-        "id": "ra", "titulo": "Coeficiente de peligrosidad por activación (Ra)",
-        "referencia": f"{GUIA}, Anexo I (grado de activación de la actividad)",
-        "headers": ["Grado de activación", "Ra"],
+        "id": "ra", "titulo": "Tabla 1.3.4 · Coeficiente de peligrosidad por activación (Ra)",
+        "referencia": f"{GUIA}, Anexo I, Tabla 1.3.4",
+        "headers": ["Ra", "Grado", "Criterio"],
         "rows": rows, "highlight_rows": hl, "highlight_cells": [],
     }
 

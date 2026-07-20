@@ -135,3 +135,15 @@ ACTIVITY_CATALOG = [
 ]
 
 ACTIVITY_TYPES = [c["category"] for c in ACTIVITY_CATALOG]
+
+# Tabla 1.3.4 · Criterios para determinar el coeficiente de activación (Ra / R)
+RA_TABLE = [
+    {"ra": 0.8, "grado": "Reducido",
+     "criterio": "Sector dedicado exclusivamente a almacenamiento de baja altura (≤ 2,50 m) y superficie en planta < 50 m². No aplicable si la Tabla 1.3.5 (Rmin) exige un valor superior."},
+    {"ra": 1.0, "grado": "Normal (por defecto)",
+     "criterio": "Valor por defecto cuando no concurren las casuísticas de un valor distinto (debe justificarse debidamente)."},
+    {"ra": 1.4, "grado": "Alto",
+     "criterio": "Aumento significativo de la probabilidad de inicio del incendio por fuentes térmicas, químicas o equivalentes (p. ej. trabajos habituales con chispas o llamas abiertas), o actividad marcada como tal en la Tabla 1.3.5."},
+    {"ra": 1.8, "grado": "Muy alto",
+     "criterio": "Se cumplen SIMULTÁNEAMENTE las dos situaciones de R = 1,4 (p. ej. zona de trabajos con llama + zona de almacenamiento de propagación rápida)."},
+]

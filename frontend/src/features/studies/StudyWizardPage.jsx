@@ -10,6 +10,7 @@ import { DynamicField } from "@/features/studies/components/DynamicField";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 import { ActivityCombobox } from "@/features/studies/components/ActivityCombobox";
 import { ConfigSelector } from "@/features/studies/components/ConfigSelector";
+import { RaSelector } from "@/features/studies/components/RaSelector";
 import { ZonaActivityEditor } from "@/features/studies/components/ZonaActivityEditor";
 
 export default function StudyWizardPage() {
@@ -76,6 +77,8 @@ export default function StudyWizardPage() {
       return <ActivityCombobox value={data[f.name]} onChange={(v) => setField(f.name, v)} options={schema.activity_types || []} testid={`field-${f.name}`} />;
     if (f.type === "config_selector")
       return <ConfigSelector value={data[f.name]} onChange={(v) => setField(f.name, v)} options={schema.config_types || []} testid={`field-${f.name}`} />;
+    if (f.type === "ra_selector")
+      return <RaSelector value={data[f.name]} onChange={(v) => setField(f.name, v)} raTable={schema.ra_table || []} testid={`field-${f.name}`} />;
     return <DynamicField field={f} value={data[f.name]} onChange={(v) => setField(f.name, v)} testidPrefix="field" />;
   };
 
@@ -120,7 +123,7 @@ export default function StudyWizardPage() {
           {!current.synthetic && !current.type && (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {current.fields.map((f) => {
-                const custom = f.type === "activity_combobox" || f.type === "config_selector";
+                const custom = f.type === "activity_combobox" || f.type === "config_selector" || f.type === "ra_selector";
                 return (
                   <div key={f.name} className={f.type === "boolean" || f.type === "config_selector" ? "sm:col-span-2" : ""}>
                     {custom && (

@@ -532,7 +532,7 @@ class TestStudiesFlow:
         Verifica estructura de 9 tablas y highlights por caso."""
         data = {"actividad": "Nave B ref tablas", "tipo_configuracion": "B",
                 "superficie_sector": 2000, "situacion": "sobre_rasante",
-                "superficie_establecimiento": 2000, "altura_evacuacion": 8, "ra": 1.5,
+                "superficie_establecimiento": 2000, "altura_evacuacion": 8, "ra": 1.4,
                 "zonas": [{"descripcion": "Prod ALTO nivel7", "modo": "produccion",
                            "qsi": 8000, "ci": 1.0, "superficie": 2000}]}
         res = self._make_and_compute(admin_session, project_id, data, "TEST iter5 tablas B")
@@ -555,8 +555,8 @@ class TestStudiesFlow:
         by = {t["id"]: t for t in tablas}
         # nri: highlight fila 6 (nivel 7 => índice 6)
         assert by["nri"]["highlight_rows"] == [6], by["nri"]["highlight_rows"]
-        # ra=1.5 => Activación media, fila 1
-        assert by["ra"]["highlight_rows"] == [1]
+        # ra=1.4 => Alto, fila 2
+        assert by["ra"]["highlight_rows"] == [2]
         # superficie: nivel 7, Tipo B (columna 3) => [6,3] presente. Header col0 => [6,0]
         assert [6, 3] in by["superficie"]["highlight_cells"], by["superficie"]["highlight_cells"]
         # estabilidad: Riesgo alto (fila 2), B s/rasante (columna 6) => [2,6]
@@ -647,6 +647,56 @@ class TestStudiesFlow:
         rep2 = stu.get("report")
         assert rep2 and any(s["id"] == "tablas" for s in rep2["sections"])
         admin_session.delete(f"{API}/studies/{sid}")
+
+    # ---------- Iteration 6: Tabla 1.3.4 (Ra) ----------
+    def test_iter6_schema_expone_ra_table(self, admin_session):
+        r = admin_session.get(f"{API}/modules/RSCIEI/schema")
+        assert r.status_code == 200
+        payload = r.json()
+        sch = payload.get("schema", payload)
+        assert "ra_table" in sch, "schema.ra_table ausente"
+        rat = sch["ra_table"]
+        assert isinstance(rat, list) and len(rat) == 4
+        vals = [row["ra"] for row in rat]
+        assert vals == [0.8, 1.0, 1.4, 1.8], vals
+        for row in rat:
+            assert "grado" in row and row["grado"]
+            assert "criterio" in row and row["criterio"]
+        # campo ra tiene type 'ra_selector'
+        step1 = sch["steps"][0]
+        ra_field = next(f for f in step1["fields"] if f["name"] == "ra")
+        assert ra_field["type"] == "ra_selector", ra_field
+
+    def test_iter6_tabla_1_3_4_highlight_ra_1_4(self, admin_session, project_id):
+        """ra=1.4 => la tabla 'ra' resalta la fila índice 2 (Alto)."""
+        data = {"actividad": "Ra 1.4", "tipo_configuracion": "B",
+                "superficie_sector": 500, "situacion": "sobre_rasante",
+                "altura_evacuacion": 4, "ra": 1.4,
+                "zonas": [{"descripcion": "z", "modo": "produccion",
+                           "qsi": 500, "ci": 1.20, "superficie": 500}]}
+        res = self._make_and_compute(admin_session, project_id, data, "TEST iter6 ra 1.4")
+        tra = next(t for t in res["tablas"] if t["id"] == "ra")
+        assert "Tabla 1.3.4" in tra["titulo"], tra["titulo"]
+        assert "Anexo I, Tabla 1.3.4" in tra["referencia"], tra["referencia"]
+        assert tra["headers"] == ["Ra", "Grado", "Criterio"], tra["headers"]
+        assert len(tra["rows"]) == 4
+        # fila 2 = Alto (ra=1,4)
+        assert tra["rows"][2][0] == "1,4"
+        assert "Alto" in tra["rows"][2][1]
+        assert tra["highlight_rows"] == [2], tra["highlight_rows"]
+
+    def test_iter6_tabla_ra_highlights_por_valor(self, admin_session, project_id):
+        """Verifica highlight para ra=0.8, 1.0, 1.8."""
+        cases = [(0.8, 0), (1.0, 1), (1.8, 3)]
+        for ra_val, expected in cases:
+            data = {"actividad": f"Ra {ra_val}", "tipo_configuracion": "B",
+                    "superficie_sector": 300, "situacion": "sobre_rasante",
+                    "altura_evacuacion": 4, "ra": ra_val,
+                    "zonas": [{"descripcion": "z", "modo": "produccion",
+                               "qsi": 300, "ci": 1.0, "superficie": 300}]}
+            res = self._make_and_compute(admin_session, project_id, data, f"TEST iter6 ra {ra_val}")
+            tra = next(t for t in res["tablas"] if t["id"] == "ra")
+            assert tra["highlight_rows"] == [expected], f"ra={ra_val} => {tra['highlight_rows']}"
 
     def test_versioning(self, admin_session, study_id):
         r = admin_session.post(f"{API}/studies/{study_id}/version", json={"note": "TEST v1"})

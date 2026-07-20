@@ -1,0 +1,22 @@
+{
+  "summary": "Iteración 6 — Tabla 1.3.4 (Coef. Ra). Backend 34/34 pytest OK (3 nuevos tests iter6: schema expone ra_table, highlight fila 2 con ra=1.4, highlights por valor 0.8/1.0/1.4/1.8). Frontend E2E OK: en el wizard paso 1 el campo Ra muestra input numérico + botón 'Tabla 1.3.4' (open-ra-table). Al abrir el diálogo aparecen las 4 filas (ra-row-0..3) con valores 0,8/1,0/1,4/1,8 y sus grados (Reducido, Normal, Alto, Muy alto) y criterios. Click en ra-row-2 actualiza field-ra a 1.4. En el informe (/estudios/{id}/informe) aparece la tabla ref-table-ra con título 'Tabla 1.3.4 · Coeficiente de peligrosidad por activación (Ra)', 4 filas (Ra/Grado/Criterio), la fila 'Alto' (índice 2) resaltada en naranja, y 'Fuente: Guía de aplicación del RSCIEI 2025 · RD 2267/2004, Anexo I, Tabla 1.3.4' debajo. Se corrigió el test iter5 (test_iter5_tablas_estructura_completa) que usaba ra=1.5 obsoleto: ahora ra=1.4 y espera highlight_rows=[2].",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_normalab_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "catalog.py RA_TABLE con 4 filas oficiales (0.8/1.0/1.4/1.8) y criterio literal de la guía; coherente con Tabla 1.3.4.",
+    "schema.py expone ra_table y campo 'ra' con type 'ra_selector' — el frontend renderiza el componente correctamente.",
+    "tablas.py _t_ra() itera RA_TABLE y resalta por igualdad numérica float con tolerancia 1e-6; título y referencia (Anexo I, Tabla 1.3.4) correctos.",
+    "StudyWizardPage.jsx bumpRa (line 64) auto-ajusta el Ra al máximo cuando se añade una subactividad con Ra mayor; correcto.",
+    "RaSelector.jsx UX consistente con CiSelector: input numérico + Dialog con las 4 opciones, mostrando valor mono, grado y criterio. data-testids presentes (open-ra-table, ra-row-{i}, field-ra).",
+    "Nota menor: el mensaje bajo el input muestra 'Ra = 1,4 · Alto' solo si el valor coincide exactamente con una fila; los valores libres (p. ej. 1,2) no muestran texto de grado — comportamiento aceptable dado que la Tabla 1.3.4 solo prevé 4 valores canónicos."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalab_api.py"],
+  "success_rate": {"backend": "100% (34/34)", "frontend": "100% (Ra selector + diálogo + report highlight)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Creado y limpiado dinámicamente: proyecto TEST_iter6_* + estudio TEST_iter6_wizard usados en el flujo Playwright.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter6 añade Tabla 1.3.4 (Ra). RA_TABLE tiene 4 filas [0.8, 1.0, 1.4, 1.8]. El schema del módulo se devuelve como {meta, schema:{...}}, ra_table está en payload.schema.ra_table. Se corrigió el test iter5 que dependía de un valor ra=1.5 ya no válido."
+}
