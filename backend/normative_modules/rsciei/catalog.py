@@ -1,6 +1,12 @@
-"""Catálogo RSCIEI: tipos de configuración (con imágenes), tabla de coeficiente
-de combustibilidad Ci y catálogo jerárquico de actividades (Tabla 1.3 - valores
-representativos de densidad de carga de fuego media y coeficientes)."""
+"""Catálogo RSCIEI (RD 164/2025): tipos de configuración (con imágenes), tabla de
+coeficiente de combustibilidad Ci, densidades de ocupación (CTE) y catálogo
+jerárquico de actividades según la Tabla 1.3.5 de la Guía RSCIEI 2025.
+
+Cada subactividad incluye: name, modo (produccion|almacenamiento), qsi (MJ/m²) o
+qvi (MJ/m³), ci (coef. combustibilidad orientativo, ajustable por el técnico), ra
+(coef. de activación por defecto) y rmin (valor mínimo de Ra según Tabla 1.3.5).
+El modo se asigna por la unidad: MJ/m² → producción; MJ/m³ → almacenamiento.
+"""
 
 IMG = "https://static.prod-images.emergentagent.com/jobs/5eb931c9-6038-47bc-82ba-0518add2fe79/images"
 
@@ -22,7 +28,7 @@ CONFIG_TYPES = [
      "image": f"{IMG}/1e88e13a9097ec172b9858beb61e2d1988b21181c13b4a0baa508c8c38ad3332.png"},
 ]
 
-# Tabla del coeficiente adimensional de peligrosidad por combustibilidad (Ci)
+# Tabla 1.3.2 · coeficiente adimensional de peligrosidad por combustibilidad (Ci)
 CI_TABLE = [
     {"grado": "Alta", "ci": 1.60, "descripcion": "Productos de alta combustibilidad (líquidos y sólidos que se inflaman con facilidad)."},
     {"grado": "Media", "ci": 1.40, "descripcion": "Productos de combustibilidad media."},
@@ -33,104 +39,171 @@ CI_TABLE = [
     {"grado": "Baja + humígeno", "ci": 1.44, "descripcion": "Baja combustibilidad con productos muy fumígenos (+20%)."},
 ]
 
-# Catálogo jerárquico de actividades (valores representativos de la Tabla 1.3)
-# Cada subactividad: name, modo (produccion|almacenamiento), qsi (MJ/m²) o qvi (MJ/m³), ci, ra
+
+def _p(name, qsi, ci, ra, rmin):
+    return {"name": name, "modo": "produccion", "qsi": qsi, "ci": ci, "ra": ra, "rmin": rmin}
+
+
+def _a(name, qvi, ci, ra, rmin):
+    return {"name": name, "modo": "almacenamiento", "qvi": qvi, "ci": ci, "ra": ra, "rmin": rmin}
+
+
+# Catálogo jerárquico completo (Tabla 1.3.5, Guía RSCIEI 2025)
 ACTIVITY_CATALOG = [
-    {"category": "Oficinas", "subactivities": [
-        {"name": "Oficinas", "modo": "produccion", "qsi": 700, "ci": 1.44, "ra": 1.0},
-        {"name": "Salas de reuniones / conferencias", "modo": "produccion", "qsi": 300, "ci": 1.44, "ra": 1.0},
-        {"name": "Archivo de documentación", "modo": "almacenamiento", "qvi": 2100, "ci": 1.20, "ra": 1.0},
+    {"category": "Oficinas y administrativo", "subactivities": [
+        _p("Oficinas", 700, 1.20, 1.0, 1.0),
+        _p("Salas de reuniones / conferencias", 300, 1.20, 1.0, 1.0),
+        _a("Archivos", 1600, 1.20, 1.2, 1.2),
+        _a("Biblioteca (depósito de libros)", 2000, 1.20, 1.0, 1.0),
+        _a("Material de oficina · almacenamiento", 1300, 1.44, 1.44, 1.44),
     ]},
-    {"category": "Alimentación y bebidas", "subactivities": [
-        {"name": "Bebidas sin alcohol · relleno/envasado", "modo": "produccion", "qsi": 350, "ci": 1.20, "ra": 1.0},
-        {"name": "Bebidas sin alcohol · almacenamiento", "modo": "almacenamiento", "qvi": 900, "ci": 1.20, "ra": 1.0},
-        {"name": "Bodegas (vinos) · almacenamiento", "modo": "almacenamiento", "qvi": 80, "ci": 1.00, "ra": 1.0},
-        {"name": "Bebidas alcohólicas (licores) · almacenamiento", "modo": "almacenamiento", "qvi": 800, "ci": 1.40, "ra": 1.0},
-        {"name": "Chocolate · producción/conchado", "modo": "produccion", "qsi": 1200, "ci": 1.20, "ra": 1.0},
-        {"name": "Chocolate · almacén materias primas", "modo": "almacenamiento", "qvi": 5200, "ci": 1.44, "ra": 1.0},
-        {"name": "Grasas y aceites · producción", "modo": "produccion", "qsi": 8500, "ci": 1.68, "ra": 1.4},
-        {"name": "Grasas y aceites · almacenamiento", "modo": "almacenamiento", "qvi": 7900, "ci": 1.68, "ra": 1.0},
-        {"name": "Harinera · producción de harina", "modo": "produccion", "qsi": 1100, "ci": 1.20, "ra": 1.4},
-        {"name": "Harinera · almacén de harina", "modo": "almacenamiento", "qvi": 5300, "ci": 1.20, "ra": 1.0},
-        {"name": "Azúcar · almacenamiento", "modo": "almacenamiento", "qvi": 6300, "ci": 1.20, "ra": 1.0},
-        {"name": "Panadería/pastelería · producción", "modo": "produccion", "qsi": 500, "ci": 1.44, "ra": 1.4},
-    ]},
-    {"category": "Cartón y papel", "subactivities": [
-        {"name": "Fábrica de cartón ondulado · producción", "modo": "produccion", "qsi": 1500, "ci": 1.20, "ra": 1.0},
-        {"name": "Cartón · almacén de materias primas", "modo": "almacenamiento", "qvi": 2200, "ci": 1.20, "ra": 1.0},
-        {"name": "Cartón/papel · almacén en bobinas", "modo": "almacenamiento", "qvi": 14700, "ci": 1.20, "ra": 1.0},
-        {"name": "Fábrica de papel · producción", "modo": "produccion", "qsi": 2800, "ci": 1.20, "ra": 1.0},
-        {"name": "Papel · almacén de producto acabado", "modo": "almacenamiento", "qvi": 5100, "ci": 1.20, "ra": 1.0},
-        {"name": "Papel viejo (suelto) · almacenamiento a granel", "modo": "almacenamiento", "qvi": 4000, "ci": 1.40, "ra": 1.0},
+    {"category": "Papel y cartón", "subactivities": [
+        _p("Cartón ondulado · producción/transformación", 1500, 1.20, 1.0, 1.0),
+        _a("Papel · almacén de materias primas (celulosa)", 20000, 1.20, 1.0, 1.0),
+        _a("Papel · almacén de producto acabado", 2800, 1.20, 1.2, 1.2),
+        _a("Papel · almacén en bobinas", 4200, 1.20, 1.2, 1.2),
+        _a("Papel viejo prensado · almacenamiento a granel", 6900, 1.40, 1.2, 1.2),
+        _a("Papel viejo suelto · almacenamiento a granel", 2800, 1.40, 1.4, 1.4),
+        _a("Cartonaje · almacenamiento", 2500, 1.20, 1.2, 1.2),
     ]},
     {"category": "Artes gráficas / imprenta", "subactivities": [
-        {"name": "Imprenta · almacén de papel en bobinas", "modo": "almacenamiento", "qvi": 6200, "ci": 1.20, "ra": 1.0},
-        {"name": "Imprenta · producción", "modo": "produccion", "qsi": 500, "ci": 1.68, "ra": 1.4},
-        {"name": "Imprenta · desenrollado de papel", "modo": "produccion", "qsi": 2100, "ci": 1.68, "ra": 1.4},
-        {"name": "Imprenta · expedición/embalaje", "modo": "produccion", "qsi": 2400, "ci": 1.20, "ra": 1.0},
+        _p("Imprenta · producción", 500, 1.44, 1.4, 1.4),
+        _p("Imprenta · producción con desenrollado de papel", 2100, 1.44, 1.4, 1.4),
+        _p("Imprenta · expedición/embalaje", 2400, 1.20, 1.0, 1.0),
+        _p("Encuadernación", 2400, 1.44, 1.0, 1.0),
+    ]},
+    {"category": "Alimentación y bebidas", "subactivities": [
+        _p("Bebidas sin alcohol · relleno/envasado", 350, 1.20, 1.0, 1.0),
+        _a("Bebidas sin alcohol · almacenamiento", 900, 1.20, 1.2, 1.2),
+        _a("Bodegas (vinos) · almacenamiento", 80, 1.00, 1.0, 1.0),
+        _p("Bebidas alcohólicas (licores) · producción", 700, 1.20, 1.0, 1.0),
+        _a("Bebidas alcohólicas (licores) · almacenamiento", 800, 1.40, 1.4, 1.4),
+        _a("Chocolate · almacén de materias primas", 5200, 1.44, 1.44, 1.44),
+        _p("Chocolate · producción/conchado", 1200, 1.20, 1.0, 1.0),
+        _p("Chocolate · producto acabado/expedición", 1800, 1.44, 1.44, 1.44),
+        _p("Carne · envasado/despiece", 1900, 1.00, 1.0, 1.0),
+        _a("Productos frescos · almacenamiento/expedición", 1800, 1.20, 1.2, 1.2),
+        _a("Envases · almacenamiento", 2400, 1.20, 1.2, 1.2),
+        _p("Queso · producción", 300, 1.00, 1.0, 1.0),
+        _a("Queso · almacenamiento", 1600, 1.00, 1.0, 1.0),
+        _p("Harina · producción", 1100, 1.20, 1.4, 1.4),
+        _a("Harina · almacenamiento", 5300, 1.20, 1.2, 1.2),
+        _p("Grasas y aceites · producción", 8500, 1.68, 1.4, 1.4),
+        _a("Grasas, aceites, mantequilla · almacenamiento", 7900, 1.68, 1.68, 1.68),
+        _p("Pastas alimenticias · producción", 700, 1.20, 1.4, 1.4),
+        _a("Pastas alimenticias · almacenamiento", 2700, 1.20, 1.2, 1.2),
+        _a("Panadería/pastelería · almacén de materias primas", 2800, 1.20, 1.2, 1.2),
+        _p("Panadería/pastelería · producción", 500, 1.44, 1.4, 1.4),
+        _a("Panadería/pastelería · producto acabado/expedición", 2200, 1.44, 1.44, 1.44),
+        _p("Azúcar · producción/embalaje", 200, 1.00, 1.0, 1.0),
+        _a("Azúcar · almacenamiento", 6300, 1.20, 1.2, 1.2),
+        _p("Congelados · producción", 800, 1.44, 1.4, 1.4),
+        _a("Congelados · almacén", 375, 1.00, 1.0, 1.0),
+        _a("Conservas · almacenamiento", 375, 1.00, 1.0, 1.0),
+        _a("Forraje · almacenamiento", 4900, 1.20, 1.2, 1.2),
+        _a("Caramelos y dulces · almacenamiento", 5300, 1.20, 1.2, 1.2),
+    ]},
+    {"category": "Industria química, farmacia y pinturas", "subactivities": [
+        _p("Química general · producción", 500, 1.68, 1.4, 1.4),
+        _a("Química · almacén de disolventes", 6800, 1.92, 1.92, 1.92),
+        _a("Química · almacén de resina epoxi", 5000, 1.44, 1.44, 1.44),
+        _p("Productos farmacéuticos · producción", 900, 1.68, 1.4, 1.4),
+        _a("Productos farmacéuticos · almacenamiento", 2500, 1.68, 1.68, 1.68),
+        _a("Pinturas / recubrimientos en polvo · almacenamiento", 3300, 1.68, 1.0, 1.0),
+        _p("Pintura con pistola / cabina", 100, 1.92, 1.4, 1.4),
+        _a("Cosméticos · almacenamiento", 500, 1.20, 1.2, 1.2),
+        _a("Artículos de caucho · almacenamiento", 5000, 1.44, 1.44, 1.44),
+    ]},
+    {"category": "Textil, confección y calzado", "subactivities": [
+        _p("Tejidos · producción", 250, 1.20, 1.0, 1.0),
+        _a("Tejidos · almacenamiento", 1400, 1.20, 1.2, 1.2),
+        _p("Prendas de vestir · venta", 600, 1.44, 1.0, 1.0),
+        _a("Calzado · almacenamiento", 400, 1.44, 1.44, 1.44),
+        _p("Zapatería · venta", 500, 1.44, 1.0, 1.0),
     ]},
     {"category": "Madera y muebles", "subactivities": [
-        {"name": "Carpintería · producción pura", "modo": "produccion", "qsi": 900, "ci": 1.20, "ra": 1.0},
-        {"name": "Carpintería · producción con depósito intermedio", "modo": "produccion", "qsi": 1700, "ci": 1.20, "ra": 1.0},
-        {"name": "Carpintería · almacenamiento", "modo": "almacenamiento", "qvi": 3200, "ci": 1.20, "ra": 1.0},
-        {"name": "Tableros de partículas · producción", "modo": "produccion", "qsi": 1200, "ci": 1.20, "ra": 1.0},
-        {"name": "Tableros de partículas · almacenamiento", "modo": "almacenamiento", "qvi": 9000, "ci": 1.20, "ra": 1.0},
-        {"name": "Muebles tapizados · fabricación", "modo": "produccion", "qsi": 550, "ci": 1.44, "ra": 1.4},
-        {"name": "Lacado de muebles", "modo": "produccion", "qsi": 550, "ci": 1.92, "ra": 1.4},
-        {"name": "Briquetas / pellet · almacenamiento", "modo": "almacenamiento", "qvi": 16600, "ci": 1.20, "ra": 1.0},
-    ]},
-    {"category": "Textil y confección", "subactivities": [
-        {"name": "Telas / prendas · almacenamiento", "modo": "almacenamiento", "qvi": 800, "ci": 1.44, "ra": 1.0},
-        {"name": "Fábrica de alfombras · producción", "modo": "produccion", "qsi": 2500, "ci": 1.44, "ra": 1.0},
-        {"name": "Hilado · producción", "modo": "produccion", "qsi": 600, "ci": 1.44, "ra": 1.0},
-        {"name": "Hilado · almacenamiento", "modo": "almacenamiento", "qvi": 4300, "ci": 1.44, "ra": 1.0},
-        {"name": "Tejidos · producción", "modo": "produccion", "qsi": 250, "ci": 1.20, "ra": 1.0},
-        {"name": "Tejidos · almacenamiento", "modo": "almacenamiento", "qvi": 1400, "ci": 1.20, "ra": 1.0},
+        _p("Carpintería · producción pura", 900, 1.20, 1.0, 1.0),
+        _p("Carpintería · producción con depósito intermedio", 1700, 1.20, 1.0, 1.0),
+        _a("Carpintería · almacenamiento", 3200, 1.20, 1.2, 1.2),
+        _p("Carpintería construcción/interior · producción pura", 900, 1.20, 1.0, 1.0),
+        _p("Carpintería construcción/interior · con depósito intermedio", 1800, 1.20, 1.0, 1.0),
+        _a("Carpintería construcción/interior · almacenamiento", 2800, 1.20, 1.2, 1.2),
+        _p("Aserradero", 1500, 1.20, 1.0, 1.0),
+        _a("Madera aserrada · almacén", 4900, 1.20, 1.2, 1.2),
+        _p("Venta de artículos de madera", 5000, 1.20, 1.0, 1.0),
+        _a("Artículos de madera · almacenamiento", 5300, 1.20, 1.2, 1.2),
+        _p("Tableros de partículas · producción", 1200, 1.20, 1.0, 1.0),
+        _a("Tableros de partículas · almacenamiento", 9000, 1.20, 1.2, 1.2),
+        _p("Muebles tapizados · fabricación", 550, 1.44, 1.4, 1.4),
+        _p("Lacado de muebles", 550, 1.92, 1.4, 1.4),
+        _p("Muebles · exposición y venta", 600, 1.44, 1.0, 1.0),
+        _a("Muebles (excepto metálicos) · almacenamiento", 2800, 1.44, 1.44, 1.44),
+        _a("Briquetas / pellet · almacenamiento", 16600, 1.20, 1.2, 1.2),
     ]},
     {"category": "Caucho y plásticos", "subactivities": [
-        {"name": "Fábrica de cables · producción", "modo": "produccion", "qsi": 1000, "ci": 1.44, "ra": 1.0},
-        {"name": "Materias sintéticas (gránulos) · almacenamiento", "modo": "almacenamiento", "qvi": 8000, "ci": 1.44, "ra": 1.0},
-        {"name": "Moldeo por inyección · producción", "modo": "produccion", "qsi": 1000, "ci": 1.44, "ra": 1.0},
-        {"name": "Moldeo por inyección · producto acabado", "modo": "almacenamiento", "qvi": 2100, "ci": 1.44, "ra": 1.0},
-        {"name": "Botellas PET · almacenamiento", "modo": "almacenamiento", "qvi": 1300, "ci": 1.44, "ra": 1.0},
-        {"name": "Espumas / colchones · almacenamiento", "modo": "almacenamiento", "qvi": 700, "ci": 1.44, "ra": 1.0},
-        {"name": "Tuberías y conductos · producto acabado", "modo": "almacenamiento", "qvi": 3500, "ci": 1.44, "ra": 1.0},
-    ]},
-    {"category": "Industria química", "subactivities": [
-        {"name": "Química general · producción", "modo": "produccion", "qsi": 7800, "ci": 1.68, "ra": 1.4},
-        {"name": "Química · almacén de disolventes", "modo": "almacenamiento", "qvi": 6800, "ci": 1.92, "ra": 1.0},
-        {"name": "Química · almacén resina epoxi", "modo": "almacenamiento", "qvi": 5000, "ci": 1.44, "ra": 1.0},
-        {"name": "Productos farmacéuticos · producción", "modo": "produccion", "qsi": 900, "ci": 1.68, "ra": 1.4},
-        {"name": "Productos farmacéuticos · almacenamiento", "modo": "almacenamiento", "qvi": 2500, "ci": 1.68, "ra": 1.0},
-    ]},
-    {"category": "Pinturas y barnices", "subactivities": [
-        {"name": "Almacén de pinturas / recubrimientos en polvo", "modo": "almacenamiento", "qvi": 1800, "ci": 1.68, "ra": 1.0},
-        {"name": "Pintura con pistola / cabina", "modo": "produccion", "qsi": 100, "ci": 1.92, "ra": 1.4},
+        _a("Materias sintéticas (gránulos) · almacenamiento", 8000, 1.44, 1.44, 1.44),
+        _p("Botellas PET · moldeo por inyección", 800, 1.44, 1.0, 1.0),
+        _a("Botellas PET · almacenamiento", 1300, 1.44, 1.44, 1.44),
+        _p("Poliestireno · corte", 300, 1.44, 1.0, 1.0),
+        _a("Poliestireno · almacenamiento", 450, 1.44, 1.44, 1.44),
+        _a("Espumas / colchones · almacenamiento", 700, 1.44, 1.44, 1.44),
+        _p("Moldeo por inyección · producción", 1000, 1.44, 1.0, 1.0),
+        _a("Moldeo por inyección · producto acabado", 2100, 1.44, 1.44, 1.44),
+        _p("Paneles rígidos de espuma · producción", 1600, 1.44, 1.0, 1.0),
+        _a("Paneles rígidos de espuma · almacenamiento", 3100, 1.44, 1.44, 1.44),
+        _p("Tuberías y conductos · producción", 1000, 1.44, 1.0, 1.0),
+        _a("Tuberías y conductos · almacenamiento", 3500, 1.44, 1.44, 1.44),
+        _p("Láminas y lonas · producción", 1300, 1.44, 1.0, 1.0),
+        _a("Láminas y lonas · almacenamiento", 2400, 1.44, 1.44, 1.44),
     ]},
     {"category": "Metal y mecánica", "subactivities": [
-        {"name": "Construcción metálica · producción/galvanizado", "modo": "produccion", "qsi": 250, "ci": 1.00, "ra": 1.0},
-        {"name": "Construcción metálica · almacenamiento", "modo": "almacenamiento", "qvi": 200, "ci": 1.00, "ra": 1.0},
-        {"name": "Fabricación de máquinas · trabajo en metal", "modo": "produccion", "qsi": 250, "ci": 1.00, "ra": 1.0},
-        {"name": "Fabricación de máquinas · almacén/expedición", "modo": "almacenamiento", "qvi": 150, "ci": 1.20, "ra": 1.0},
+        _p("Construcción metálica · producción/galvanizado", 250, 1.00, 1.0, 1.0),
+        _a("Construcción metálica · almacenamiento", 200, 1.00, 1.0, 1.0),
+        _p("Fabricación de máquinas · trabajo en metal", 250, 1.00, 1.0, 1.0),
+        _a("Fabricación de máquinas · almacén/expedición", 150, 1.20, 1.2, 1.2),
+        _p("Fábrica de cables · producción", 1000, 1.44, 1.0, 1.0),
+        _a("Fábrica de cables · almacén producto acabado", 6200, 1.44, 1.44, 1.44),
+        _p("Relojes · producción", 300, 1.00, 1.0, 1.0),
     ]},
     {"category": "Automoción", "subactivities": [
-        {"name": "Automóviles · guarnición", "modo": "produccion", "qsi": 700, "ci": 1.44, "ra": 1.0},
-        {"name": "Automóviles · montaje", "modo": "produccion", "qsi": 300, "ci": 1.44, "ra": 1.0},
-        {"name": "Automóviles · almacenamiento", "modo": "almacenamiento", "qvi": 900, "ci": 1.44, "ra": 1.0},
-        {"name": "Recambios · almacenamiento", "modo": "almacenamiento", "qvi": 1300, "ci": 1.44, "ra": 1.0},
-        {"name": "Neumáticos · almacenamiento", "modo": "almacenamiento", "qvi": 1500, "ci": 1.44, "ra": 1.0},
-        {"name": "Aceites/limpiadores/disolventes · almacenamiento", "modo": "almacenamiento", "qvi": 3000, "ci": 1.68, "ra": 1.0},
+        _p("Automóviles · guarnición", 700, 1.44, 1.0, 1.0),
+        _p("Automóviles · montaje", 300, 1.44, 1.0, 1.0),
+        _p("Automóviles · pintura", 500, 1.92, 1.0, 1.0),
+        _p("Vehículos especiales · producción", 400, 1.44, 1.0, 1.0),
+        _a("Automóviles · almacenamiento", 900, 1.44, 1.44, 1.44),
+        _a("Recambios · almacenamiento", 1300, 1.44, 1.44, 1.44),
+        _a("Neumáticos · almacenamiento", 1500, 1.44, 1.44, 1.44),
+        _a("Aceites/limpiadores/disolventes · almacenamiento", 3000, 1.68, 1.0, 1.0),
     ]},
-    {"category": "Electrónica y electrodomésticos", "subactivities": [
-        {"name": "Electrodomésticos · producción/embalaje", "modo": "produccion", "qsi": 150, "ci": 1.44, "ra": 1.0},
-        {"name": "Electrodomésticos · almacenamiento", "modo": "almacenamiento", "qvi": 1600, "ci": 1.44, "ra": 1.0},
+    {"category": "Centros de distribución / logística", "subactivities": [
+        _a("Almacén multiproducto (genérico)", 8100, 1.44, 1.44, 1.44),
+        _a("Almacén de productos de jardín", 3100, 1.44, 1.44, 1.44),
+        _a("Almacén de aparatos eléctricos", 1600, 1.44, 1.44, 1.44),
     ]},
-    {"category": "Materiales de construcción", "subactivities": [
-        {"name": "Hormigón · producción", "modo": "produccion", "qsi": 300, "ci": 1.00, "ra": 1.0},
-        {"name": "Ladrillos silicocalcáreos · producción", "modo": "produccion", "qsi": 350, "ci": 1.00, "ra": 1.0},
-        {"name": "Madera de construcción · almacenamiento", "modo": "almacenamiento", "qvi": 3200, "ci": 1.20, "ra": 1.0},
-        {"name": "Aislamiento EPS/XPS · producción", "modo": "produccion", "qsi": 700, "ci": 1.44, "ra": 1.0},
-        {"name": "Venta de artículos de construcción", "modo": "produccion", "qsi": 1500, "ci": 1.44, "ra": 1.0},
+    {"category": "Comercio y servicios", "subactivities": [
+        _p("Cine", 300, 1.20, 1.0, 1.0),
+        _p("Farmacia (incluido almacén)", 800, 1.44, 1.0, 1.0),
+        _p("Joyería · venta", 300, 1.20, 1.0, 1.0),
+        _p("Juguetería · venta", 500, 1.44, 1.0, 1.0),
+        _p("Lavandería", 200, 1.20, 1.0, 1.0),
+        _p("Librería · venta", 1000, 1.44, 1.0, 1.0),
+        _p("Panadería · venta", 300, 1.44, 1.0, 1.0),
+        _p("Papelería · venta", 700, 1.44, 1.0, 1.0),
+        _p("Perfumería · venta", 400, 1.44, 1.0, 1.0),
+        _p("Restaurante", 300, 1.20, 1.0, 1.0),
+        _p("Tintorería", 500, 1.44, 1.0, 1.0),
+        _p("Aparatos eléctricos/electrónicos · venta", 400, 1.44, 1.0, 1.0),
+        _p("Artículos deportivos · venta", 800, 1.44, 1.0, 1.0),
+        _p("Cochecitos de bebé · venta", 300, 1.44, 1.0, 1.0),
+        _p("Caramelos y dulces · venta", 400, 1.20, 1.0, 1.0),
+        _p("Electrodomésticos · venta", 300, 1.44, 1.0, 1.0),
+        _p("Talleres de reparación", 400, 1.44, 1.0, 1.0),
+        _a("Artículos de papelería · almacenamiento", 1100, 1.20, 1.2, 1.2),
+        _a("Artículos de perfumería · almacenamiento", 500, 1.20, 1.2, 1.2),
+        _a("Discos compactos y similares · almacenamiento", 3400, 1.20, 1.2, 1.2),
+        _a("Flores artificiales · almacenamiento", 200, 1.44, 1.44, 1.44),
+        _a("Juguetes · almacenamiento", 800, 1.44, 1.44, 1.44),
+        _a("Electrodomésticos · almacenamiento", 1600, 1.44, 1.44, 1.44),
     ]},
 ]
 

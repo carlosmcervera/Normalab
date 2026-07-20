@@ -40,8 +40,8 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
   - Testing: backend 11/11 (test_rsciei_multisector.py), frontend E2E 100%. Sin issues.
 
 ## Backlog
+- P1: Completar Tabla 1.3.5 exhaustiva del catálogo de actividades + Rmin por actividad — HECHO (2026-07-20): 131 actividades en 12 categorías con qsi/qvi, Ci orientativo y Rmin, mapeando MJ/m²→producción y MJ/m³→almacenamiento.
 - P1: Bloque de evacuación ampliado (recorridos reales por origen, coeficientes nota 4/5 Tabla 2.3.1).
-- P1: Completar Tabla 1.3.5 exhaustiva del catálogo de actividades + Rmin por actividad.
 - P1: Módulos CTE DB-SI, REBT, RITE, RD Accesibilidad 2023 (schema+engine+report).
 - P1: Panel admin de usuarios/roles; recuperación de contraseña por email.
 - P2: Cálculos de licencia ambiental del Excel (consumo de agua, sistema de depuración, ventilación) — fuera de RSCIEI.

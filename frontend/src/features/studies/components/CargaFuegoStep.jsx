@@ -26,7 +26,7 @@ function DepFireEditor({ dep, index, catalog, ciTable, onChange }) {
       subactividad: s.name, modo: s.modo,
       qsi: s.modo === "produccion" ? s.qsi : undefined,
       qvi: s.modo === "almacenamiento" ? s.qvi : undefined,
-      ci: s.ci, ra: s.ra, rmin: s.ra > 1 ? s.ra : null,
+      ci: s.ci, ra: s.ra, rmin: s.rmin ?? (s.ra > 1 ? s.ra : null),
     });
   };
 
