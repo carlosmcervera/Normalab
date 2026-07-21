@@ -29,6 +29,9 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
 - Informe incluye: cuadro de superficies, ocupación, resumen de sectores, detalle+instalaciones por sector, tablas de referencia resaltadas.
 
 ## Implementado
+- 2026-07-21 (iter 14 — Anexo II · estabilidad al fuego (R) modulada por altura de evacuación):
+  - En **plantas sobre rasante**, la estabilidad al fuego exigida (R) se incrementa según la altura de evacuación (Anexo II, Tabla 2.2): **+1 escalón** para 15 < h ≤ 28 m y **+2 escalones** para h > 28 m, sobre la escala R 30 → R 60 → R 90 → R 120 → R 180 → R 240 (tope R 240). Bajo rasante no se modula por altura. El detalle del requisito explica el tramo y el incremento aplicado.
+  - `_modular_r_por_altura` en `rsciei/requirements.py`; el sector aporta `altura_evacuacion` (campo `sector-N-altura`). Testing: 53/53 pytest + verificación API (h=8 → R 30; h=32 → R 90).
 - 2026-07-21 (iter 13 — FLUJO SECTOR-CÉNTRICO estilo Excel KION + LRE + sectores CTE con carga de fuego):
   - Reconstruido el módulo INCENDIOS según el modelo profesional del Excel del usuario. Se **eliminó el paso «Ámbitos»**; el carácter industrial (RSCIEI) / CTE es ahora una propiedad **de cada sector**.
   - **Paso 1 · Cuadro de superficies**: inventario puro de estancias/dependencias (S. útil + S. construida), sin sectores.

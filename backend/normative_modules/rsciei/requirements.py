@@ -22,6 +22,20 @@ ESTABILIDAD = {
 
 DELIMITADORES = {"BAJO": "EI 120", "MEDIO": "EI 180", "ALTO": "EI 240"}
 
+# Escala de estabilidad al fuego (R) para modular por altura de evacuación (Anexo II, Tabla 2.2):
+# en plantas sobre rasante la R exigida sube un escalón para 15 < h ≤ 28 m y dos para h > 28 m.
+_ESCALA_R = ["R 30", "R 60", "R 90", "R 120", "R 180", "R 240"]
+
+
+def _modular_r_por_altura(valor: str, h_evac: float):
+    if valor not in _ESCALA_R:
+        return valor, 0
+    bump = 2 if h_evac > 28 else (1 if h_evac > 15 else 0)
+    if bump == 0:
+        return valor, 0
+    idx = min(_ESCALA_R.index(valor) + bump, len(_ESCALA_R) - 1)
+    return _ESCALA_R[idx], bump
+
 # --- Anexo III · umbrales de superficie (m²) por instalación ----------------
 
 DETECCION = {
@@ -96,8 +110,19 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
     if config == "D":
         estabilidad = {"valor": "No exigible", "detalle": "Configuración tipo D (espacio abierto): estabilidad al fuego no exigible con carácter general."}
     else:
-        val = ESTABILIDAD[config][sit_key][categoria]
-        estabilidad = {"valor": val, "detalle": f"Estructura portante · {('planta bajo rasante' if sit_key=='bajo' else 'planta sobre rasante')} · Tabla 2.5.1."}
+        base = ESTABILIDAD[config][sit_key][categoria]
+        if sit_key == "sobre":
+            val, bump = _modular_r_por_altura(base, h_evac)
+            tramo = "h > 28 m" if h_evac > 28 else ("15 < h ≤ 28 m" if h_evac > 15 else "h ≤ 15 m")
+            if bump:
+                detalle = (f"Estructura portante · planta sobre rasante · altura de evacuación {h_evac:.1f} m ({tramo}): "
+                           f"se incrementa la estabilidad base {base} en {bump} escalón(es) → {val} (Anexo II, Tabla 2.2).")
+            else:
+                detalle = f"Estructura portante · planta sobre rasante · altura de evacuación {h_evac:.1f} m ({tramo}): {val} (Anexo II, Tabla 2.2)."
+            estabilidad = {"valor": val, "detalle": detalle}
+        else:
+            val = ESTABILIDAD[config][sit_key][categoria]
+            estabilidad = {"valor": val, "detalle": f"Estructura portante · planta bajo rasante · riesgo {categoria.lower()} · Anexo II, Tabla 2.2."}
     cubierta = {"valor": "R 15", "aplica": cubierta_ligera,
                 "detalle": "Cubierta ligera no prevista para evacuación y con carga permanente < 100 kg/m²."} if cubierta_ligera else None
 

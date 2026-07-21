@@ -201,6 +201,23 @@ def test_estabilidad_monotonic_with_risk_and_situation():
                 f"{cfg}/{c}: sótano debe ser >= sobre rasante"
 
 
+def test_estabilidad_modulada_por_altura_sobre_rasante():
+    # Config C, riesgo BAJO, sobre rasante: base R 30 → sube por altura de evacuación.
+    def r(h):
+        sec = {"config": "C", "situacion": "sobre_rasante", "altura_evacuacion": h}
+        return rq.build_requirements(sec, 2, "BAJO", "produccion", 500, 500)["estabilidad"]["valor"]
+    assert r(10) == "R 30"      # h ≤ 15 m
+    assert r(20) == "R 60"      # 15 < h ≤ 28 m  (+1 escalón)
+    assert r(40) == "R 90"      # h > 28 m        (+2 escalones)
+    # Bajo rasante NO se modula por altura.
+    sec_bajo = {"config": "C", "situacion": "bajo_rasante", "altura_evacuacion": 40}
+    assert rq.build_requirements(sec_bajo, 2, "BAJO", "produccion", 500, 500)["estabilidad"]["valor"] == "R 60"
+    # El tope de la escala es R 240 (riesgo alto, gran altura).
+    sec_alto = {"config": "AH", "situacion": "sobre_rasante", "altura_evacuacion": 40}
+    assert rq.build_requirements(sec_alto, 6, "ALTO", "produccion", 500, 500)["estabilidad"]["valor"] == "R 240"
+
+
+
 def test_anexo3_thresholds_monotonic():
     def mono(table):
         for cfg, cells in table.items():
