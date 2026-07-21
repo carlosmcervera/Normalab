@@ -69,6 +69,8 @@ def _validate(sectores, dependencias):
         if not deps:
             errors.append(f"El sector «{s.get('nombre', '?')}» no tiene dependencias asignadas.")
         for d in deps:
+            if d.get("es_lre"):
+                continue
             nombre = d.get("nombre") or "Dependencia"
             if not d.get("ci") or float(d.get("ci") or 0) <= 0:
                 errors.append(f"«{nombre}»: defina el coeficiente Ci (carga de fuego).")
@@ -219,12 +221,14 @@ def _evacuacion(sec, categoria, nivel, ocupacion):
 def _compute_sector(sec, deps, establecimiento):
     config = _sector_config(sec, establecimiento)
     situacion = sec.get("situacion", "sobre_rasante")
-    A = sum(float(d.get("sup_construida") or 0) for d in deps)
+    lre_deps = [d for d in deps if d.get("es_lre")]
+    calc_deps = [d for d in deps if not d.get("es_lre")]
+    A = sum(float(d.get("sup_construida") or 0) for d in calc_deps)
 
     detalle_zonas = []
     numerador = 0.0
     rmins, used_ci, ras = [], [], []
-    for d in deps:
+    for d in calc_deps:
         ci = float(d.get("ci") or 0)
         s = float(d.get("sup_construida") or 0)
         if d.get("modo") == "almacenamiento":
@@ -263,7 +267,7 @@ def _compute_sector(sec, deps, establecimiento):
 
     sector = _sectorizacion(config, nivel, A, factor, factores, situacion)
 
-    sup_alm = sum(float(d.get("sup_construida") or 0) for d in deps if d.get("modo") == "almacenamiento")
+    sup_alm = sum(float(d.get("sup_construida") or 0) for d in calc_deps if d.get("modo") == "almacenamiento")
     sup_prod = A - sup_alm
     modo_pred = "almacenamiento" if sup_alm > sup_prod else "produccion"
 
@@ -280,6 +284,43 @@ def _compute_sector(sec, deps, establecimiento):
 
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
+    # Locales de riesgo especial (LRE): fuera del cálculo de la carga de fuego del sector.
+    locales_re = []
+    for d in lre_deps:
+        locales_re.append({
+            "nombre": d.get("nombre", "Local de riesgo especial"),
+            "superficie": round(float(d.get("sup_construida") or d.get("sup_util") or 0), 2),
+            "riesgo": (d.get("lre_riesgo") or "bajo").upper(),
+            "resistencia": d.get("lre_r") or "R 90",
+            "actividad": d.get("actividad_cat") or d.get("uso_ocupacion") or "-",
+        })
+
+    # Ámbito del sector: industrial (RSCIEI) o CTE. Los sectores CTE calculan igualmente
+    # la carga de fuego (Qs) y, además, se evalúan con las secciones del CTE DB-SI.
+    ambito = sec.get("ambito") or "industrial"
+    dbsi_res = None
+    if ambito == "cte":
+        try:
+            from normative_modules.cte_dbsi import engine as _dbsi
+            dbsi_res = _dbsi.compute({
+                "uso": sec.get("uso_cte") or "Administrativo",
+                "superficie_construida": A or 1,
+                "altura_evacuacion": float(sec.get("altura_evacuacion") or 0),
+                "num_salidas": int(sec.get("num_salidas") or 1),
+                "num_plantas": int(sec.get("num_plantas") or 1),
+                "recorrido_max_real": sec.get("recorrido_max_real"),
+                "sentido_evacuacion": sec.get("sentido_evacuacion"),
+                "ancho_salidas_proyectado": sec.get("ancho_salidas_proyectado"),
+                "distancia_colindantes": sec.get("distancia_colindantes"),
+                "bajo_rasante": situacion == "bajo_rasante",
+                "dependencias": [{"nombre": d.get("nombre"),
+                                  "superficie": float(d.get("sup_util") or d.get("sup_construida") or 0),
+                                  "densidad": d.get("densidad"), "sin_ocupacion": d.get("sin_ocupacion"),
+                                  "uso_ocupacion": d.get("uso_ocupacion")} for d in (calc_deps or deps)],
+            })
+        except ValueError:
+            dbsi_res = None
+
     observaciones = []
     observaciones.append({"tipo": "info", "texto": f"Sector «{sec.get('nombre','?')}»: nivel de riesgo intrínseco {nivel} ({categoria}), Tabla 1.3.1."})
     if rmin_req and ra < rmin_req - 1e-6:
@@ -294,9 +335,16 @@ def _compute_sector(sec, deps, establecimiento):
         observaciones.append({"tipo": "error", "texto": f"Sector «{sec.get('nombre','?')}»: algún recorrido de evacuación supera la distancia máxima admisible (Tabla 2.3.1)."})
     if categoria == "ALTO":
         observaciones.append({"tipo": "warning", "texto": f"Sector «{sec.get('nombre','?')}»: riesgo ALTO, revise requisitos reforzados de estabilidad e instalaciones."})
+    if ambito == "cte":
+        observaciones.append({"tipo": "info", "texto": (
+            f"Sector «{sec.get('nombre','?')}» dentro del ámbito de aplicación del CTE "
+            f"({sec.get('uso_cte') or 'edificación'}); se calcula igualmente la carga de fuego (Qs) y se evalúa con el CTE DB-SI.")})
+    if locales_re:
+        observaciones.append({"tipo": "info", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: {len(locales_re)} local(es) de riesgo especial excluidos del cálculo de la carga de fuego (se evalúan por separado).")})
 
     estado = "cumple"
-    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"]:
+    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
     elif any(o["tipo"] == "warning" for o in observaciones):
         estado = "observaciones"
@@ -319,6 +367,10 @@ def _compute_sector(sec, deps, establecimiento):
         "sectorizacion": sector,
         "requisitos": requisitos,
         "evacuacion": evacuacion,
+        "ambito": ambito,
+        "uso_cte": sec.get("uso_cte"),
+        "locales_riesgo_especial": locales_re,
+        "dbsi": dbsi_res,
         "observaciones": observaciones,
         "estado": estado,
     }

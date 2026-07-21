@@ -10,22 +10,23 @@ import { StepBody } from "@/features/studies/components/StepBody";
 import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 
-const defaultData = (code) => (code === "INCENDIOS" ? { ambitos: [], sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
+const defaultData = (code) => (code === "INCENDIOS" ? { establecimiento: { config: "C" }, sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
 
 const migrateIncendios = (d) => {
-  if ((d.sectores && d.sectores.length) || (d.dependencias && d.dependencias.length)) return d;
-  const ambitos = d.ambitos || [];
-  const nested = ambitos.some((a) => (a.sectores && a.sectores.length) || (a.dependencias && a.dependencias.length));
-  if (!nested) return d;
+  if (!d.ambitos || !d.ambitos.length) return d;
+  if ((d.sectores && d.sectores.length) || (d.dependencias && d.dependencias.length)) {
+    const { ambitos, ...rest } = d;
+    return rest;
+  }
   const sectores = [];
   const dependencias = [];
-  ambitos.forEach((a) => {
+  d.ambitos.forEach((a) => {
     if (a.tipo === "industrial") {
-      (a.sectores || []).forEach((s) => sectores.push({ ...s, ambito_id: a.id }));
+      (a.sectores || []).forEach((s) => sectores.push({ ...s, ambito: "industrial" }));
       (a.dependencias || []).forEach((dep) => dependencias.push(dep));
     } else {
       const sid = `${a.id}_sec`;
-      sectores.push({ id: sid, ambito_id: a.id, nombre: a.nombre || "Sector", tipo: "sector" });
+      sectores.push({ id: sid, nombre: a.nombre || "Sector", tipo: "sector", ambito: "cte", uso_cte: a.uso });
       (a.dependencias || []).forEach((dep) => dependencias.push({
         id: dep.id, sector_id: sid, nombre: dep.nombre || "Zona",
         sup_util: dep.superficie, sup_construida: dep.superficie,
@@ -33,7 +34,8 @@ const migrateIncendios = (d) => {
       }));
     }
   });
-  return { ...d, sectores, dependencias };
+  const { ambitos, ...rest } = d;
+  return { ...rest, sectores, dependencias };
 };
 
 export default function StudyWizardPage() {
@@ -132,7 +134,7 @@ export default function StudyWizardPage() {
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                isIncendios ? <IncendiosResultsPanel results={results} /> : <ResultsPanel results={results} />
+                isIncendios && !results?.sectores ? <IncendiosResultsPanel results={results} /> : <ResultsPanel results={results} />
               ) : (
                 <div className="border border-dashed border-border py-12 text-center">
                   <p className="text-sm text-muted-foreground">Pulsa «Calcular» para ejecutar el motor de reglas.</p>

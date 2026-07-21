@@ -10,6 +10,14 @@ LABEL = {
 
 
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
+    if not data.get("ambitos"):
+        # Flujo sector-céntrico: se delega en el informe RSCIEI (que ya incluye
+        # cuadro de superficies, sectores, LRE y ámbitos CTE).
+        rep = rsciei_report.build_report(project, study, data, results)
+        rep["module_code"] = "INCENDIOS"
+        rep["title"] = "Informe no vinculante — Estudio de Incendios"
+        return rep
+
     ambitos_data = {a.get("id"): a for a in (data.get("ambitos") or [])}
     sections = [{
         "id": "objeto_general", "title": "1. Objeto del estudio", "type": "text",

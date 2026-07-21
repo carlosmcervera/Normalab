@@ -1,0 +1,25 @@
+{
+  "summary": "FRONTEND E2E validación del nuevo flujo SECTOR-CÉNTRICO de INCENDIOS. Wizard tiene EXACTAMENTE 5 pasos (Cuadro de superficies, Sectores, Ocupación, Evacuación, Resultados). Paso 1 (superficies-proyecto-step): inventario puro de estancias con útil+construida y SIN selector de sector (verificado). Añadidas 3 estancias (Producción 800/900, CT 10/12, Oficina 1000/1050) — total-util=1810, total-construida=1962. Paso 2 (sectores-step): creados 2 sectores; Nave (Industrial, config C por defecto), Oficinas (Ámbito CTE, uso Administrativo, altura 9). Asignaciones estancia→sector OK; CT marcada como LRE riesgo bajo → aparecen lre-riesgo y lre-r y desaparecen los campos qsi/ci/ra (verificado). Producción qsi=400 ci=1.44 ra=1; Oficina qsi=600 ci=1 ra=1. Ocupación densidad=10 para Producción y Oficina. Cálculo automático al llegar a Resultados. En Resultados: Nave A=900 (LRE CT NO suma), Qs=576,0 MJ/m², NRI 2·BAJO, bloque sector-{id}-lre lista 'CT · riesgo bajo · 12 m² · R 90'. Oficinas A=1050, Qs=600,0, bloque sector-{id}-dbsi con SI1..SI6. Estado global 'Cumple'. Informe (/estudios/{id}/informe) renderiza sin errores; contiene 'Cuadro de superficies', Producción, Oficina, Nave, Oficinas, CT, 'riesgo bajo', 'R 90'. print-report disponible. Sin errores de consola (solo 401 iniciales previos al setup de cookies, ruido normal).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SectoresStep.jsx: Al eliminar un sector, las estancias asignadas quedan con sector_id='' (comportamiento correcto y explícito).",
+    "SectoresStep.jsx: los switches shadcn (rociadores, lre) exponen data-state y se click-ean correctamente.",
+    "StudyWizardPage.jsx: goTo(totalSteps-1) dispara computeMut automáticamente al entrar al paso Resultados — buena UX.",
+    "ResultsPanel.jsx: los data-testid `sector-{id}-lre` y `sector-{id}-dbsi` funcionan tal y como se documenta; DBSI muestra badges SI1..SI6 sin espacio ('SI1'), coherente con backend."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped por instrucción", "frontend": "100% (todos los checks críticos del flujo sector-céntrico pasaron)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Creado expediente TEST-SEC-{ts} 'Sector-centric {ts}' con 1 estudio INCENDIOS 'INC-Sector-{ts}': 3 estancias (Producción 800/900, CT 10/12 LRE bajo R90, Oficina 1000/1050), 2 sectores (Nave industrial C, Oficinas CTE Administrativo altura 9), cálculo ejecutado con estado Cumple.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El nuevo flujo INCENDIOS es SECTOR-CÉNTRICO con 5 pasos (superficies_proyecto, sectores_incendio, ocupacion, evacuacion, +Resultados sintético). Testids clave: superficies-proyecto-step, add-dependencia, dep-N-{nombre,etiqueta,planta,util,construida}, total-util/total-construida, sectores-step, add-sector, sector-card-N, sector-N-{nombre,actividad,ambito,uso,config,salidas,altura,rociadores}, estancia-row-N, estancia-N-{sector,lre,lre-riesgo,lre-r,modo,qsi,qvi,hi,ci,ra}, ocupacion-N-densidad, results-panel, resumen-row-N, result-sector-{id}, sector-{id}-lre, sector-{id}-dbsi, global-state, view-report-button, print-report. Study modal usa study-module-select (Select shadcn) + submit-study. Login redirige a '/' (no '/dashboard'). Al pasar al último paso, el compute es automático (no hace falta pulsar compute-button). Textos del informe: los headers de superficies pueden no coincidir exactamente con 'S. útil'/'S. construida' vía innerText simple (¡verificar visualmente!). Los badges DB-SI son 'SI1'..'SI6' sin espacio.",
+  "rca of the issue": "N/A — validación de feature, todo OK."
+}

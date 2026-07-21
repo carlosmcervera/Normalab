@@ -371,33 +371,37 @@ def test_registry_only_incendios_operativo():
 
 def test_schema_exposes_project_flow():
     sc = inc_schema.get_schema()
-    assert [s["type"] for s in sc["steps"]] == ["ambitos", "superficies_proyecto", "carga_fuego", "ocupacion", "evacuacion"]
+    assert [s["type"] for s in sc["steps"]] == ["superficies_proyecto", "sectores_incendio", "ocupacion", "evacuacion"]
     assert sc["activity_catalog"] and sc["config_types"]
-    assert any(f["name"] == "uso" for f in sc["edificacion_config_fields"])
-    assert all(f["name"] != "superficie_construida" for f in sc["edificacion_config_fields"])
+    assert sc["dbsi_uses"]
 
 
-def test_unified_project_level_surfaces():
-    ind = {"id": "a1", "tipo": "industrial", "nombre": "Nave", "establecimiento": {"config": "C", "actividad": "X"}}
-    edi = {"id": "a2", "tipo": "edificacion", "nombre": "Oficinas", "uso": "Administrativo",
-           "altura_evacuacion": 9, "num_salidas": 2, "recorrido_max_real": 30}
+def test_sector_centric_with_lre_and_cte():
+    # Un único establecimiento: 1 sector industrial + 1 sector CTE. Estancias con carga de
+    # fuego, una marcada como LRE (excluida del cálculo). El sector CTE calcula Qs y DB-SI.
     sectores = [
-        {"id": "s1", "ambito_id": "a1", "nombre": "S industrial", "tipo": "sector", "config": "C",
-         "situacion": "sobre_rasante", "num_salidas": 2, "ra": ""},
-        {"id": "s2", "ambito_id": "a2", "nombre": "S oficinas", "tipo": "sector"},
+        {"id": "s1", "nombre": "Nave", "tipo": "sector", "ambito": "industrial", "config": "C",
+         "situacion": "sobre_rasante", "num_salidas": 2},
+        {"id": "s2", "nombre": "Oficinas", "tipo": "sector", "ambito": "cte", "uso_cte": "Administrativo",
+         "altura_evacuacion": 9, "num_salidas": 2, "recorrido_max_real": 30},
     ]
     deps = [
-        {"id": "d1", "sector_id": "s1", "nombre": "Fab", "sup_util": 800, "sup_construida": 900,
+        {"id": "d1", "sector_id": "s1", "nombre": "Producción", "sup_util": 800, "sup_construida": 900,
          "modo": "produccion", "qsi": 400, "ci": 1.44, "ra": 1.0, "densidad": 10, "uso_ocupacion": "Fabricación"},
-        {"id": "d2", "sector_id": "s2", "nombre": "Planta 1", "sup_util": 1000, "sup_construida": 1050,
-         "densidad": 10, "uso_ocupacion": "Administrativo"},
+        {"id": "d2", "sector_id": "s1", "nombre": "CT", "sup_util": 10, "sup_construida": 12,
+         "es_lre": True, "lre_riesgo": "bajo", "lre_r": "R 90"},
+        {"id": "d3", "sector_id": "s2", "nombre": "Planta oficinas", "sup_util": 1000, "sup_construida": 1050,
+         "modo": "produccion", "qsi": 600, "ci": 1.0, "ra": 1.0, "densidad": 10, "uso_ocupacion": "Administrativo"},
     ]
-    r = inc.compute({"ambitos": [ind, edi], "sectores": sectores, "dependencias": deps})
-    assert [a["tipo"] for a in r["ambitos"]] == ["industrial", "edificacion"]
-    assert "sectores" in r["ambitos"][0]["results"]
-    assert [s["id"] for s in r["ambitos"][1]["results"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
-    # la superficie construida DB-SI se deriva del cuadro único (suma = 1050)
-    assert r["ambitos"][1]["results"]["superficie"] == 1050
+    r = inc.compute({"establecimiento": {"config": "C"}, "sectores": sectores, "dependencias": deps})
+    assert [s["id"] for s in r["sectores"]] == ["s1", "s2"]
+    s1, s2 = r["sectores"]
+    # LRE excluido del cálculo: A del sector 1 = 900 (no 912)
+    assert s1["calculo"]["A"] == 900
+    assert len(s1["locales_riesgo_especial"]) == 1 and s1["locales_riesgo_especial"][0]["resistencia"] == "R 90"
+    # El sector CTE calcula Qs (>0) y trae secciones DB-SI SI1..SI6
+    assert s2["ambito"] == "cte" and s2["nivel_riesgo"]["qs_mj"] > 0
+    assert [x["id"] for x in s2["dbsi"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
 
 
 def _mixed_data():

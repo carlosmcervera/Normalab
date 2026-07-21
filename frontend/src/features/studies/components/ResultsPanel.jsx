@@ -63,6 +63,31 @@ function SectorCard({ s }) {
           </div>
         ))}
       </div>
+      {s.locales_riesgo_especial?.length > 0 && (
+        <div className="border-t border-border px-4 py-3" data-testid={`sector-${s.id}-lre`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (fuera del cálculo de la carga de fuego)</p>
+          <div className="space-y-1">
+            {s.locales_riesgo_especial.map((l, i) => (
+              <div key={i} className="flex items-center justify-between text-sm" data-testid={`sector-${s.id}-lre-${i}`}>
+                <span>{l.nombre} <span className="text-muted-foreground">· riesgo {l.riesgo?.toLowerCase?.()}</span></span>
+                <span className="font-mono text-muted-foreground">{num(l.superficie)} m² · {l.resistencia}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {s.dbsi && (
+        <div className="border-t border-border px-4 py-3" data-testid={`sector-${s.id}-dbsi`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">CTE DB-SI · secciones (sector en ámbito CTE)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(s.dbsi.secciones || []).map((sec) => (
+              <span key={sec.id} className={`rounded-sm border px-2 py-1 text-xs ${sec.estado === "no_cumple" ? "border-red-300 bg-red-50 text-red-800" : sec.estado === "cumple" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+                {sec.id}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
