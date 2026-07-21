@@ -29,6 +29,13 @@ Flujo del asistente: 1) Establecimiento → 2) Cuadro de superficies (útil/cons
 - Informe incluye: cuadro de superficies, ocupación, resumen de sectores, detalle+instalaciones por sector, tablas de referencia resaltadas.
 
 ## Implementado
+- 2026-07-21 (iter 12-13 — CUADRO ÚNICO DE SUPERFICIES + gestión de expedientes):
+  - **Cuadro único de superficies a nivel de PROYECTO** para el módulo INCENDIOS: una sola tabla de dependencias (superficie útil y construida) agrupadas por sectores de incendio; cada sector se asigna a un ámbito (industrial RSCIEI o edificación DB-SI). Sustituye al cuadro fragmentado por ámbito.
+    - Flujo del asistente unificado: Ámbitos (config por ámbito inline) → Cuadro de superficies → Carga de fuego → Ocupación → Evacuación → Resultados.
+    - Motor `incendios`: `_split_by_ambito` reparte sectores/dependencias por `ambito_id`/`sector_id`; edificación deriva su superficie construida sumando el cuadro (`_to_dbsi_input`). Compatibilidad con estudios antiguos vía `migrateIncendios` (frontend).
+    - `CargaFuegoStep` y `EvacuacionStep` filtran solo sectores de ámbito industrial.
+    - Nuevos componentes: `ProyectoSuperficiesStep`, `AmbitosManager` (config inline por ámbito). Testing: backend 52/52, frontend E2E mixto OK (iter 12).
+  - **Expedientes**: buscador (código/nombre/cliente/emplazamiento) y borrado con confirmación (AlertDialog) que cascada los estudios. Endpoint `DELETE /api/projects/{id}` ya existente.
 - 2026-07-21 (iter 11 — P1 REFINAMIENTOS: hidrantes RSCIEI literal + SI 2 ángulo + SI 4 por planta/zona):
   - **RSCIEI Anexo III · hidrantes (Tabla 3.3.1)** contrastado con el texto literal (Iberley/BOE). Consolidada en UNA sola instalación «Hidrantes exteriores (Tabla 3.3.1)» con umbrales por configuración×riesgo *decrecientes con el riesgo* (AV/AH: bajo 1000/medio 300; B: 3500/2500/1000; C: medio 3500/alto 2000; D: 5000). Eliminada la instalación separada e inventada «hidrante para llenado de camiones». Añadido «Sistema de comunicación de alarma» (punto 5.1, ≥10.000 m²).
   - **CTE DB-SI SI 2** · separación mínima entre huecos según el **ángulo** entre planos de fachada (Tabla 1.1: 0°=3,00 … 180°=0,50 m, interpolación lineal; 50 % para edificios colindantes; exención si huecos EI 60). Nuevos campos: angulo_fachadas, distancia_huecos, huecos_ei60, edificio_colindante.

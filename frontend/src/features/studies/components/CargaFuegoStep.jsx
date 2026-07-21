@@ -109,7 +109,9 @@ function DepFireEditor({ dep, index, catalog, ciTable, onChange }) {
 }
 
 export function CargaFuegoStep({ data, setData, catalog = [], ciTable = [] }) {
-  const sectores = data.sectores || [];
+  const ambitos = data.ambitos || [];
+  const industrialIds = new Set(ambitos.filter((a) => a.tipo === "industrial").map((a) => a.id));
+  const sectores = (data.sectores || []).filter((s) => (ambitos.length ? industrialIds.has(s.ambito_id) : true));
   const deps = data.dependencias || [];
 
   const updateSector = (id, patch) =>

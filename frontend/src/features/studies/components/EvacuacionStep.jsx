@@ -18,7 +18,11 @@ const COEFS = [
 ];
 
 export function EvacuacionStep({ data, setData }) {
-  const sectores = (data.sectores || []).filter((s) => s.tipo !== "area_exterior");
+  const ambitos = data.ambitos || [];
+  const industrialIds = new Set(ambitos.filter((a) => a.tipo === "industrial").map((a) => a.id));
+  const sectores = (data.sectores || [])
+    .filter((s) => s.tipo !== "area_exterior")
+    .filter((s) => (ambitos.length ? industrialIds.has(s.ambito_id) : true));
 
   const updateSector = (id, patch) =>
     setData((d) => ({ ...d, sectores: d.sectores.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
