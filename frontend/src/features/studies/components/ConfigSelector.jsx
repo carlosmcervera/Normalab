@@ -7,7 +7,7 @@ export function ConfigSelector({ value, onChange, options = [], testid }) {
 
   return (
     <div data-testid={testid}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {options.map((c) => {
           const active = value === c.value;
           return (
@@ -20,23 +20,23 @@ export function ConfigSelector({ value, onChange, options = [], testid }) {
                 active ? "border-foreground ring-1 ring-foreground" : "border-border hover:border-foreground/50"
               }`}
             >
-              <div className="relative aspect-[4/3] bg-secondary/50">
-                <img src={c.image} alt={c.label} className="h-full w-full object-contain" />
+              <div className="relative h-16 bg-secondary/50 sm:h-20">
+                <img src={c.image} alt={c.label} className="h-full w-full object-contain p-1" />
                 {active && (
-                  <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center bg-foreground text-background">
-                    <Check className="h-3 w-3" />
+                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center bg-foreground text-background">
+                    <Check className="h-2.5 w-2.5" />
                   </span>
                 )}
                 <span
                   onClick={(e) => { e.stopPropagation(); setZoom(c); }}
-                  className="absolute bottom-1.5 right-1.5 flex h-6 w-6 cursor-pointer items-center justify-center border border-border bg-background/90 opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute bottom-1 right-1 flex h-5 w-5 cursor-pointer items-center justify-center border border-border bg-background/90 opacity-0 transition-opacity group-hover:opacity-100"
                   data-testid={`config-zoom-${c.value}`}
                 >
-                  <Maximize2 className="h-3 w-3" />
+                  <Maximize2 className="h-2.5 w-2.5" />
                 </span>
               </div>
-              <div className="border-t border-border p-2.5">
-                <p className="text-xs font-semibold">{c.label}</p>
+              <div className="border-t border-border px-2 py-1.5">
+                <p className="text-[11px] font-semibold leading-tight">{c.label}</p>
               </div>
             </button>
           );
