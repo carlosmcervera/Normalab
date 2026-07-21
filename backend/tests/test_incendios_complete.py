@@ -369,10 +369,35 @@ def test_registry_only_incendios_operativo():
     assert reg.get("RSCIEI") is None and reg.get("CTE") is None
 
 
-def test_schema_exposes_both():
+def test_schema_exposes_project_flow():
     sc = inc_schema.get_schema()
-    assert set(sc.keys()) == {"rsciei", "dbsi"}
-    assert len(sc["rsciei"]["steps"]) == 5 and len(sc["dbsi"]["steps"]) == 2
+    assert [s["type"] for s in sc["steps"]] == ["ambitos", "superficies_proyecto", "carga_fuego", "ocupacion", "evacuacion"]
+    assert sc["activity_catalog"] and sc["config_types"]
+    assert any(f["name"] == "uso" for f in sc["edificacion_config_fields"])
+    assert all(f["name"] != "superficie_construida" for f in sc["edificacion_config_fields"])
+
+
+def test_unified_project_level_surfaces():
+    ind = {"id": "a1", "tipo": "industrial", "nombre": "Nave", "establecimiento": {"config": "C", "actividad": "X"}}
+    edi = {"id": "a2", "tipo": "edificacion", "nombre": "Oficinas", "uso": "Administrativo",
+           "altura_evacuacion": 9, "num_salidas": 2, "recorrido_max_real": 30}
+    sectores = [
+        {"id": "s1", "ambito_id": "a1", "nombre": "S industrial", "tipo": "sector", "config": "C",
+         "situacion": "sobre_rasante", "num_salidas": 2, "ra": ""},
+        {"id": "s2", "ambito_id": "a2", "nombre": "S oficinas", "tipo": "sector"},
+    ]
+    deps = [
+        {"id": "d1", "sector_id": "s1", "nombre": "Fab", "sup_util": 800, "sup_construida": 900,
+         "modo": "produccion", "qsi": 400, "ci": 1.44, "ra": 1.0, "densidad": 10, "uso_ocupacion": "Fabricación"},
+        {"id": "d2", "sector_id": "s2", "nombre": "Planta 1", "sup_util": 1000, "sup_construida": 1050,
+         "densidad": 10, "uso_ocupacion": "Administrativo"},
+    ]
+    r = inc.compute({"ambitos": [ind, edi], "sectores": sectores, "dependencias": deps})
+    assert [a["tipo"] for a in r["ambitos"]] == ["industrial", "edificacion"]
+    assert "sectores" in r["ambitos"][0]["results"]
+    assert [s["id"] for s in r["ambitos"][1]["results"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
+    # la superficie construida DB-SI se deriva del cuadro único (suma = 1050)
+    assert r["ambitos"][1]["results"]["superficie"] == 1050
 
 
 def _mixed_data():

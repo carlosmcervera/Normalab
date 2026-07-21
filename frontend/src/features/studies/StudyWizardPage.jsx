@@ -7,11 +7,34 @@ import { api, apiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StepBody } from "@/features/studies/components/StepBody";
-import { AmbitosManager } from "@/features/studies/components/AmbitosManager";
 import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 
-const defaultData = (code) => (code === "INCENDIOS" ? { ambitos: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
+const defaultData = (code) => (code === "INCENDIOS" ? { ambitos: [], sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
+
+const migrateIncendios = (d) => {
+  if ((d.sectores && d.sectores.length) || (d.dependencias && d.dependencias.length)) return d;
+  const ambitos = d.ambitos || [];
+  const nested = ambitos.some((a) => (a.sectores && a.sectores.length) || (a.dependencias && a.dependencias.length));
+  if (!nested) return d;
+  const sectores = [];
+  const dependencias = [];
+  ambitos.forEach((a) => {
+    if (a.tipo === "industrial") {
+      (a.sectores || []).forEach((s) => sectores.push({ ...s, ambito_id: a.id }));
+      (a.dependencias || []).forEach((dep) => dependencias.push(dep));
+    } else {
+      const sid = `${a.id}_sec`;
+      sectores.push({ id: sid, ambito_id: a.id, nombre: a.nombre || "Sector", tipo: "sector" });
+      (a.dependencias || []).forEach((dep) => dependencias.push({
+        id: dep.id, sector_id: sid, nombre: dep.nombre || "Zona",
+        sup_util: dep.superficie, sup_construida: dep.superficie,
+        densidad: dep.densidad, uso_ocupacion: dep.uso_ocupacion, sin_ocupacion: dep.sin_ocupacion,
+      }));
+    }
+  });
+  return { ...d, sectores, dependencias };
+};
 
 export default function StudyWizardPage() {
   const { studyId } = useParams();
@@ -30,7 +53,8 @@ export default function StudyWizardPage() {
 
   useEffect(() => {
     if (study && data === null) {
-      setData({ ...defaultData(study.module_code), ...(study.data || {}) });
+      const merged = { ...defaultData(study.module_code), ...(study.data || {}) };
+      setData(study.module_code === "INCENDIOS" ? migrateIncendios(merged) : merged);
       if (study.results) setResults(study.results);
     }
   }, [study, data]);
@@ -40,16 +64,8 @@ export default function StudyWizardPage() {
 
   const steps = useMemo(() => {
     if (!schema) return [];
-    if (isIncendios) {
-      const ambitos = data?.ambitos || [];
-      return [
-        { id: "ambitos", type: "ambitos", title: "Ámbitos del proyecto", description: "Define los ámbitos: establecimientos industriales (RSCIEI) y/o edificación (CTE DB-SI)." },
-        ...ambitos.map((a, i) => ({ id: a.id, title: a.nombre || `Ámbito ${i + 1}`, ambitoIndex: i })),
-        { id: "resultados", synthetic: true, title: "Resultados" },
-      ];
-    }
-    return [...schema.steps, { id: "resultados", synthetic: true, title: "Resultados" }];
-  }, [schema, data?.ambitos, isIncendios]);
+    return [...(schema.steps || []), { id: "resultados", synthetic: true, title: "Resultados" }];
+  }, [schema]);
   const totalSteps = steps.length;
 
   const saveMut = useMutation({ mutationFn: (d) => api.put(`/studies/${studyId}`, { data: d }) });
@@ -76,29 +92,6 @@ export default function StudyWizardPage() {
   };
 
   const current = steps[step] || steps[0];
-
-  const renderAmbito = () => {
-    const a = data.ambitos[current.ambitoIndex];
-    if (!a) return null;
-    const subSchema = a.tipo === "industrial" ? schema.rsciei : schema.dbsi;
-    const setAmbito = (fn) => setData((d) => {
-      const arr = [...d.ambitos];
-      arr[current.ambitoIndex] = typeof fn === "function" ? fn(arr[current.ambitoIndex]) : fn;
-      return { ...d, ambitos: arr };
-    });
-    return (
-      <div className="space-y-8" data-testid={`ambito-editor-${current.ambitoIndex}`}>
-        <Badge variant="outline" className="rounded-sm">{a.tipo === "industrial" ? "Establecimiento industrial · RSCIEI" : "Edificación · CTE DB-SI"}</Badge>
-        {subSchema.steps.map((sub) => (
-          <div key={sub.id} className="border-t border-border pt-6 first:border-t-0 first:pt-0">
-            <h3 className="font-heading text-base">{sub.title}</h3>
-            {sub.description && <p className="mb-4 mt-0.5 text-sm text-muted-foreground">{sub.description}</p>}
-            <StepBody step={sub} schema={subSchema} data={a} setData={setAmbito} />
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -132,9 +125,7 @@ export default function StudyWizardPage() {
         {current.description && <p className="mt-1 text-sm text-muted-foreground">{current.description}</p>}
 
         <div className="mt-6">
-          {current.type === "ambitos" && <AmbitosManager data={data} setData={setData} />}
-          {current.ambitoIndex !== undefined && renderAmbito()}
-          {!isIncendios && !current.synthetic && <StepBody step={current} schema={schema} data={data} setData={setData} />}
+          {!current.synthetic && <StepBody step={current} schema={schema} data={data} setData={setData} />}
 
           {current.synthetic && (
             <div>

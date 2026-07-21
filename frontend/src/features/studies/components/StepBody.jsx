@@ -6,6 +6,8 @@ import { OcupacionStep } from "@/features/studies/components/OcupacionStep";
 import { CargaFuegoStep } from "@/features/studies/components/CargaFuegoStep";
 import { EvacuacionStep } from "@/features/studies/components/EvacuacionStep";
 import { DbsiOcupacionStep } from "@/features/studies/components/DbsiOcupacionStep";
+import { AmbitosManager } from "@/features/studies/components/AmbitosManager";
+import { ProyectoSuperficiesStep } from "@/features/studies/components/ProyectoSuperficiesStep";
 
 // Renders a single wizard sub-step given its (sub-)schema, scoped data and setData.
 export function StepBody({ step, schema, data, setData }) {
@@ -38,6 +40,8 @@ export function StepBody({ step, schema, data, setData }) {
   }
 
   if (step.type === "superficies") return <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />;
+  if (step.type === "superficies_proyecto") return <ProyectoSuperficiesStep data={data} setData={setData} schema={schema} />;
+  if (step.type === "ambitos") return <AmbitosManager data={data} setData={setData} schema={schema} />;
   if (step.type === "ocupacion") return <OcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />;
   if (step.type === "carga_fuego") return <CargaFuegoStep data={data} setData={setData} catalog={schema.activity_catalog || []} ciTable={schema.ci_table || []} />;
   if (step.type === "evacuacion") return <EvacuacionStep data={data} setData={setData} />;
