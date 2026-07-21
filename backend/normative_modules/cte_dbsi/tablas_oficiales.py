@@ -50,6 +50,23 @@ SI2_FACHADA = "EI 60 en franja ≥ 1 m; separación entre huecos de sectores dis
 SI2_CUBIERTA = "REI 60 en franja de 0,50 m desde el encuentro con sector/edificio de mayor riesgo"
 SI2_DIST_MIN = 3.0  # m · separación mínima sin protección adicional de huecos entre edificios
 
+# Tabla 1.1 (SI 2) · distancia mínima d (m) entre huecos de fachadas que no sean EI 60,
+# en función del ángulo α (grados) formado por los planos de fachada. Interpolación lineal
+# para ángulos intermedios; en edificios colindantes cada fachada cumple el 50 % de d.
+SI2_DIST_HUECOS = [(0, 3.0), (45, 2.75), (60, 2.5), (90, 2.0), (135, 1.25), (180, 0.5)]
+
+
+def si2_distancia_huecos(angulo: float) -> float:
+    """Distancia d (m) exigida entre huecos según el ángulo (interpolación lineal)."""
+    a = max(0.0, min(180.0, float(angulo)))
+    pts = SI2_DIST_HUECOS
+    for i in range(len(pts) - 1):
+        a0, d0 = pts[i]
+        a1, d1 = pts[i + 1]
+        if a0 <= a <= a1:
+            return round(d0 + (d1 - d0) * (a - a0) / (a1 - a0), 2)
+    return pts[-1][1]
+
 
 # --- SI 3 · Evacuación de ocupantes ----------------------------------------
 

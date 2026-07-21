@@ -2,8 +2,8 @@
 
 Valores según la Guía de aplicación del RSCIEI 2025 (RD 164/2025). Determina la
 estabilidad al fuego exigida, la resistencia de los elementos delimitadores del
-sector y las instalaciones de protección obligatorias, incluido el hidrante para
-llenado de camiones de bomberos (Tabla 3.3.1).
+sector y las instalaciones de protección obligatorias, incluidos los hidrantes
+exteriores (Tabla 3.3.1) y el sistema de comunicación de alarma.
 """
 
 # --- Anexo II ---------------------------------------------------------------
@@ -48,25 +48,20 @@ ROCIADORES = {
 HUMOS = {"produccion": {"MEDIO": 2000, "ALTO": 1000},
          "almacenamiento": {"MEDIO": 1000, "ALTO": 800}}
 
-# Hidrantes exteriores de impulsión directa (RD 164/2025, Anexo III):
-# obligatorios si la superficie del sector ≥ umbral (riesgo medio ≥ 2.500, alto ≥ 3.500).
-HIDRANTES = {"AH": {"MEDIO": 2500, "ALTO": 3500}, "B": {"MEDIO": 2500, "ALTO": 3500},
-             "C": {"MEDIO": 2500, "ALTO": 3500}, "D": {"MEDIO": 10000, "ALTO": 10000}}
-
-# Tabla 3.3.1 · Hidrante para llenado de vehículos de bomberos (RD 164/2025, Anexo III).
-# Superficie del sector (m²) por configuración y nivel de riesgo a partir de la cual es
-# obligatorio un hidrante exterior accesible situado a < 100 m de fachadas accesibles.
-HIDRANTE_CAMION = {
-    "AV": {"BAJO": 300, "MEDIO": 1000, "ALTO": 1000},
-    "AH": {"BAJO": 600, "MEDIO": 1000, "ALTO": 1000},
-    "B": {"BAJO": 1000, "MEDIO": 2500, "ALTO": 3500},
-    "C": {"BAJO": 2500, "MEDIO": 3500, "ALTO": 5000},
+# Tabla 3.3.1 · Hidrantes exteriores (RSCIEI, Anexo III). Obligatorios si la superficie
+# del sector/área de incendio ≥ umbral (m²), en función de la configuración y del nivel
+# de riesgo intrínseco. La exigencia es más estricta (umbral menor) a mayor riesgo.
+# Tipo A: no se exige en riesgo bajo nivel 1 (nota *). Tipo C: no exigible en riesgo bajo.
+HIDRANTES = {
+    "AV": {"BAJO": 1000, "MEDIO": 300},
+    "AH": {"BAJO": 1000, "MEDIO": 300},
+    "B": {"BAJO": 3500, "MEDIO": 2500, "ALTO": 1000},
+    "C": {"MEDIO": 3500, "ALTO": 2000},
     "D": {"BAJO": 5000, "MEDIO": 5000, "ALTO": 5000},
 }
 
-# Sistema de comunicación de alarma por voz (RD 164/2025, Anexo III):
-# obligatorio si la superficie total del establecimiento ≥ 10.000 m²
-# (y densidad de ocupación > 3 personas/100 m²).
+# Sistema de comunicación de alarma (Anexo III, punto 5.1): obligatorio si la superficie
+# construida total de los sectores del establecimiento ≥ 10.000 m² (megafonía preferente).
 COMUNICACION_ALARMA_MIN = 10000
 
 
@@ -150,27 +145,20 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
     else:
         inst.append(_inst("Control de humos y calor", False, "No exigible en riesgo bajo (valorar huecos de ventilación)."))
 
-    hid_thr = HIDRANTES.get(config, {}).get(categoria) if categoria in ("MEDIO", "ALTO") else None
+    hid_thr = _threshold(HIDRANTES, config, categoria, nivel)
     if hid_thr is not None:
-        inst.append(_inst("Hidrantes exteriores (impulsión directa)", A >= hid_thr,
-                          f"Tipo {config}, riesgo {categoria}: obligatorios si superficie del sector ≥ {hid_thr:.0f} m² (sector: {A:.0f} m²)."))
+        inst.append(_inst("Hidrantes exteriores (Tabla 3.3.1)", A >= hid_thr,
+                          f"Tabla 3.3.1: obligatorios si la superficie del sector (tipo {config}, riesgo {categoria.lower()}) "
+                          f"≥ {hid_thr:.0f} m² (sector: {A:.0f} m²). Al menos un hidrante con salida de 100 mm; radio de "
+                          f"cobertura 40 m y ≥ 5 m al límite del edificio."))
     else:
-        inst.append(_inst("Hidrantes exteriores (impulsión directa)", False,
-                          "No exigibles por superficie en riesgo bajo."))
+        inst.append(_inst("Hidrantes exteriores (Tabla 3.3.1)", False,
+                          f"No exigibles por superficie para el tipo {config} en riesgo {categoria.lower()}."))
 
-    # Tabla 3.3.1 · hidrante para llenado de vehículos de bomberos (por sector, configuración × riesgo)
-    cam_thr = HIDRANTE_CAMION.get(config, {}).get(categoria)
-    cam_obl = cam_thr is not None and A >= cam_thr
-    inst.append(_inst("Hidrante para llenado de vehículos de bomberos", cam_obl,
-                      (f"Tabla 3.3.1 (RD 164/2025): hidrante exterior accesible a < 100 m si la superficie del sector "
-                       f"(tipo {config}, riesgo {categoria.lower()}) ≥ {cam_thr:.0f} m² (sector: {A:.0f} m²)."
-                       if cam_thr is not None else
-                       f"No exigible por superficie para tipo {config} en riesgo {categoria.lower()}.")))
-
-    # Sistema de comunicación de alarma por voz
-    inst.append(_inst("Sistema de comunicación de alarma por voz", S_est >= COMUNICACION_ALARMA_MIN,
-                      f"Obligatorio si la superficie total del establecimiento ≥ {COMUNICACION_ALARMA_MIN:.0f} m² "
-                      f"y densidad de ocupación > 3 pers./100 m² (total: {S_est:.0f} m²)."))
+    # Sistema de comunicación de alarma (Anexo III, punto 5.1)
+    inst.append(_inst("Sistema de comunicación de alarma", S_est >= COMUNICACION_ALARMA_MIN,
+                      f"Obligatorio si la superficie construida total de los sectores ≥ {COMUNICACION_ALARMA_MIN:.0f} m² "
+                      f"(megafonía preferente; diferencia emergencia parcial/general). Total: {S_est:.0f} m²."))
 
     cs_obl = h_evac >= 15
     inst.append(_inst("Columna seca", cs_obl,

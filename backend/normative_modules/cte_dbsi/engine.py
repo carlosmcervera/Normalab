@@ -91,7 +91,7 @@ def _si1(uso, sup, altura, bajo_rasante, local_re):
                 "cumple" if cumple else "no_cumple", filas, None, obs)
 
 
-def _si2(dist_colindantes):
+def _si2(dist_colindantes, angulo=None, dist_huecos=None, huecos_ei60=False, colindante=False):
     filas = [
         _kv("Medianerías y muros colindantes", T.SI2_MEDIANERIA),
         _kv("Fachadas (limitación de propagación)", T.SI2_FACHADA),
@@ -106,7 +106,28 @@ def _si2(dist_colindantes):
             obs.append(f"Separación {d:.1f} m < {T.SI2_DIST_MIN:.0f} m: los huecos de fachada requieren protección EI o retranqueo (SI 2).")
         else:
             estado = "cumple"
-    return _sec("SI2", "SI 2 · Propagación exterior", "CTE DB-SI · SI 2", estado, filas, None, obs)
+
+    # Separación entre huecos según el ángulo entre planos de fachada (SI 2, Tabla 1.1)
+    ang = _num(angulo, -1)
+    if ang >= 0:
+        d_req = T.si2_distancia_huecos(ang)
+        d_ef = round(d_req / 2, 2) if colindante else d_req
+        filas.append(_kv("Ángulo entre planos de fachada", f"{ang:.0f}°"))
+        filas.append(_kv("Distancia mínima entre huecos (Tabla 1.1)",
+                         f"{d_ef:.2f} m" + (" (50 % · edificio colindante)" if colindante else "")))
+        if huecos_ei60:
+            filas.append(_kv("Resistencia al fuego de los huecos", "EI 60 (no requiere separación mínima)"))
+        else:
+            dh = _num(dist_huecos, -1)
+            if dh >= 0:
+                filas.append(_kv("Distancia entre huecos proyectada", f"{dh:.2f} m"))
+                if dh < d_ef:
+                    estado = "no_cumple"
+                    obs.append(f"Los huecos distan {dh:.2f} m < {d_ef:.2f} m exigidos para un ángulo de {ang:.0f}°: "
+                               f"dote a los huecos de EI 60 o aumente la separación (SI 2, Tabla 1.1).")
+                elif estado != "no_cumple":
+                    estado = "cumple"
+    return _sec("SI2", "SI 2 · Propagación exterior", "CTE DB-SI · SI 2 (Tabla 1.1)", estado, filas, None, obs)
 
 
 def _si3(uso, ocupacion, num_salidas, recorrido_real, ancho_proyectado, altura, sentido):
@@ -154,7 +175,9 @@ def _inst(nombre, obligatorio, detalle):
     return {"nombre": nombre, "obligatorio": obligatorio, "detalle": detalle}
 
 
-def _si4(uso, sup, altura, ocup):
+def _si4(uso, sup, altura, ocup, num_plantas=1, deps=None):
+    num_plantas = max(1, int(num_plantas or 1))
+    deps = deps or []
     bie = {"Comercial": sup >= 500, "Pública concurrencia": sup >= 500, "Aparcamiento": sup > 500,
            "Hospitalario": True, "Administrativo": sup >= 2000, "Docente": sup >= 2000,
            "Residencial Público": sup >= 2000, "Residencial Vivienda": False}.get(uso, sup >= 2000)
@@ -168,8 +191,9 @@ def _si4(uso, sup, altura, ocup):
            "Administrativo": sup > 5000, "Docente": sup > 5000, "Aparcamiento": sup > 1000,
            "Residencial Público": sup > 5000, "Residencial Vivienda": sup > 5000}.get(uso, sup > 5000)
     roc = (uso == "Comercial" and sup > 1500) or (uso == "Aparcamiento" and sup > 10000)
+    por_planta = f" Dotación en cada una de las {num_plantas} planta(s)." if num_plantas > 1 else ""
     inst = [
-        _inst("Extintores portátiles", True, "Eficacia 21A-113B a ≤ 15 m de recorrido en cada planta y en zonas de riesgo especial."),
+        _inst("Extintores portátiles", True, f"Eficacia 21A-113B a ≤ 15 m de recorrido en cada planta y en zonas de riesgo especial.{por_planta}"),
         _inst("Bocas de incendio equipadas (BIE)", bie, f"Uso {uso}, superficie {sup:.0f} m² (DB-SI SI 4, Tabla 1.1)."),
         _inst("Columna seca", altura > 24, f"Obligatoria si la altura de evacuación > 24 m (altura: {altura:.1f} m)."),
         _inst("Sistema de detección automática", det, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
@@ -177,11 +201,18 @@ def _si4(uso, sup, altura, ocup):
         _inst("Hidrantes exteriores", hid, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
         _inst("Rociadores automáticos", roc, f"Uso {uso}, superficie {sup:.0f} m² (Tabla 1.1)."),
         _inst("Ascensor de emergencia", altura > 28, f"Obligatorio si la altura de evacuación > 28 m (altura: {altura:.1f} m)."),
-        _inst("Alumbrado de emergencia", True, "Recorridos de evacuación y locales de riesgo (DB-SUA 4)."),
-        _inst("Señalización de evacuación y de medios de protección", True, "DB-SI SI 3.7 y SI 4.2."),
+        _inst("Alumbrado de emergencia", True, f"Recorridos de evacuación y locales de riesgo (DB-SUA 4).{por_planta}"),
+        _inst("Señalización de evacuación y de medios de protección", True, f"DB-SI SI 3.7 y SI 4.2.{por_planta}"),
     ]
+    filas = [_kv("Nº de plantas", str(num_plantas))]
+    for d in deps:
+        s = _num(d.get("superficie"))
+        if s > 0:
+            n_ext = max(1, math.ceil(s / 300))
+            filas.append(_kv(f"Extintores orientativos · {d.get('nombre') or 'zona'} ({s:.0f} m²)",
+                             f"{n_ext} (≥ 1 cada 300 m², recorrido ≤ 15 m)"))
     return _sec("SI4", "SI 4 · Instalaciones de protección contra incendios",
-                "CTE DB-SI · SI 4 (Tabla 1.1)", "info", [], inst, [])
+                "CTE DB-SI · SI 4 (Tabla 1.1)", "info", filas, inst, [])
 
 
 def _si5(altura, vial_ok):
@@ -228,10 +259,11 @@ def compute(data: dict) -> dict:
     ocupacion = _build_ocupacion(deps)
     secciones = [
         _si1(uso, sup, altura, bajo_rasante, local_re),
-        _si2(data.get("distancia_colindantes")),
+        _si2(data.get("distancia_colindantes"), data.get("angulo_fachadas"),
+             data.get("distancia_huecos"), bool(data.get("huecos_ei60")), bool(data.get("edificio_colindante"))),
         _si3(uso, ocupacion["total"], data.get("num_salidas", 1), data.get("recorrido_max_real"),
              data.get("ancho_salidas_proyectado"), altura, sentido),
-        _si4(uso, sup, altura, ocupacion["total"]),
+        _si4(uso, sup, altura, ocupacion["total"], data.get("num_plantas"), deps),
         _si5(altura, data.get("vial_aproximacion_ok")),
         _si6(uso, altura, bajo_rasante, local_re),
     ]

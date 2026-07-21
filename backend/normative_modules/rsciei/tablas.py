@@ -191,6 +191,6 @@ def build_tablas(data, sectores):
                       f"{GUIA}, Anexo III", ROCIADORES[modo_pred], config_cat, modo_note),
         _anexo3_table("bie", "Anexo III · Bocas de incendio equipadas (BIE)",
                       f"{GUIA}, Anexo III", BIE, config_cat),
-        _anexo3_table("hidrantes", "Anexo III · Hidrantes de impulsión directa",
+        _anexo3_table("hidrantes", "Anexo III · Hidrantes exteriores (Tabla 3.3.1)",
                       f"{GUIA}, Anexo III", HIDRANTES, config_cat),
     ]

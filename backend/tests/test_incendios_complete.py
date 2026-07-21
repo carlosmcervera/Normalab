@@ -220,12 +220,15 @@ def test_requirements_extintores_always_and_bajo_nivel1_exempt_deteccion():
     assert inst["Detección automática de incendio"]["obligatorio"] is False
 
 
-def test_hidrante_camion_tabla331():
-    # C: umbral 5000 m² totales
-    req_lo = rq.build_requirements({"config": "C"}, 2, "BAJO", "produccion", 1000, 4000)
-    req_hi = rq.build_requirements({"config": "C"}, 2, "BAJO", "produccion", 1000, 6000)
-    g = lambda req: [i for i in req["instalaciones"] if "camiones" in i["nombre"]][0]["obligatorio"]
-    assert g(req_lo) is False and g(req_hi) is True
+def test_hidrantes_exteriores_tabla331():
+    # Tipo B, riesgo medio: umbral de 2.500 m² de sector (Tabla 3.3.1)
+    lo = rq.build_requirements({"config": "B"}, 2, "MEDIO", "produccion", 2000, 2000)
+    hi = rq.build_requirements({"config": "B"}, 2, "MEDIO", "produccion", 3000, 3000)
+    g = lambda req: [i for i in req["instalaciones"] if i["nombre"].startswith("Hidrantes exteriores")][0]["obligatorio"]
+    assert g(lo) is False and g(hi) is True
+    # Mayor riesgo => umbral más estricto (menor): B alto exige a partir de 1.000 m²
+    alto = rq.build_requirements({"config": "B"}, 3, "ALTO", "produccion", 1200, 1200)
+    assert g(alto) is True
 
 
 # --------------------------------------------------------------------------- #
@@ -288,6 +291,32 @@ def test_dbsi_si2_distance_check():
     ko = db.compute(dbsi_data(distancia_colindantes=1))
     assert _sec(ok, "SI2")["estado"] == "cumple"
     assert _sec(ko, "SI2")["estado"] == "no_cumple"
+
+
+def test_dbsi_si2_angle_openings():
+    # 90° => d requerida 2,00 m (interpolación de la tabla maestra)
+    assert TO.si2_distancia_huecos(90) == 2.0
+    assert TO.si2_distancia_huecos(0) == 3.0 and TO.si2_distancia_huecos(180) == 0.5
+    # huecos a 1,50 m con ángulo 90° (requiere 2,00 m) => no cumple
+    ko = db.compute(dbsi_data(angulo_fachadas=90, distancia_huecos=1.5))
+    assert _sec(ko, "SI2")["estado"] == "no_cumple"
+    # con EI 60 en los huecos no se exige separación => no penaliza
+    ei = db.compute(dbsi_data(angulo_fachadas=90, distancia_huecos=1.5, huecos_ei60=True))
+    assert _sec(ei, "SI2")["estado"] != "no_cumple"
+    # edificio colindante => sólo el 50 % (1,00 m); 1,50 m proyectados cumplen
+    col = db.compute(dbsi_data(angulo_fachadas=90, distancia_huecos=1.5, edificio_colindante=True))
+    assert _sec(col, "SI2")["estado"] == "cumple"
+
+
+def test_dbsi_si4_por_planta_y_zona():
+    deps = [{"id": "z1", "nombre": "P1", "superficie": 900, "densidad": 10},
+            {"id": "z2", "nombre": "P2", "superficie": 400, "densidad": 10}]
+    si4 = _sec(db.compute(dbsi_data(uso="Administrativo", sup=1300, num_plantas=3, deps=deps)), "SI4")
+    # fila con nº de plantas
+    assert any(f["k"] == "Nº de plantas" and f["v"] == "3" for f in si4["filas"])
+    # dotación orientativa de extintores por zona (900 m² => 3, 400 m² => 2)
+    assert any("P1" in f["k"] and f["v"].startswith("3") for f in si4["filas"])
+    assert any("P2" in f["k"] and f["v"].startswith("2") for f in si4["filas"])
 
 
 def test_dbsi_si3_salidas_recorrido_ancho():
