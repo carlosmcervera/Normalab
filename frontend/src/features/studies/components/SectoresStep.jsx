@@ -1,4 +1,4 @@
-import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info } from "lucide-react";
+import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info, Wand2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,35 @@ import { num } from "@/lib/format";
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const CUSTOM = "__custom__";
 const RIESGO_R = { bajo: "R 90", medio: "R 120", alto: "R 180" };
+
+const LRE_TIPOS = [
+  { value: "almacen", label: "Almacén / archivo de combustibles", crit: "por volumen (100<V≤200 m³ bajo · 200<V≤400 medio · V>400 alto)" },
+  { value: "caldera", label: "Sala de calderas", crit: "por potencia útil (70<P≤200 kW bajo · 200<P≤600 medio · P>600 alto)" },
+  { value: "maquinaria", label: "Sala de maquinaria de instalaciones", crit: "según la Tabla 2.1 del DB-SI" },
+  { value: "transformador", label: "Centro de transformación", crit: "según la Tabla 2.1 del DB-SI" },
+  { value: "cocina", label: "Cocina", crit: "por potencia instalada (20<P≤30 kW bajo · 30<P≤50 medio · P>50 alto)" },
+  { value: "aparcamiento", label: "Aparcamiento", crit: "según la Tabla 2.1 del DB-SI" },
+  { value: "generico", label: "Otro / genérico", crit: "según la Tabla 2.1 del DB-SI" },
+];
+
+const draftLRE = (x) => {
+  const t = LRE_TIPOS.find((k) => k.value === (x.lre_tipo || "generico")) || LRE_TIPOS[6];
+  const r = x.lre_riesgo || "bajo";
+  return `El local «${x.nombre || "—"}» (${t.label.toLowerCase()}) se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI, ${t.crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie no se computa en la carga de fuego del sector.`;
+};
+
+const draftEscalera = (x) => {
+  const tipo = x.esc_tipo === "especialmente_protegida" ? "especialmente protegida" : "protegida";
+  const sit = x.esc_situacion === "exterior" ? "exterior" : "interior";
+  const partes = [`La escalera «${x.nombre || "—"}» es una escalera ${tipo} ${sit}`];
+  if (x.esc_anchura) partes.push(`de ${x.esc_anchura} m de anchura`);
+  if (x.esc_capacidad) partes.push(`con capacidad de evacuación de ${x.esc_capacidad} personas`);
+  if (x.esc_uso_restringido) partes.push("de uso restringido");
+  const prot = tipo === "especialmente protegida"
+    ? "vestíbulos de independencia y ventilación (natural o por sobrepresión)"
+    : "puertas EI2 45-C5 y protección al fuego de la estructura y cerramientos";
+  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: la caja constituye un recinto independiente con la resistencia al fuego exigida, ${prot}, anchura ≥ 1,00 m y continuidad hasta la salida de edificio. Al ser zona de paso peatonal de trabajadores, computa carga de fuego.`;
+};
 
 // Carga de fuego con catálogo (Tabla 1.3.5) + edición manual.
 function CargaFuegoInline({ x, i, catalog, update }) {
@@ -268,9 +297,19 @@ export function SectoresStep({ data, setData, schema = {} }) {
                           <Label className="text-xs">Resistencia (R)</Label>
                           <Input className="mt-1 h-8 rounded-sm" value={x.lre_r || RIESGO_R[x.lre_riesgo || "bajo"]} onChange={(e) => updateDep(x.id, { lre_r: e.target.value })} data-testid={`estancia-${i}-lre-r`} />
                         </div>
+                        <div className="col-span-2">
+                          <Label className="text-xs">Tipo de local (Tabla 2.1)</Label>
+                          <Select value={x.lre_tipo || "generico"} onValueChange={(v) => updateDep(x.id, { lre_tipo: v })}>
+                            <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-lre-tipo`}><SelectValue /></SelectTrigger>
+                            <SelectContent>{LRE_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
                         <div className="col-span-2 sm:col-span-4">
-                          <Label className="text-xs">Justificación de la clasificación (parámetros Tabla 2.1: superficie, volumen, potencia…)</Label>
-                          <Textarea className="mt-1 min-h-[52px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="p. ej. Almacén > 100 m² → riesgo bajo; sala de calderas > 200 kW → riesgo medio…" data-testid={`estancia-${i}-lre-just`} />
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Justificación (Tabla 2.1: superficie, volumen, potencia…)</Label>
+                            <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { lre_justificacion: draftLRE(x) })} data-testid={`estancia-${i}-lre-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
+                          </div>
+                          <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir del tipo y el riesgo, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
                         </div>
                       </div>
                     ) : clase === "escalera_protegida" ? (
@@ -303,8 +342,11 @@ export function SectoresStep({ data, setData, schema = {} }) {
                             Uso restringido
                           </label>
                           <div className="col-span-2 sm:col-span-4">
-                            <Label className="text-xs">Justificación CTE (protección, ventilación/vestíbulo, resistencia, evacuación)</Label>
-                            <Textarea className="mt-1 min-h-[52px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Justifique conforme al CTE DB-SI/SUA la protección, capacidad y anchura de la escalera." data-testid={`estancia-${i}-esc-just`} />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Justificación CTE (protección, ventilación/vestíbulo, resistencia, evacuación)</Label>
+                              <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { esc_justificacion: draftEscalera(x) })} data-testid={`estancia-${i}-esc-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
+                            </div>
+                            <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir de los parámetros, o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
                           </div>
                         </div>
                         <p className="mt-2 text-xs text-muted-foreground">La escalera protegida SÍ computa carga de fuego (zona de paso peatonal); su protección se justifica por el CTE y consta en el informe.</p>

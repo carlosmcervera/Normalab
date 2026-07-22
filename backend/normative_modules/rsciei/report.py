@@ -4,7 +4,27 @@ from core.models import utcnow_iso
 
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
     est = results.get("establecimiento", {})
+    resumen_ej = []
+    for s in results.get("sectores", []):
+        resumen_ej.append({
+            "nombre": s.get("nombre"),
+            "ambito": "CTE" if s.get("ambito") == "cte" else "RSCIEI",
+            "estado": s.get("estado"),
+            "qs_mj": s["nivel_riesgo"]["qs_mj"],
+            "nivel": s["nivel_riesgo"]["nivel"],
+            "categoria": s["nivel_riesgo"]["categoria"],
+            "lre": len(s.get("locales_riesgo_especial", [])),
+            "escaleras": len(s.get("escaleras_protegidas", [])),
+            "dbsi": [{"id": x["id"], "estado": x["estado"]} for x in ((s.get("dbsi") or {}).get("secciones") or [])],
+        })
     sections = [
+        {
+            "id": "resumen_ejecutivo",
+            "title": "Resumen ejecutivo",
+            "type": "resumen_ejecutivo",
+            "estado_global": results.get("estado_global"),
+            "filas": resumen_ej,
+        },
         {
             "id": "objeto",
             "title": "1. Objeto del estudio",

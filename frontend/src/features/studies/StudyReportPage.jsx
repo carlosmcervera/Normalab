@@ -117,6 +117,50 @@ function SectorReport({ s }) {
           </div>
         ))}
       </div>
+      {s.locales_riesgo_especial?.length > 0 && (
+        <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-lre`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (excluidos de la carga de fuego · Tabla 2.1 DB-SI)</p>
+          <div className="space-y-2">
+            {s.locales_riesgo_especial.map((l, i) => (
+              <div key={i} className="text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{l.nombre} · riesgo {l.riesgo?.toLowerCase?.()}</span>
+                  <span className="font-mono text-muted-foreground">{num(l.superficie)} m² · {l.resistencia}</span>
+                </div>
+                {l.justificacion && <p className="mt-0.5 text-xs text-muted-foreground">{l.justificacion}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {s.escaleras_protegidas?.length > 0 && (
+        <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-escaleras`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Escaleras protegidas (justificación CTE)</p>
+          <div className="space-y-2">
+            {s.escaleras_protegidas.map((e, i) => (
+              <div key={i} className="text-sm">
+                <span className="font-medium">{e.nombre} · {e.tipo === "especialmente_protegida" ? "especialmente protegida" : "protegida"} · {e.situacion}{e.anchura ? ` · ${e.anchura} m` : ""}{e.capacidad ? ` · ${e.capacidad} pers.` : ""}</span>
+                {e.justificacion && <p className="mt-0.5 text-xs text-muted-foreground">{e.justificacion}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {s.dbsi && (
+        <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-dbsi`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">CTE DB-SI · secciones (sector en ámbito CTE)</p>
+          <div className="space-y-1.5">
+            {(s.dbsi.secciones || []).map((sec) => (
+              <div key={sec.id} className="flex items-center justify-between text-sm">
+                <span>{sec.titulo || sec.id}</span>
+                <span className={`rounded-sm border px-2 py-0.5 text-xs font-medium ${sec.estado === "no_cumple" ? "border-red-300 bg-red-50 text-red-800" : sec.estado === "cumple" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-50 text-slate-600"}`}>
+                  {sec.estado === "no_cumple" ? "No cumple" : sec.estado === "cumple" ? "Cumple" : "Info"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
