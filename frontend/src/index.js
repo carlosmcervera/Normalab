@@ -5,6 +5,15 @@ import { Toaster } from "@/components/ui/sonner";
 import "@/index.css";
 import App from "@/App";
 
+// Silencia el warning benigno "ResizeObserver loop" (Radix) que dispara el overlay de dev.
+const _roMsg = "ResizeObserver loop";
+window.addEventListener("error", (e) => {
+  if (e.message && e.message.includes(_roMsg)) {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 },
