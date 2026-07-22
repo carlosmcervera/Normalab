@@ -1,4 +1,5 @@
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect } from "react";
+import { Plus, Trash2, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -23,16 +24,38 @@ export function EvacuacionStep({ data, setData }) {
   const sectores = (data.sectores || [])
     .filter((s) => s.tipo !== "area_exterior")
     .filter((s) => (ambitos.length ? industrialIds.has(s.ambito_id) : true));
+  const deps = data.dependencias || [];
+
+  // Precarga: los recorridos de cada sector se siembran con las estancias asignadas
+  // (el usuario puede eliminar las que no apliquen, p. ej. un pasillo).
+  useEffect(() => {
+    let changed = false;
+    const next = (data.sectores || []).map((s) => {
+      if (s.recorridos_seeded || (s.recorridos && s.recorridos.length)) return s;
+      const secDeps = deps.filter((x) => x.sector_id === s.id && x.clase !== "lre");
+      if (!secDeps.length) return s;
+      changed = true;
+      return {
+        ...s, recorridos_seeded: true,
+        recorridos: secDeps.map((x) => ({ id: genId(), dep_id: x.id, origen: x.nombre || "Estancia", tipo: "hasta_salida", distancia_real: "" })),
+      };
+    });
+    if (changed) setData((d) => ({ ...d, sectores: next.map((n) => ({ ...(d.sectores.find((o) => o.id === n.id) || {}), ...n })) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectores.length, deps.length]);
 
   const updateSector = (id, patch) =>
     setData((d) => ({ ...d, sectores: d.sectores.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
-
   const addRecorrido = (sec) =>
     updateSector(sec.id, { recorridos: [...(sec.recorridos || []), { id: genId(), origen: "", tipo: "hasta_salida", distancia_real: "" }] });
   const updateRecorrido = (sec, rid, patch) =>
     updateSector(sec.id, { recorridos: (sec.recorridos || []).map((r) => (r.id === rid ? { ...r, ...patch } : r)) });
   const removeRecorrido = (sec, rid) =>
     updateSector(sec.id, { recorridos: (sec.recorridos || []).filter((r) => r.id !== rid) });
+  const reseed = (sec) => {
+    const secDeps = deps.filter((x) => x.sector_id === sec.id && x.clase !== "lre");
+    updateSector(sec.id, { recorridos: secDeps.map((x) => ({ id: genId(), dep_id: x.id, origen: x.nombre || "Estancia", tipo: "hasta_salida", distancia_real: "" })) });
+  };
 
   if (sectores.length === 0)
     return <p className="border border-dashed border-border py-8 text-center text-sm text-muted-foreground" data-testid="evac-empty">Primero crea sectores de incendio.</p>;
@@ -51,29 +74,32 @@ export function EvacuacionStep({ data, setData }) {
                 <Label>Coeficiente de incremento (notas 4/5)</Label>
                 <Select value={s.evac_coeficiente || "ninguno"} onValueChange={(v) => updateSector(s.id, { evac_coeficiente: v })}>
                   <SelectTrigger className="rounded-sm" data-testid={`evac-${si}-coef`}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {COEFS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{COEFS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Los coeficientes no son acumulativos (solo se aplica uno). La nota 5 solo aplica a riesgo bajo nivel 1.</p>
+                <p className="text-xs text-muted-foreground">Los coeficientes no son acumulativos. La nota 5 solo aplica a riesgo bajo nivel 1.</p>
               </div>
             </div>
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <Label>Recorridos de evacuación (por origen)</Label>
-                <Button variant="outline" size="sm" className="rounded-sm" onClick={() => addRecorrido(s)} data-testid={`evac-${si}-add`}>
-                  <Plus className="mr-1.5 h-4 w-4" /> Añadir recorrido
-                </Button>
+                <Label>Recorridos de evacuación (precargados desde el cuadro de superficies)</Label>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="rounded-sm" onClick={() => reseed(s)} data-testid={`evac-${si}-reseed`}>
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Recargar estancias
+                  </Button>
+                  <Button variant="outline" size="sm" className="rounded-sm" onClick={() => addRecorrido(s)} data-testid={`evac-${si}-add`}>
+                    <Plus className="mr-1.5 h-4 w-4" /> Añadir recorrido
+                  </Button>
+                </div>
               </div>
               {(s.recorridos || []).length === 0 ? (
-                <p className="border border-dashed border-border py-4 text-center text-xs text-muted-foreground">Sin recorridos. Añade los orígenes de evacuación y su distancia real medida.</p>
+                <p className="border border-dashed border-border py-4 text-center text-xs text-muted-foreground">Sin recorridos. Se precargan las estancias del sector; elimina las que no apliquen (p. ej. pasillos).</p>
               ) : (
                 <div className="overflow-x-auto border border-border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                        <th className="px-3 py-2 font-semibold">Origen</th>
+                        <th className="px-3 py-2 font-semibold">Origen (estancia)</th>
                         <th className="px-3 py-2 font-semibold">Tipo de recorrido</th>
                         <th className="px-3 py-2 text-right font-semibold">Distancia real (m)</th>
                         <th className="px-3 py-2" />
@@ -82,9 +108,7 @@ export function EvacuacionStep({ data, setData }) {
                     <tbody>
                       {(s.recorridos || []).map((r, ri) => (
                         <tr key={r.id} className="border-b border-border last:border-0" data-testid={`evac-${si}-rec-${ri}`}>
-                          <td className="px-3 py-1.5">
-                            <Input className="h-8 rounded-sm" value={r.origen || ""} onChange={(e) => updateRecorrido(s, r.id, { origen: e.target.value })} placeholder="p. ej. Fondo de nave" data-testid={`evac-${si}-rec-${ri}-origen`} />
-                          </td>
+                          <td className="px-3 py-1.5"><Input className="h-8 rounded-sm" value={r.origen || ""} onChange={(e) => updateRecorrido(s, r.id, { origen: e.target.value })} placeholder="Origen" data-testid={`evac-${si}-rec-${ri}-origen`} /></td>
                           <td className="px-3 py-1.5">
                             <Select value={r.tipo || "hasta_salida"} onValueChange={(v) => updateRecorrido(s, r.id, { tipo: v })}>
                               <SelectTrigger className="h-8 w-52 rounded-sm" data-testid={`evac-${si}-rec-${ri}-tipo`}><SelectValue /></SelectTrigger>
@@ -94,14 +118,8 @@ export function EvacuacionStep({ data, setData }) {
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className="px-3 py-1.5">
-                            <Input type="number" min={0} step={0.5} className="h-8 w-24 rounded-sm text-right font-mono" value={r.distancia_real ?? ""} onChange={(e) => updateRecorrido(s, r.id, { distancia_real: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`evac-${si}-rec-${ri}-dist`} />
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRecorrido(s, r.id)} data-testid={`evac-${si}-rec-${ri}-remove`}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </td>
+                          <td className="px-3 py-1.5"><Input type="number" min={0} step={0.5} className="h-8 w-24 rounded-sm text-right font-mono" value={r.distancia_real ?? ""} onChange={(e) => updateRecorrido(s, r.id, { distancia_real: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`evac-${si}-rec-${ri}-dist`} /></td>
+                          <td className="px-3 py-1.5"><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRecorrido(s, r.id)} data-testid={`evac-${si}-rec-${ri}-remove`}><Trash2 className="h-4 w-4" /></Button></td>
                         </tr>
                       ))}
                     </tbody>
