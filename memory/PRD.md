@@ -96,3 +96,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 ## Próximas tareas
 1. Ampliar catálogo de actividades a la Tabla 1.3.5 completa con Rmin por actividad.
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
+
+## Changelog
+- 2026-07-22: **Exportación e informe (4 features, validadas iter 15)**
+  - Expedientes: toggle vista tarjetas/tabla; multiselección con checkboxes (select-all + por fila) y borrado masivo vía `POST /api/projects/bulk-delete`.
+  - Tablas DB-SI (SI1/SI3/SI6) con resultado resaltado, renderizadas POR SECTOR CTE tanto en Resultados on-screen (`ResultsPanel` MiniRefTable) como en el informe (`StudyReportPage` RefTable). Sectores industriales no muestran DB-SI.
+  - Export DOCX del informe completo (`build_docx`, python-docx) — `GET /api/studies/{id}/export/docx`.
+  - Export XLSX con fórmulas vivas (`build_xlsx`, openpyxl): hojas Superficies, Ocupación y una hoja Qs por sector con Aporte/Qs como fórmulas editables — `GET /api/studies/{id}/export/xlsx`.
+  - Añadido render de la sección `resumen_ejecutivo` en el informe.
