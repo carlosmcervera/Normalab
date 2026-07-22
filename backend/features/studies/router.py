@@ -1,11 +1,15 @@
+from urllib.parse import quote
+
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
 from core.database import db
 from core.deps import get_current_user
 from core.models import utcnow_iso
+from features.studies.exporters import build_docx, build_xlsx
 from features.studies.models import Study, StudyCreate, StudyUpdate, StudyVersion
 from normative_modules.registry import registry
 
@@ -143,3 +147,36 @@ async def get_version(study_id: str, version: int, user: dict = Depends(get_curr
     if not doc:
         raise HTTPException(status_code=404, detail="Versión no encontrada")
     return _serialize(doc)
+
+
+async def _project_for(doc: dict) -> dict:
+    project = await db.projects.find_one({"_id": ObjectId(doc["project_id"])})
+    return _serialize(project) if project else {}
+
+
+def _download(buf, filename: str, media_type: str) -> StreamingResponse:
+    disp = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return StreamingResponse(buf, media_type=media_type, headers={"Content-Disposition": disp})
+
+
+@router.get("/{study_id}/export/docx")
+async def export_docx(study_id: str, user: dict = Depends(get_current_user)):
+    doc = await _get_study_or_404(study_id)
+    report = doc.get("report")
+    if not report:
+        raise HTTPException(status_code=400, detail="El estudio aún no tiene informe. Ejecuta el cálculo primero.")
+    project = await _project_for(doc)
+    buf = build_docx(report, _serialize(doc), project)
+    name = f"{project.get('code','estudio')}_{doc.get('name','informe')}.docx".replace(" ", "_")
+    return _download(buf, name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@router.get("/{study_id}/export/xlsx")
+async def export_xlsx(study_id: str, user: dict = Depends(get_current_user)):
+    doc = await _get_study_or_404(study_id)
+    if not doc.get("results"):
+        raise HTTPException(status_code=400, detail="El estudio aún no tiene resultados. Ejecuta el cálculo primero.")
+    project = await _project_for(doc)
+    buf = build_xlsx(_serialize(doc), project)
+    name = f"{project.get('code','estudio')}_{doc.get('name','tablas')}.xlsx".replace(" ", "_")
+    return _download(buf, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

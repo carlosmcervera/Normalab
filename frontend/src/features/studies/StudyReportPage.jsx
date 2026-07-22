@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Printer, History, Loader2, AlertTriangle } from "lucide-react";
-import { api } from "@/lib/api";
+import { ArrowLeft, Printer, History, Loader2, AlertTriangle, FileText, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
+import { api, apiError, downloadFile } from "@/lib/api";
 import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -159,6 +160,12 @@ function SectorReport({ s }) {
               </div>
             ))}
           </div>
+          {(s.dbsi.tablas || []).length > 0 && (
+            <div className="mt-4 space-y-5" data-testid={`report-sector-${s.id}-dbsi-tablas`}>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Tablas DB-SI aplicadas (resultado resaltado)</p>
+              {s.dbsi.tablas.map((t) => <RefTable key={t.id} t={{ ...t, id: `${s.id}-${t.id}` }} />)}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -179,6 +186,33 @@ function Section({ s }) {
       <h3 className="font-heading text-lg">{s.title}</h3>
       <div className="mt-3 text-sm text-slate-700">
         {s.type === "text" && <p className="leading-relaxed">{s.body}</p>}
+
+        {s.type === "resumen_ejecutivo" && (
+          <div className="overflow-x-auto border border-border" data-testid="report-resumen-ejecutivo">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Sector</th><th className="px-3 py-2">Ámbito</th>
+                  <th className="px-3 py-2 text-right">Qs</th><th className="px-3 py-2">NRI</th><th className="px-3 py-2">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {s.filas.map((f, i) => {
+                  const st = STATE_META[f.estado] || STATE_META.observaciones;
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-3 py-1.5 font-sans font-medium">{f.nombre}</td>
+                      <td className="px-3 py-1.5 font-sans text-xs">{f.ambito}</td>
+                      <td className="px-3 py-1.5 text-right">{num(f.qs_mj, 1)}</td>
+                      <td className="px-3 py-1.5 font-sans">{f.nivel} · {f.categoria}</td>
+                      <td className="px-3 py-1.5"><span className={`inline-flex rounded-sm border px-2 py-0.5 text-xs font-sans font-medium ${st.cls}`}>{st.label}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {s.type === "keyvalue" && (
           <table className="w-full">
@@ -319,6 +353,18 @@ export default function StudyReportPage() {
   const navigate = useNavigate();
   const [showVersions, setShowVersions] = useState(false);
   const [activeReport, setActiveReport] = useState(null);
+  const [exporting, setExporting] = useState(null);
+
+  const doExport = async (fmt) => {
+    setExporting(fmt);
+    try {
+      await downloadFile(`/studies/${studyId}/export/${fmt}`, `estudio.${fmt}`);
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const { data: study, isLoading } = useQuery({ queryKey: ["study", studyId], queryFn: () => api.get(`/studies/${studyId}`).then((r) => r.data) });
   const { data: versions = [] } = useQuery({ queryKey: ["versions", studyId], queryFn: () => api.get(`/studies/${studyId}/versions`).then((r) => r.data) });
@@ -347,6 +393,12 @@ export default function StudyReportPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" className="rounded-sm" onClick={() => setShowVersions((v) => !v)} data-testid="toggle-versions">
             <History className="mr-2 h-4 w-4" /> Versiones ({versions.length})
+          </Button>
+          <Button variant="outline" className="rounded-sm" onClick={() => doExport("docx")} disabled={exporting} data-testid="export-docx">
+            {exporting === "docx" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} DOCX
+          </Button>
+          <Button variant="outline" className="rounded-sm" onClick={() => doExport("xlsx")} disabled={exporting} data-testid="export-xlsx">
+            {exporting === "xlsx" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />} Excel
           </Button>
           <Button className="rounded-sm" onClick={() => window.print()} data-testid="print-report">
             <Printer className="mr-2 h-4 w-4" /> Descargar PDF

@@ -1,0 +1,21 @@
+{
+  "summary": "E2E de las 4 nuevas features solicitadas: (1) Expedientes cards/table toggle + bulk multi-select delete, (2) DB-SI en Resultados on-screen por sector CTE, (3) DB-SI en el informe por sector CTE, (4) Export DOCX y XLSX con fórmulas vivas. Backend + UI verificados: login admin OK, tabla /expedientes muestra select-all-projects y select-project-{id} por fila. Se creó throwaway 'EXP-TRASH-UI-1784725535' vía POST /api/projects, se seleccionó su checkbox, apareció bulk-action-bar con bulk-delete-button, se confirmó con confirm-bulk-delete y solo esa fila fue eliminada (POST /projects/bulk-delete devolvió {ok:true, deleted:1}; verificado por GET /projects/{id} = 404). En /estudios/6a60bf21b2e190e4c7dafcd5 paso Resultados se renderiza sector-s2-dbsi-tablas (CTE 'Oficinas') con celdas naranja (SI1 Administrativo, SI3 Administrativo, SI6) y NO existe sector-s1-dbsi-tablas (industrial 'Nave A'). En /estudios/{id}/informe se renderiza report-sector-s2-dbsi-tablas con highlight y NO se renderiza para el sector industrial. export-docx descarga EXP-DEMO-9_Demo_estudio.docx (42.157 bytes, zip válido, 17 archivos) y export-xlsx descarga EXP-DEMO-9_Demo_estudio.xlsx (8.370 bytes, zip válido). El XLSX contiene 4 hojas: 'Superficies', 'Ocupación', 'Qs · Nave A', 'Qs · Oficinas' con fórmulas vivas (Aporte C5*E5*G5, Qs IF(H7=0,0,H9/H7*H8), SUM). Todo pasa; sin regresiones detectadas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_incendios_complete.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "exporters.py: fórmulas escritas como strings en openpyxl (cell.value='=C5*E5*G5') — Excel las reconoce; verificado con /xl/worksheets/sheetN.xml contiene tags <f> con IF/SUM/producto.",
+    "ProjectsPage.jsx: el toggle cards/table persiste con localStorage (recomendable si aún no) para preservar preferencia entre sesiones.",
+    "Report/ResultsPanel: la clase 'orange' se aplica sólo a la fila/celda coincidente con el uso_cte del sector; correcto per-sector.",
+    "Dev overlay: mantener el workaround en tests (add_init_script para stopImmediatePropagation ResizeObserver) hasta que se filtre en el ErrorOverlay de dev."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (login, /projects CRUD, /projects/bulk-delete, /studies/{id}/export/docx, /studies/{id}/export/xlsx)", "frontend": "100% (5/5 requisitos verificados)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Throwaway EXP-TRASH-UI-1784725535 creado y eliminado durante el test de bulk-delete. Se usó el estudio persistente demo 6a60bf21b2e190e4c7dafcd5 (EXP-DEMO-9 · sectores Nave A industrial + Oficinas CTE) para DB-SI/exports.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Testids clave nuevos: view-cards/view-table (toggle), select-all-projects, select-project-{id} (por fila), bulk-action-bar, bulk-delete-button, confirm-bulk-delete; sector-{id}-dbsi-tablas (Resultados on-screen) y report-sector-{id}-dbsi-tablas (informe); export-docx y export-xlsx en /estudios/{id}/informe. Estudio demo con ambos ámbitos: 6a60bf21b2e190e4c7dafcd5 (s1=Nave A industrial sin DB-SI, s2=Oficinas CTE con dbsi.tablas de 3 tablas SI1/SI3/SI6). XLSX contiene fórmulas de Aporte y Qs por sector CTE + hojas Superficies/Ocupación con SUMs.",
+  "rca of the issue": "N/A — todas las nuevas features validadas correctamente."
+}

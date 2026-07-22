@@ -8,6 +8,35 @@ const OBS_CLS = {
 };
 const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 
+function MiniRefTable({ t }) {
+  const hlRows = new Set(t.highlight_rows || []);
+  const hlCells = new Set((t.highlight_cells || []).map(([r, c]) => `${r}-${c}`));
+  return (
+    <div data-testid={`dbsi-ref-table-${t.id}`}>
+      <p className="mb-1.5 text-xs font-semibold">{t.titulo}</p>
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-secondary/60 text-left uppercase tracking-wide text-muted-foreground">
+              {t.headers.map((h, i) => <th key={i} className="px-2 py-1.5 font-semibold">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody className="font-mono">
+            {t.rows.map((row, r) => (
+              <tr key={r} className={`border-b border-border last:border-0 ${hlRows.has(r) ? "bg-orange-100" : ""}`}>
+                {row.map((cell, c) => (
+                  <td key={c} className={`px-2 py-1 ${c === 0 ? "font-sans" : ""} ${hlCells.has(`${r}-${c}`) ? "bg-orange-500 font-bold text-white" : ""}`}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {t.referencia && <p className="mt-1 text-[11px] italic text-muted-foreground">Fuente: {t.referencia}</p>}
+    </div>
+  );
+}
+
 function fmtMax(f) {
   if (f.max_admisible != null) return `${num(f.max_admisible)} m²`;
   return f.max_admisible_base || "—";
@@ -86,6 +115,11 @@ function SectorCard({ s }) {
               </span>
             ))}
           </div>
+          {(s.dbsi.tablas || []).length > 0 && (
+            <div className="mt-3 space-y-4" data-testid={`sector-${s.id}-dbsi-tablas`}>
+              {s.dbsi.tablas.map((t) => <MiniRefTable key={t.id} t={{ ...t, id: `${s.id}-${t.id}` }} />)}
+            </div>
+          )}
         </div>
       )}
     </div>

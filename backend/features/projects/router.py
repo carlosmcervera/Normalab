@@ -1,5 +1,7 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List
 
 from core.database import db
 from core.deps import get_current_user
@@ -7,6 +9,10 @@ from core.models import utcnow_iso
 from features.projects.models import Project, ProjectCreate, ProjectUpdate
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class BulkDelete(BaseModel):
+    ids: List[str]
 
 
 def _serialize(doc: dict) -> dict:
@@ -53,6 +59,17 @@ async def update_project(project_id: str, payload: ProjectUpdate,
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
     doc = await db.projects.find_one({"_id": ObjectId(project_id)})
     return _serialize(doc)
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_projects(payload: BulkDelete, user: dict = Depends(get_current_user)):
+    oids = [ObjectId(i) for i in payload.ids if ObjectId.is_valid(i)]
+    if not oids:
+        raise HTTPException(status_code=400, detail="No se han indicado expedientes válidos.")
+    str_ids = [str(o) for o in oids]
+    await db.studies.delete_many({"project_id": {"$in": str_ids}})
+    result = await db.projects.delete_many({"_id": {"$in": oids}})
+    return {"ok": True, "deleted": result.deleted_count}
 
 
 @router.delete("/{project_id}")

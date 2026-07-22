@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Loader2, Search, Trash2 } from "lucide-react";
+import { Plus, FolderKanban, Loader2, Search, Trash2, LayoutGrid, Table as TableIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -24,6 +26,8 @@ export default function ProjectsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [view, setView] = useState("cards");
+  const [selected, setSelected] = useState(new Set());
   const [form, setForm] = useState({ code: "", name: "", client: "", location: "", description: "" });
 
   const { data: projects = [], isLoading } = useQuery({
@@ -52,6 +56,16 @@ export default function ProjectsPage() {
     onError: (e) => toast.error(apiError(e)),
   });
 
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids) => api.post("/projects/bulk-delete", { ids }).then((r) => r.data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      setSelected(new Set());
+      toast.success(`${res.deleted} expediente(s) eliminado(s)`);
+    },
+    onError: (e) => toast.error(apiError(e)),
+  });
+
   const submit = (e) => {
     e.preventDefault();
     if (!form.code || !form.name) return toast.error("Código y nombre son obligatorios");
@@ -62,6 +76,14 @@ export default function ProjectsPage() {
   const filtered = q
     ? projects.filter((p) => [p.code, p.name, p.client, p.location].some((v) => (v || "").toLowerCase().includes(q)))
     : projects;
+
+  const toggle = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const allSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map((p) => p.id)));
 
   return (
     <div>
@@ -117,15 +139,56 @@ export default function ProjectsPage() {
       />
 
       {!isLoading && projects.length > 0 && (
-        <div className="relative mb-6 max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            data-testid="project-search"
-            className="rounded-sm pl-9"
-            placeholder="Buscar por código, nombre, cliente o emplazamiento…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative max-w-md flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              data-testid="project-search"
+              className="rounded-sm pl-9"
+              placeholder="Buscar por código, nombre, cliente o emplazamiento…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-1 border border-border p-0.5">
+            <Button variant={view === "cards" ? "secondary" : "ghost"} size="sm" className="rounded-sm" onClick={() => setView("cards")} data-testid="view-cards">
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button variant={view === "table" ? "secondary" : "ghost"} size="sm" className="rounded-sm" onClick={() => setView("table")} data-testid="view-table">
+              <TableIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {view === "table" && selected.size > 0 && (
+        <div className="mb-3 flex items-center justify-between border border-border bg-secondary/40 px-4 py-2.5" data-testid="bulk-action-bar">
+          <span className="text-sm font-medium">{selected.size} expediente(s) seleccionado(s)</span>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="rounded-sm" data-testid="bulk-delete-button">
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar seleccionados
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="rounded-sm">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-heading">¿Eliminar {selected.size} expediente(s)?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminarán los expedientes seleccionados y todos sus estudios asociados. Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-sm" data-testid="cancel-bulk-delete">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="rounded-sm bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => bulkDeleteMut.mutate([...selected])}
+                  data-testid="confirm-bulk-delete"
+                >
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
@@ -141,6 +204,61 @@ export default function ProjectsPage() {
         <div className="flex flex-col items-center border border-dashed border-border py-16 text-center" data-testid="projects-no-results">
           <Search className="h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">Ningún expediente coincide con «{query}».</p>
+        </div>
+      ) : view === "table" ? (
+        <div className="border border-border" data-testid="projects-table">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} data-testid="select-all-projects" aria-label="Seleccionar todo" />
+                </TableHead>
+                <TableHead>Código</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead className="text-center">Estudios</TableHead>
+                <TableHead>Actualizado</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((p) => (
+                <TableRow key={p.id} className="cursor-pointer" data-state={selected.has(p.id) ? "selected" : undefined} data-testid={`project-row-${p.id}`}>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggle(p.id)} data-testid={`select-project-${p.id}`} aria-label={`Seleccionar ${p.name}`} />
+                  </TableCell>
+                  <TableCell className="font-mono text-xs" onClick={() => navigate(`/expedientes/${p.id}`)}>{p.code}</TableCell>
+                  <TableCell className="font-medium" onClick={() => navigate(`/expedientes/${p.id}`)}>{p.name}</TableCell>
+                  <TableCell className="text-muted-foreground" onClick={() => navigate(`/expedientes/${p.id}`)}>{p.client || "—"}</TableCell>
+                  <TableCell className="text-center" onClick={() => navigate(`/expedientes/${p.id}`)}><Badge variant="secondary" className="rounded-sm">{p.studies_count}</Badge></TableCell>
+                  <TableCell className="text-xs text-muted-foreground" onClick={() => navigate(`/expedientes/${p.id}`)}>{formatDate(p.updated_at)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" data-testid={`delete-project-${p.id}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="rounded-sm">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-heading">¿Eliminar expediente?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Se eliminará «{p.name}» ({p.code}) y sus {p.studies_count} estudio(s) asociados. Esta acción no se puede deshacer.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="rounded-sm">Cancelar</AlertDialogCancel>
+                          <AlertDialogAction className="rounded-sm bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteMut.mutate(p.id)} data-testid="confirm-delete-project">
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
