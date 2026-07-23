@@ -8,6 +8,35 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Refresco transparente del access_token (dura 15 min) usando la cookie de
+// refresco (7 días). Evita que las sesiones largas —p. ej. rellenar decenas de
+// estancias— fallen en silencio con 401 al guardar/avanzar.
+let refreshPromise = null;
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config;
+    const status = error.response?.status;
+    const url = original?.url || "";
+    const isAuthCall = url.includes("/auth/login") || url.includes("/auth/refresh") ||
+      url.includes("/auth/register") || url.includes("/auth/logout");
+    if (status === 401 && original && !original._retry && !isAuthCall) {
+      original._retry = true;
+      try {
+        if (!refreshPromise) {
+          refreshPromise = api.post("/auth/refresh").finally(() => { refreshPromise = null; });
+        }
+        await refreshPromise;
+        return api(original);
+      } catch (e) {
+        return Promise.reject(error);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function downloadFile(path, fallbackName) {
   const res = await api.get(path, { responseType: "blob" });
   const cd = res.headers["content-disposition"] || "";

@@ -87,7 +87,12 @@ export default function StudyWizardPage() {
   }
 
   const goTo = async (target) => {
-    await saveMut.mutateAsync(data);
+    try {
+      await saveMut.mutateAsync(data);
+    } catch (e) {
+      toast.error(apiError(e) || "No se ha podido guardar. Revisa tu conexión e inténtalo de nuevo.");
+      return;
+    }
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     if (target === totalSteps - 1) computeMut.mutate();
     window.scrollTo(0, 0);
