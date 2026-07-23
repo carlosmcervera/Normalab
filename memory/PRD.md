@@ -98,9 +98,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
-- 2026-07-23: **Fix «no me deja avanzar» con muchas estancias (sesión larga)**
-  - Causa raíz: el access_token dura 15 min; al rellenar decenas de estancias (>15 min) el PUT de guardado devolvía 401 y `goTo` fallaba en silencio, bloqueando el avance del asistente.
-  - Fix: interceptor axios en `lib/api.js` que ante un 401 refresca el token vía `POST /auth/refresh` (cookie de refresco, 7 días) y reintenta la petición (single-flight). `StudyWizardPage.goTo` ahora muestra aviso si el guardado falla en vez de quedarse mudo. Verificado en navegador simulando expiración.
+- 2026-07-23: **3 observaciones del usuario (validadas iter 16 + fix informe)**
+  - Números con coma: nuevo `NumberInput` (acepta coma/punto, valida y marca en rojo; expone `data-invalid`). Aplicado en todos los pasos (superficies, carga de fuego, Ci/Ra, alturas, anchuras, densidades, evacuación, DynamicField). `StudyWizardPage.goTo` bloquea el avance si hay campos inválidos.
+  - Clasificación «Escalera» (antes «Escalera protegida») con 4 tipos: Abierta (solo Descendente), Protegida, Especialmente protegida, Compartimentada (con sentido Asc/Desc). Justificación automática, informe, motor RSCIEI y exportadores actualizados.
+  - Ocupación personalizada: introducir ocupación a mano (nº personas) en vez de densidad, con nota obligatoria justificativa. La nota sale como tabla/pie independiente en informe HTML, DOCX y XLSX (columna Nota).
+- 2026-07-23: **Fix «no me deja avanzar» (sesión larga)**: interceptor de refresco de token en `lib/api.js` (401 → `/auth/refresh` → reintento) + `goTo` con aviso en vez de fallo silencioso.
 - 2026-07-22: **Exportación e informe (4 features, validadas iter 15)**
   - Expedientes: toggle vista tarjetas/tabla; multiselección con checkboxes (select-all + por fila) y borrado masivo vía `POST /api/projects/bulk-delete`.
   - Tablas DB-SI (SI1/SI3/SI6) con resultado resaltado, renderizadas POR SECTOR CTE tanto en Resultados on-screen (`ResultsPanel` MiniRefTable) como en el informe (`StudyReportPage` RefTable). Sectores industriales no muestran DB-SI.

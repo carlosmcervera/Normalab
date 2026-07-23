@@ -279,6 +279,11 @@ function Section({ s }) {
                   <td className="px-3 py-2 font-sans" colSpan={5}>Ocupación total</td>
                   <td className="px-3 py-2 text-right">{s.data.total} pers.</td>
                 </tr>
+                {s.data.filas.filter((r) => r.nota).map((r, i) => (
+                  <tr key={`nota-${i}`} className="border-t border-border">
+                    <td className="px-3 py-1.5 font-sans text-xs italic text-muted-foreground" colSpan={6} data-testid={`report-ocupacion-nota-${i}`}>Ocupación personalizada · {r.nombre}: {r.nota}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
