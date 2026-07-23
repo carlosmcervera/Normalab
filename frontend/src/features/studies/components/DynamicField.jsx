@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { NumberInput } from "@/components/NumberInput";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -39,18 +40,22 @@ export function DynamicField({ field, value, onChange, testidPrefix }) {
             ))}
           </SelectContent>
         </Select>
+      ) : field.type === "number" ? (
+        <NumberInput
+          data-testid={id}
+          min={field.min}
+          placeholder={field.placeholder}
+          value={value ?? ""}
+          onChange={onChange}
+        />
       ) : (
         <Input
           id={id}
           data-testid={id}
-          type={field.type === "number" ? "number" : "text"}
-          step={field.step}
-          min={field.min}
+          type="text"
           placeholder={field.placeholder}
           value={value ?? ""}
-          onChange={(e) =>
-            onChange(field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)
-          }
+          onChange={(e) => onChange(e.target.value)}
         />
       )}
       {field.help && <p className="text-xs text-muted-foreground">{field.help}</p>}

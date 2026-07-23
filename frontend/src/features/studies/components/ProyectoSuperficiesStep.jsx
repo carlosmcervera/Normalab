@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
@@ -55,8 +56,8 @@ export function ProyectoSuperficiesStep({ data, setData }) {
                   <td className="px-3 py-1.5"><Input className="h-8 rounded-sm" value={x.nombre || ""} onChange={(e) => updateDep(x.id, { nombre: e.target.value })} placeholder="Nombre" data-testid={`dep-${i}-nombre`} /></td>
                   <td className="px-3 py-1.5"><Input className="h-8 w-32 rounded-sm" value={x.etiqueta || ""} onChange={(e) => updateDep(x.id, { etiqueta: e.target.value })} placeholder="Ref./EN" data-testid={`dep-${i}-etiqueta`} /></td>
                   <td className="px-3 py-1.5"><Input className="h-8 w-20 rounded-sm" value={x.planta || ""} onChange={(e) => updateDep(x.id, { planta: e.target.value })} data-testid={`dep-${i}-planta`} /></td>
-                  <td className="px-3 py-1.5"><Input type="number" min={0} className="h-8 w-24 rounded-sm text-right font-mono" value={x.sup_util ?? ""} onChange={(e) => updateDep(x.id, { sup_util: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`dep-${i}-util`} /></td>
-                  <td className="px-3 py-1.5"><Input type="number" min={0} className="h-8 w-24 rounded-sm text-right font-mono" value={x.sup_construida ?? ""} onChange={(e) => updateDep(x.id, { sup_construida: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`dep-${i}-construida`} /></td>
+                  <td className="px-3 py-1.5"><NumberInput min={0} className="h-8 w-24 rounded-sm text-right font-mono" value={x.sup_util ?? ""} onChange={(v) => updateDep(x.id, { sup_util: v })} data-testid={`dep-${i}-util`} /></td>
+                  <td className="px-3 py-1.5"><NumberInput min={0} className="h-8 w-24 rounded-sm text-right font-mono" value={x.sup_construida ?? ""} onChange={(v) => updateDep(x.id, { sup_construida: v })} data-testid={`dep-${i}-construida`} /></td>
                   <td className="px-3 py-1.5"><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeDep(x.id)} data-testid={`remove-dep-${i}`}><Trash2 className="h-4 w-4" /></Button></td>
                 </tr>
               ))}

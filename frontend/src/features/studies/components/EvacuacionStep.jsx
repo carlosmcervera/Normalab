@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Plus, Trash2, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/NumberInput";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,7 +119,7 @@ export function EvacuacionStep({ data, setData }) {
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className="px-3 py-1.5"><Input type="number" min={0} step={0.5} className="h-8 w-24 rounded-sm text-right font-mono" value={r.distancia_real ?? ""} onChange={(e) => updateRecorrido(s, r.id, { distancia_real: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`evac-${si}-rec-${ri}-dist`} /></td>
+                          <td className="px-3 py-1.5"><NumberInput min={0} className="h-8 w-24 rounded-sm text-right font-mono" value={r.distancia_real ?? ""} onChange={(v) => updateRecorrido(s, r.id, { distancia_real: v })} data-testid={`evac-${si}-rec-${ri}-dist`} /></td>
                           <td className="px-3 py-1.5"><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRecorrido(s, r.id)} data-testid={`evac-${si}-rec-${ri}-remove`}><Trash2 className="h-4 w-4" /></Button></td>
                         </tr>
                       ))}

@@ -37,6 +37,11 @@ def _fmt(v, dec=0):
 ORANGE = RGBColor(0xEA, 0x58, 0x0C)
 GREY = RGBColor(0x64, 0x74, 0x8B)
 
+ESC_TIPO_LABEL = {
+    "abierta": "abierta", "protegida": "protegida",
+    "especialmente_protegida": "especialmente protegida", "compartimentada": "compartimentada",
+}
+
 
 def _shade(cell, color):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -163,8 +168,9 @@ def _sector_docx(doc, s):
 
     for e in s.get("escaleras_protegidas", []):
         p = doc.add_paragraph(style="List Bullet")
-        tipo = "especialmente protegida" if e.get("tipo") == "especialmente_protegida" else "protegida"
-        r = p.add_run(f"Escalera «{e.get('nombre')}» · {tipo} · {e.get('situacion')}"
+        tipo = ESC_TIPO_LABEL.get(e.get("tipo"), "protegida")
+        sentido = f" · {e.get('sentido')}" if e.get("sentido") else ""
+        r = p.add_run(f"Escalera «{e.get('nombre')}» · {tipo}{sentido} · {e.get('situacion')}"
                       f"{'. ' + e['justificacion'] if e.get('justificacion') else ''}")
         r.font.size = Pt(9)
 
@@ -234,6 +240,12 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                      str(f.get("densidad")), str(f.get("ocupacion"))] for f in d.get("filas", [])]
             _generic_table(doc, ["Dependencia", "Sector", "Uso", "Sup.", "Densidad", "Ocupación"], rows,
                            totals=["Ocupación total", "", "", "", "", str(d.get("total"))])
+            for f in d.get("filas", []):
+                if f.get("nota"):
+                    p = doc.add_paragraph(style="List Bullet")
+                    pr = p.add_run(f"Ocupación personalizada · {f.get('nombre')}: {f.get('nota')}")
+                    pr.italic = True
+                    pr.font.size = Pt(8)
         elif stype == "resumen":
             rows = [[f.get("nombre"), f.get("config"), _fmt(f.get("superficie")), _fmt(f.get("qs_mj"), 1),
                      f"{f.get('nivel')} · {f.get('categoria')}", f.get("estabilidad"), str(f.get("ocupacion"))]
@@ -333,7 +345,7 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
     # --- Hoja Ocupación ----------------------------------------------------- #
     wo = wb.create_sheet("Ocupación")
     wo.cell(row=1, column=1, value="Cálculo de ocupación (CTE DB-SI, Tabla 2.1)").font = Font(bold=True, size=12)
-    _header_row(wo, 3, ["Dependencia", "Sector", "Uso", "Superficie (m²)", "Densidad", "Ocupación"])
+    _header_row(wo, 3, ["Dependencia", "Sector", "Uso", "Superficie (m²)", "Densidad", "Ocupación", "Nota"])
     occ = results.get("ocupacion", {})
     r = 4
     for f in occ.get("filas", []):
@@ -343,15 +355,16 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
         wo.cell(row=r, column=4, value=f.get("superficie"))
         wo.cell(row=r, column=5, value=str(f.get("densidad")))
         wo.cell(row=r, column=6, value=f.get("ocupacion"))
-        for c in range(1, 7):
+        wo.cell(row=r, column=7, value=f.get("nota") or "")
+        for c in range(1, 8):
             wo.cell(row=r, column=c).border = BORDER
         r += 1
     wo.cell(row=r, column=1, value="OCUPACIÓN TOTAL").font = Font(bold=True)
     wo.cell(row=r, column=6, value=occ.get("total")).font = Font(bold=True)
-    for c in range(1, 7):
+    for c in range(1, 8):
         wo.cell(row=r, column=c).fill = TOTAL_FILL
         wo.cell(row=r, column=c).border = BORDER
-    _autosize(wo, [30, 22, 22, 16, 16, 14])
+    _autosize(wo, [30, 22, 22, 16, 16, 14, 40])
 
     # --- Hoja por sector: carga de fuego Qs con fórmulas -------------------- #
     for s in results.get("sectores", []):

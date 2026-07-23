@@ -9,11 +9,23 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const CUSTOM = "__custom__";
 const RIESGO_R = { bajo: "R 90", medio: "R 120", alto: "R 180" };
+
+const ESC_TIPOS = [
+  { value: "abierta", label: "Abierta (solo descendente)" },
+  { value: "protegida", label: "Protegida" },
+  { value: "especialmente_protegida", label: "Especialmente protegida" },
+  { value: "compartimentada", label: "Compartimentada" },
+];
+const ESC_TIPO_LABEL = {
+  abierta: "abierta", protegida: "protegida",
+  especialmente_protegida: "especialmente protegida", compartimentada: "compartimentada",
+};
 
 const LRE_TIPOS = [
   { value: "almacen", label: "Almacén / archivo de combustibles", crit: "por volumen (100<V≤200 m³ bajo · 200<V≤400 medio · V>400 alto)" },
@@ -32,16 +44,20 @@ const draftLRE = (x) => {
 };
 
 const draftEscalera = (x) => {
-  const tipo = x.esc_tipo === "especialmente_protegida" ? "especialmente protegida" : "protegida";
+  const tipo = ESC_TIPO_LABEL[x.esc_tipo] || "protegida";
   const sit = x.esc_situacion === "exterior" ? "exterior" : "interior";
-  const partes = [`La escalera «${x.nombre || "—"}» es una escalera ${tipo} ${sit}`];
+  const sentido = x.esc_tipo === "abierta" ? "descendente" : (x.esc_sentido === "ascendente" ? "ascendente" : "descendente");
+  const partes = [`La escalera «${x.nombre || "—"}» es una escalera ${tipo} ${sit}, de evacuación ${sentido}`];
   if (x.esc_anchura) partes.push(`de ${x.esc_anchura} m de anchura`);
   if (x.esc_capacidad) partes.push(`con capacidad de evacuación de ${x.esc_capacidad} personas`);
   if (x.esc_uso_restringido) partes.push("de uso restringido");
-  const prot = tipo === "especialmente protegida"
-    ? "vestíbulos de independencia y ventilación (natural o por sobrepresión)"
-    : "puertas EI2 45-C5 y protección al fuego de la estructura y cerramientos";
-  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: la caja constituye un recinto independiente con la resistencia al fuego exigida, ${prot}, anchura ≥ 1,00 m y continuidad hasta la salida de edificio. Al ser zona de paso peatonal de trabajadores, computa carga de fuego.`;
+  const prot = {
+    abierta: "sin recinto protegido (solo admisible para evacuación descendente y con las limitaciones de altura del CTE DB-SI, SI 3, Tabla 5.1)",
+    protegida: "recinto con resistencia al fuego EI 120, puertas EI2 60-C5 y protección de la estructura y cerramientos (CTE DB-SI, SI 3)",
+    especialmente_protegida: "recinto protegido dotado de vestíbulos de independencia y ventilación (natural o por sobrepresión) conforme al CTE DB-SI, SI 3",
+    compartimentada: "recinto compartimentado del resto del edificio con la resistencia al fuego exigida y sin comunicación directa con sectores de riesgo",
+  }[x.esc_tipo] || "recinto protegido con la resistencia al fuego exigida";
+  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada. Al ser zona de paso peatonal de trabajadores, computa carga de fuego.`;
 };
 
 // Carga de fuego con catálogo (Tabla 1.3.5) + edición manual.
@@ -214,11 +230,11 @@ export function SectoresStep({ data, setData, schema = {} }) {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Nº de salidas</Label>
-                      <Input type="number" min={1} value={s.num_salidas ?? 2} onChange={(e) => updateSector(s.id, { num_salidas: Number(e.target.value) })} data-testid={`sector-${i}-salidas`} />
+                      <NumberInput integer min={1} value={s.num_salidas ?? 2} onChange={(v) => updateSector(s.id, { num_salidas: v })} data-testid={`sector-${i}-salidas`} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Altura evac. (m)</Label>
-                      <Input type="number" min={0} step={0.5} value={s.altura_evacuacion ?? 0} onChange={(e) => updateSector(s.id, { altura_evacuacion: Number(e.target.value) })} data-testid={`sector-${i}-altura`} />
+                      <NumberInput min={0} value={s.altura_evacuacion ?? 0} onChange={(v) => updateSector(s.id, { altura_evacuacion: v })} data-testid={`sector-${i}-altura`} />
                     </div>
                     <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-3 lg:col-span-4">
                       <Switch checked={!!s.rociadores} onCheckedChange={(v) => updateSector(s.id, { rociadores: v })} data-testid={`sector-${i}-rociadores`} />
@@ -244,6 +260,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
             <div className="space-y-2">
               {deps.map((x, i) => {
                 const clase = x.clase || "normal";
+                const isEscalera = clase === "escalera" || clase === "escalera_protegida";
                 return (
                   <div key={x.id} className="border border-border p-3" data-testid={`estancia-row-${i}`}>
                     <div className="flex flex-wrap items-end gap-3">
@@ -274,7 +291,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
                           <SelectContent>
                             <SelectItem value="normal">Estancia normal</SelectItem>
                             <SelectItem value="lre"><span className="inline-flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> Local de riesgo especial</span></SelectItem>
-                            <SelectItem value="escalera_protegida"><span className="inline-flex items-center gap-1"><StretchHorizontal className="h-3 w-3" /> Escalera protegida</span></SelectItem>
+                            <SelectItem value="escalera"><span className="inline-flex items-center gap-1"><StretchHorizontal className="h-3 w-3" /> Escalera</span></SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -312,16 +329,25 @@ export function SectoresStep({ data, setData, schema = {} }) {
                           <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir del tipo y el riesgo, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
                         </div>
                       </div>
-                    ) : clase === "escalera_protegida" ? (
+                    ) : isEscalera ? (
                       <>
                         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
                           <div>
                             <Label className="text-xs">Tipo</Label>
-                            <Select value={x.esc_tipo || "protegida"} onValueChange={(v) => updateDep(x.id, { esc_tipo: v })}>
+                            <Select value={x.esc_tipo || "protegida"} onValueChange={(v) => updateDep(x.id, { esc_tipo: v, ...(v === "abierta" ? { esc_sentido: "descendente" } : {}) })}>
                               <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-esc-tipo`}><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="protegida">Protegida</SelectItem>
-                                <SelectItem value="especialmente_protegida">Especialmente protegida</SelectItem>
+                                {ESC_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Sentido evacuación</Label>
+                            <Select value={x.esc_tipo === "abierta" ? "descendente" : (x.esc_sentido || "descendente")} onValueChange={(v) => updateDep(x.id, { esc_sentido: v })} disabled={x.esc_tipo === "abierta"}>
+                              <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-esc-sentido`}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="descendente">Descendente</SelectItem>
+                                <SelectItem value="ascendente">Ascendente</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -335,8 +361,8 @@ export function SectoresStep({ data, setData, schema = {} }) {
                               </SelectContent>
                             </Select>
                           </div>
-                          <div><Label className="text-xs">Anchura (m)</Label><Input type="number" step={0.1} className="mt-1 h-8 rounded-sm font-mono" value={x.esc_anchura ?? ""} onChange={(e) => updateDep(x.id, { esc_anchura: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-esc-anchura`} /></div>
-                          <div><Label className="text-xs">Capacidad evac. (pers.)</Label><Input type="number" className="mt-1 h-8 rounded-sm font-mono" value={x.esc_capacidad ?? ""} onChange={(e) => updateDep(x.id, { esc_capacidad: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-esc-capacidad`} /></div>
+                          <div><Label className="text-xs">Anchura (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono" value={x.esc_anchura ?? ""} onChange={(v) => updateDep(x.id, { esc_anchura: v })} data-testid={`estancia-${i}-esc-anchura`} /></div>
+                          <div><Label className="text-xs">Capacidad evac. (pers.)</Label><NumberInput integer min={0} className="mt-1 h-8 rounded-sm font-mono" value={x.esc_capacidad ?? ""} onChange={(v) => updateDep(x.id, { esc_capacidad: v })} data-testid={`estancia-${i}-esc-capacidad`} /></div>
                           <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-4">
                             <Switch checked={!!x.esc_uso_restringido} onCheckedChange={(v) => updateDep(x.id, { esc_uso_restringido: v })} data-testid={`estancia-${i}-esc-restringido`} />
                             Uso restringido
@@ -349,7 +375,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
                             <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir de los parámetros, o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
                           </div>
                         </div>
-                        <p className="mt-2 text-xs text-muted-foreground">La escalera protegida SÍ computa carga de fuego (zona de paso peatonal); su protección se justifica por el CTE y consta en el informe.</p>
+                        <p className="mt-2 text-xs text-muted-foreground">La escalera SÍ computa carga de fuego (zona de paso peatonal); su protección se justifica por el CTE y consta en el informe.</p>
                         <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} />
                       </>
                     ) : (

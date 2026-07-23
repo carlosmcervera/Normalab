@@ -8,6 +8,11 @@ import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+const ESC_TIPO_LABEL = {
+  abierta: "abierta", protegida: "protegida",
+  especialmente_protegida: "especialmente protegida", compartimentada: "compartimentada",
+};
+
 function RefTable({ t }) {
   const hlRows = new Set(t.highlight_rows || []);
   const hlCells = new Set((t.highlight_cells || []).map(([r, c]) => `${r}-${c}`));
@@ -140,7 +145,7 @@ function SectorReport({ s }) {
           <div className="space-y-2">
             {s.escaleras_protegidas.map((e, i) => (
               <div key={i} className="text-sm">
-                <span className="font-medium">{e.nombre} · {e.tipo === "especialmente_protegida" ? "especialmente protegida" : "protegida"} · {e.situacion}{e.anchura ? ` · ${e.anchura} m` : ""}{e.capacidad ? ` · ${e.capacidad} pers.` : ""}</span>
+                <span className="font-medium">{e.nombre} · {ESC_TIPO_LABEL[e.tipo] || "protegida"}{e.sentido ? ` · ${e.sentido}` : ""} · {e.situacion}{e.anchura ? ` · ${e.anchura} m` : ""}{e.capacidad ? ` · ${e.capacidad} pers.` : ""}</span>
                 {e.justificacion && <p className="mt-0.5 text-xs text-muted-foreground">{e.justificacion}</p>}
               </div>
             ))}

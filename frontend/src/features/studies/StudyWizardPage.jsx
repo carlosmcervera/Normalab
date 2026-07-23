@@ -87,6 +87,13 @@ export default function StudyWizardPage() {
   }
 
   const goTo = async (target) => {
+    if (target > step) {
+      const invalid = document.querySelectorAll('[data-invalid="true"]');
+      if (invalid.length) {
+        toast.error("Corrige los valores marcados en rojo antes de continuar.");
+        return;
+      }
+    }
     try {
       await saveMut.mutateAsync(data);
     } catch (e) {

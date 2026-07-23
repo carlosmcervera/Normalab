@@ -14,6 +14,11 @@ from normative_modules.rsciei.requirements import build_requirements
 
 MCAL_PER_MJ = 1 / 4.184
 
+ESC_TIPO_LABEL = {
+    "abierta": "abierta", "protegida": "protegida",
+    "especialmente_protegida": "especialmente protegida", "compartimentada": "compartimentada",
+}
+
 # Tabla 1.3.1 · niveles de riesgo intrínseco (Qs en MJ/m²)
 NRI_TABLE = [
     (1, 0, 425, "BAJO"),
@@ -95,6 +100,12 @@ def _nri_for(qs_mj: float):
 def _dep_ocupacion(d):
     if d.get("sin_ocupacion"):
         return 0
+    man = d.get("ocupacion_manual")
+    if d.get("ocupacion_custom") and man not in (None, ""):
+        try:
+            return int(math.ceil(float(man)))
+        except (TypeError, ValueError):
+            pass
     dens = d.get("densidad")
     if dens is None or float(dens) <= 0:
         return None
@@ -300,10 +311,13 @@ def _compute_sector(sec, deps, establecimiento):
     # justificación por el CTE DB-SI/SUA (protección, anchura, capacidad, situación…).
     escaleras = []
     for d in calc_deps:
-        if d.get("clase") == "escalera_protegida":
+        if d.get("clase") in ("escalera", "escalera_protegida"):
+            tipo = d.get("esc_tipo") or "protegida"
+            sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
             escaleras.append({
-                "nombre": d.get("nombre", "Escalera protegida"),
-                "tipo": d.get("esc_tipo") or "protegida",
+                "nombre": d.get("nombre", "Escalera"),
+                "tipo": tipo,
+                "sentido": sentido,
                 "situacion": d.get("esc_situacion") or "interior",
                 "anchura": d.get("esc_anchura"),
                 "capacidad": d.get("esc_capacidad"),
@@ -332,6 +346,8 @@ def _compute_sector(sec, deps, establecimiento):
                 "dependencias": [{"nombre": d.get("nombre"),
                                   "superficie": float(d.get("sup_util") or d.get("sup_construida") or 0),
                                   "densidad": d.get("densidad"), "sin_ocupacion": d.get("sin_ocupacion"),
+                                  "ocupacion_custom": d.get("ocupacion_custom"),
+                                  "ocupacion_manual": d.get("ocupacion_manual"),
                                   "uso_ocupacion": d.get("uso_ocupacion")} for d in (calc_deps or deps)],
             })
         except ValueError:
@@ -362,8 +378,8 @@ def _compute_sector(sec, deps, establecimiento):
             if l.get("justificacion"):
                 observaciones.append({"tipo": "info", "texto": f"LRE «{l['nombre']}» (riesgo {l['riesgo'].lower()}, {l['resistencia']}): {l['justificacion']}"})
     for e in escaleras:
-        tipo_txt = "especialmente protegida" if e["tipo"] == "especialmente_protegida" else "protegida"
-        detalle = f"Escalera {tipo_txt} «{e['nombre']}» ({e['situacion']}"
+        tipo_txt = ESC_TIPO_LABEL.get(e["tipo"], "protegida")
+        detalle = f"Escalera {tipo_txt} «{e['nombre']}» ({e['situacion']}, evacuación {e.get('sentido', 'descendente')}"
         if e.get("anchura"):
             detalle += f", anchura {e['anchura']} m"
         if e.get("capacidad"):
@@ -432,11 +448,15 @@ def _build_ocupacion(sectores, dependencias):
         dens = d.get("densidad")
         if o:
             total += o
+        manual = bool(d.get("ocupacion_custom")) and d.get("ocupacion_manual") not in (None, "")
+        densidad_label = ("Sin ocupación" if d.get("sin_ocupacion")
+                          else ("Manual" if manual else (f"{dens} m²/p" if dens else "-")))
         filas.append({"nombre": d.get("nombre", "-"),
                       "sector": sec_name.get(d.get("sector_id"), "-"),
                       "uso": d.get("uso_ocupacion", "-"),
                       "superficie": round(sup, 2),
-                      "densidad": ("Sin ocupación" if d.get("sin_ocupacion") else (f"{dens} m²/p" if dens else "-")),
+                      "densidad": densidad_label,
+                      "nota": (d.get("ocupacion_nota") or "").strip() if manual else "",
                       "ocupacion": o if o is not None else "-"})
     return {"filas": filas, "total": total}
 

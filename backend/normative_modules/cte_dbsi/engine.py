@@ -30,6 +30,12 @@ def _num(v, d=0.0):
 def _dep_ocupacion(d):
     if d.get("sin_ocupacion"):
         return 0
+    man = d.get("ocupacion_manual")
+    if d.get("ocupacion_custom") and man not in (None, ""):
+        try:
+            return int(math.ceil(float(man)))
+        except (TypeError, ValueError):
+            pass
     dens = d.get("densidad")
     if dens is None or _num(dens) <= 0:
         return None
