@@ -1,78 +1,70 @@
 {
+  "project_name": "NormaLab - Technical Engineering App",
   "theme": "light",
-  "archetype": "Swiss & High-Contrast (Authority, Clarity, Truth) adapted for Engineering Compliance",
   "typography": {
     "headings": "Chivo",
     "body": "IBM Plex Sans",
-    "mono": "JetBrains Mono",
-    "scale": {
-      "h1": "text-4xl sm:text-5xl tracking-tight font-light",
-      "h2": "text-2xl sm:text-3xl tracking-tight",
-      "h3": "text-xl font-medium",
-      "body": "text-sm text-slate-700 dark:text-slate-300",
-      "labels": "text-xs tracking-[0.2em] uppercase font-bold text-slate-500"
-    }
+    "numbers_and_data": "IBM Plex Mono",
+    "instructions": "Use Chivo for section titles, IBM Plex Sans for general text and labels, and strictly IBM Plex Mono for all numeric values, measurements (m²), and technical codes (CTE DB-SI). Keep heading sizes moderate (max text-2xl for main wizard steps, text-lg for block titles)."
   },
   "colors": {
-    "base": "Stark White (#FFFFFF)",
-    "surface": "Tinted Grey (e.g. Slate 50, #F8FAFC)",
-    "primary": "Obsidian/Dark Slate (#0A0A0A)",
-    "accent_success": "Emerald Green (#10B981) for 'Cumple'",
-    "accent_error": "Signal Red (#EF4444) for 'No Cumple'",
-    "accent_warning": "Warning Amber (#F59E0B) for 'Observación'",
-    "border": "Subtle Grey (#E2E8F0)",
-    "rules": "No generic full-screen gradients. 95% monochrome UI. Color is function only. Use accent colors strictly for status/validation indicators."
+    "primary": "#EA580C",
+    "primary_hover": "#C2410C",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "surface_alt": "#F1F5F9",
+    "border": "#E2E8F0",
+    "border_focus": "#94A3B8",
+    "text_main": "#0F172A",
+    "text_muted": "#64748B",
+    "text_accent": "#EA580C",
+    "instructions": "Use high-contrast monochrome (slate/gray scales) for structure to mimic a professional software environment (CAD/Spreadsheet vibe). The orange accent (#EA580C) should be used sparingly for primary actions, active states, and important highlights. Avoid full-screen gradients. Use solid, opaque colors."
   },
-  "visual_enhancers": {
-    "surface_strategy": "GRID BORDERS (The Technical Look) - Use 1px solid borders (border-collapse style) for data-heavy sections, dashboards, and tables.",
-    "shadows": "Minimal to None. Rely on crisp 1px borders instead of soft shadows to establish hierarchy. Use hard bottom borders for headers.",
-    "textures": "Flat Solid surfaces. NO glassmorphism. Technical/engineering apps require maximum clarity without visual refraction."
+  "grids_and_layouts": {
+    "overall_layout": "Strict, dense, and compact grid hierarchy. Maximize vertical space by reducing padding.",
+    "section_a_sectors": "Use a grid-based compact card layout (e.g., grid-cols-1 md:grid-cols-2 lg:grid-cols-3) or a compact horizontal list. Each sector should feel like a technical summary tile. Padding should be tight (p-3 or p-4). Use borders and a subtle gray background to differentiate from Section B.",
+    "section_b_assignment": "Implement a dense, spreadsheet-like Data Table. Use expandable rows (Shadcn Collapsible or custom table row expansion) for the 'Clasificación' details and 'Carga de Fuego'. This keeps the default view compact while allowing deep dives into specific rooms.",
+    "visual_separation": "Ensure Block A and Block B have distinct visual treatments. For example, Block A uses gray-filled compact cards with no outer border, while Block B uses a crisp, white, border-collapsed table. Include a clear, bold section divider."
   },
-  "layouts": {
-    "dashboard": "High Density Grid (Mode B): grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6. Use F-pattern for data scanning.",
-    "spacing": "Generous inner padding (p-6) for module cards to prevent text collision. Use p-8 to p-12 between major vertical sections.",
-    "alignment": "Left-align all paragraphs, labels, dense content, and tabular data. Optical alignment for icons.",
-    "general": "Modular UI with progressive disclosure. Show summary metrics first, reveal deep technical specs on click/expand."
+  "spacing": {
+    "strategy": "Compact and Dense. Override default generous spacing to meet user's requirement for a professional/technical view.",
+    "containers": "p-4 or p-6 max for main containers.",
+    "elements": "gap-2 or gap-3 between inputs. p-2 for table cells.",
+    "components": "Use h-8 or h-9 for inputs and buttons (Shadcn 'sm' size) to keep the UI compact."
   },
   "components": {
-    "wizard_stepper": "Clean vertical or horizontal progress list with stark contrast for the active step. Muted styles for upcoming steps.",
-    "module_cards": "Flat rectangular cards representing CTE, RSCIEI, REBT, etc., with 1px border, high-contrast typography, and hover lift (-translate-y-1).",
-    "data_tables": "Dense Shadcn tables. Clear status pill badges (Cumple/No Cumple) in dedicated columns. Left-aligned text.",
-    "forms": "Shadcn Form, Input, Select. Strict automatic validations. Data-dense but grouped logically.",
-    "report_panel": "Split view: Rules engine results panel on the left/top + PDF preview or summary on the right/bottom."
+    "cards": "Cardless or completely flat with straight edges (rounded-sm or rounded-none). Use 1px solid borders.",
+    "tables": "Dense styling. border-collapse. text-sm. Table headers should be uppercase, tracking-wider, text-xs, text-muted.",
+    "inputs": "Shadcn UI inputs, customized to h-8, rounded-sm, subtle border.",
+    "expandable_rows": "Use Shadcn `Collapsible` or custom state-based rendering for table rows. The expanded area should have a slightly different background (e.g., bg-slate-50) and an inner border to show it belongs to the parent row.",
+    "badges": "Use small, square badges for Status or Classification (e.g., 'Normal', 'LRE', 'Escalera')."
   },
   "motion": {
-    "interactions": "Hover states must explicitly set text and background color (e.g. hover:bg-slate-900 hover:text-white). Focus states must have higher contrast.",
-    "page_transitions": "Instant or fast fade (0.15s). Efficiency over delight in professional engineering tools.",
-    "reduced_motion": "Respect prefers-reduced-motion via Tailwind modifiers."
+    "interactions": "Minimal and snappy. 150ms transitions for hover states. Expand/collapse animations should be fast (200ms) to not slow down the technical user."
   },
   "accessibility": {
-    "contrast": "APCA preferred. Min 4.5:1 for small text. No grey-on-grey text.",
-    "testing": "CRITICAL: All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='login-submit', data-testid='create-estudio').",
-    "forms": "Clear error states with descriptive text below inputs, not just red borders."
+    "contrast": "Ensure all text against gray backgrounds meets at least 4.5:1 ratio. Orange accent on white must be readable.",
+    "testing_attributes": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='sector-card-1', data-testid='room-expand-button-2')."
   },
   "instructions_to_main_agent": [
-    "Language MUST be Spanish (Spanish/Catalan locale rules).",
-    "Use Shadcn components heavily customized to match the Swiss Brutalist/Technical aesthetic (sharp edges, max 4px radius).",
-    "Do NOT use raw HTML components for dropdowns, date pickers, or selects. Use Shadcn components for accessibility.",
-    "Create a toggle for Dark/Light mode. Default to Light for daytime engineering environments.",
-    "Navigation bar must be visible on desktop. Ensure a SOLID background for the header to avoid transparent overlaps.",
-    "Use Lucide-React or Phosphor icons for dense technical iconography.",
-    "Do NOT center align the app container. Use standard block/flex layouts.",
-    "Ensure the 'RSCIEI' module is treated as the fully operative MVP focal point.",
-    "Files should be .js/.jsx as per project structure, do not assume .tsx."
+    "Prioritize a dense, technical aesthetic (spreadsheet or IDE-like) over marketing-style spacing.",
+    "Implement Block A (Sectores) as a compact grid of summary tiles (bg-slate-50, border-slate-200, p-3).",
+    "Implement Block B (Asignación) as a dense table where each row represents a room. Hide the 'Carga de fuego' and 'Clasificación' details inside an expandable/collapsible row.",
+    "Use 'rounded-sm' globally to maintain the existing NormaLab brand.",
+    "Ensure the header or sticky elements NEVER have a transparent background. Use solid colors.",
+    "Use IBM Plex Mono for all numeric fields (m², factors, dimensions).",
+    "Add 'data-testid' to all buttons, switches, and inputs."
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "You tend to converge toward generic outputs. Break the 'AI slop' aesthetic by making it look like a high-end precise technical tool (Linear/Notion vibes).",
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
-    "Don't make generic centered layouts. Use F-pattern data-dense grids.",
-    "Create depth through layered design elements with z-index hierarchy and crisp 1px borders.",
-    "Use Flat Solid backgrounds instead of glassmorphism for this technical context.",
-    "You MUST NOT apply universal transition (e.g., transition: all). Add transitions to specific properties only.",
-    "You MUST NOT center align the app container in css (no text-align: center on root).",
-    "Always use crisp, technical button styles (sharp corners or subtle 4px radius) with explicit interaction animations.",
-    "NEVER use AI assistant Emoji characters (like robot, brain, lightbulb) for icons. Use proper icon libraries.",
-    "Use sonner for toasts, expected in /app/frontend/src/components/ui/sonner.jsx.",
-    "All interactive elements MUST include a data-testid attribute."
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use transparent backgrounds for headers, overlays, or dropdowns. Ensure text readability.",
+    "Avoid generic centered layouts for dense data forms. Left-align text, right-align numbers.",
+    "Create depth through layered design elements with z-index hierarchy, but keep surfaces flat (no soft shadows, use borders).",
+    "You MUST NOT apply universal transition (transition: all).",
+    "You MUST NOT center align the app container in CSS.",
+    "Use modern button styles relevant to the app style (compact, technical).",
+    "NEVER use AI assistant Emoji characters.",
+    "Every interaction needs micro-animations - hover states, transitions.",
+    "Include `data-testid` attribute for all interactive elements.",
+    "Use sonner for toast notifications."
   ]
 }
