@@ -1,4 +1,5 @@
-import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info, Wand2, ChevronRight, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,12 @@ const LRE_TIPOS = [
   { value: "generico", label: "Otro / genérico", crit: "según la Tabla 2.1 del DB-SI" },
 ];
 
+const CLASE_META = {
+  normal: { label: "Normal", cls: "border-slate-300 bg-slate-100 text-slate-600" },
+  lre: { label: "LRE", cls: "border-amber-300 bg-amber-100 text-amber-800" },
+  escalera: { label: "Escalera", cls: "border-blue-300 bg-blue-100 text-blue-800" },
+};
+
 const draftLRE = (x) => {
   const t = LRE_TIPOS.find((k) => k.value === (x.lre_tipo || "generico")) || LRE_TIPOS[6];
   const r = x.lre_riesgo || "bajo";
@@ -60,8 +67,10 @@ const draftEscalera = (x) => {
   return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada. Al ser zona de paso peatonal de trabajadores, computa carga de fuego.`;
 };
 
+const fieldLabel = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
 // Carga de fuego con catálogo (Tabla 1.3.5) + edición manual.
-function CargaFuegoInline({ x, i, catalog, update }) {
+function CargaFuegoInline({ x, i, catalog, update, top = true }) {
   const cat = catalog.find((c) => c.category === x.actividad_cat);
   const isCustom = x.actividad_cat === CUSTOM;
   const almacen = x.modo === "almacenamiento";
@@ -74,53 +83,123 @@ function CargaFuegoInline({ x, i, catalog, update }) {
       qvi: s.modo === "almacenamiento" ? s.qvi : undefined, ci: s.ci, ra: s.ra, rmin: s.rmin ?? null });
   };
   return (
-    <div className="mt-3 space-y-3 border-t border-border pt-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <Label className="text-xs">Actividad (Tabla 1.3.5)</Label>
-          <Select value={x.actividad_cat || ""} onValueChange={selectCat}>
-            <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-cat`}><SelectValue placeholder="Selecciona categoría" /></SelectTrigger>
-            <SelectContent>
-              {catalog.map((c) => <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>)}
-              <SelectItem value={CUSTOM}>+ Actividad personalizada</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Subactividad (qs/qv, Ci, Rmin)</Label>
-          {isCustom ? (
-            <Input className="mt-1 h-8 rounded-sm" value={x.subactividad || ""} onChange={(e) => update({ subactividad: e.target.value })} placeholder="Descripción" data-testid={`estancia-${i}-sub`} />
-          ) : (
-            <Select value={cat ? String(cat.subactivities.findIndex((s) => s.name === x.subactividad)) : ""} onValueChange={selectSub} disabled={!cat}>
-              <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-sub`}><SelectValue placeholder="Selecciona subactividad" /></SelectTrigger>
-              <SelectContent>
-                {(cat?.subactivities || []).map((s, k) => <SelectItem key={k} value={String(k)}>{s.name} · {s.modo === "almacenamiento" ? `qv ${s.qvi}` : `qs ${s.qsi}`} · Ci {s.ci}{s.rmin ? ` · Rmin ${s.rmin}` : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+    <div className={`grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 ${top ? "mt-3 border-t border-border pt-3" : ""}`}>
+      <div className="col-span-2 lg:col-span-2">
+        <Label className={fieldLabel}>Actividad (Tabla 1.3.5)</Label>
+        <Select value={x.actividad_cat || ""} onValueChange={selectCat}>
+          <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-cat`}><SelectValue placeholder="Categoría" /></SelectTrigger>
+          <SelectContent>
+            {catalog.map((c) => <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>)}
+            <SelectItem value={CUSTOM}>+ Personalizada</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div>
-          <Label className="text-xs">Modo</Label>
-          <Select value={x.modo || "produccion"} onValueChange={(v) => update({ modo: v })}>
-            <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-modo`}><SelectValue /></SelectTrigger>
+      <div className="col-span-2 lg:col-span-2">
+        <Label className={fieldLabel}>Subactividad</Label>
+        {isCustom ? (
+          <Input className="mt-1 h-8 rounded-sm text-xs" value={x.subactividad || ""} onChange={(e) => update({ subactividad: e.target.value })} placeholder="Descripción" data-testid={`estancia-${i}-sub`} />
+        ) : (
+          <Select value={cat ? String(cat.subactivities.findIndex((s) => s.name === x.subactividad)) : ""} onValueChange={selectSub} disabled={!cat}>
+            <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-sub`}><SelectValue placeholder="Subactividad" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="produccion">Producción</SelectItem>
-              <SelectItem value="almacenamiento">Almacenamiento</SelectItem>
+              {(cat?.subactivities || []).map((s, k) => <SelectItem key={k} value={String(k)}>{s.name} · {s.modo === "almacenamiento" ? `qv ${s.qvi}` : `qs ${s.qsi}`} · Ci {s.ci}{s.rmin ? ` · Rmin ${s.rmin}` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      <div>
+        <Label className={fieldLabel}>Modo</Label>
+        <Select value={x.modo || "produccion"} onValueChange={(v) => update({ modo: v })}>
+          <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-modo`}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="produccion">Producción</SelectItem>
+            <SelectItem value="almacenamiento">Almacenam.</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {almacen ? (
+        <>
+          <div><Label className={fieldLabel}>qv (MJ/m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.qvi ?? ""} onChange={(v) => update({ qvi: v })} data-testid={`estancia-${i}-qvi`} /></div>
+          <div><Label className={fieldLabel}>hi (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.hi ?? ""} onChange={(v) => update({ hi: v })} data-testid={`estancia-${i}-hi`} /></div>
+        </>
+      ) : (
+        <div><Label className={fieldLabel}>qs (MJ/m²)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.qsi ?? ""} onChange={(v) => update({ qsi: v })} data-testid={`estancia-${i}-qsi`} /></div>
+      )}
+      <div><Label className={fieldLabel}>Ci</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.ci ?? 1.44} onChange={(v) => update({ ci: v })} data-testid={`estancia-${i}-ci`} /></div>
+      <div><Label className={fieldLabel}>Ra</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.ra ?? 1} onChange={(v) => update({ ra: v })} data-testid={`estancia-${i}-ra`} /></div>
+    </div>
+  );
+}
+
+function SectorTile({ s, i, cte, totalC, configTypes, usos, updateSector, removeSector }) {
+  return (
+    <div className="border border-border bg-secondary/30 p-3" data-testid={`sector-card-${i}`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Badge variant="outline" className={`rounded-sm border-0 px-1.5 text-[11px] ${cte ? "bg-blue-100 text-blue-800" : "bg-orange-100 text-orange-800"}`}>
+          {cte ? <Building2 className="mr-1 h-3 w-3" /> : <Flame className="mr-1 h-3 w-3" />}
+          {cte ? "CTE DB-SI" : "RSCIEI"}
+        </Badge>
+        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{num(totalC)} m² <span className="opacity-60">(sin LRE)</span></span>
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeSector(s.id)} data-testid={`remove-sector-${i}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2">
+          <Label className={fieldLabel}>Nombre</Label>
+          <Input className="mt-1 h-8 rounded-sm text-sm" value={s.nombre || ""} onChange={(e) => updateSector(s.id, { nombre: e.target.value })} data-testid={`sector-${i}-nombre`} />
+        </div>
+        <div className="col-span-2">
+          <Label className={fieldLabel}>Actividad</Label>
+          <Input className="mt-1 h-8 rounded-sm text-sm" value={s.actividad || ""} onChange={(e) => updateSector(s.id, { actividad: e.target.value })} placeholder="Taller / Almacén / Oficinas" data-testid={`sector-${i}-actividad`} />
+        </div>
+        <div>
+          <Label className={fieldLabel}>Ámbito</Label>
+          <Select value={s.ambito || "industrial"} onValueChange={(v) => updateSector(s.id, { ambito: v })}>
+            <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`sector-${i}-ambito`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="industrial">Industrial (RSCIEI)</SelectItem>
+              <SelectItem value="cte">CTE (edificación)</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {almacen ? (
-          <>
-            <div><Label className="text-xs">qv (MJ/m³)</Label><Input type="number" className="mt-1 h-8 rounded-sm font-mono" value={x.qvi ?? ""} onChange={(e) => update({ qvi: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-qvi`} /></div>
-            <div><Label className="text-xs">hi (m)</Label><Input type="number" className="mt-1 h-8 rounded-sm font-mono" value={x.hi ?? ""} onChange={(e) => update({ hi: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-hi`} /></div>
-          </>
+        {cte ? (
+          <div>
+            <Label className={fieldLabel}>Uso CTE</Label>
+            <Select value={s.uso_cte || "Administrativo"} onValueChange={(v) => updateSector(s.id, { uso_cte: v })}>
+              <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`sector-${i}-uso`}><SelectValue /></SelectTrigger>
+              <SelectContent>{usos.map((u) => <SelectItem key={u.value || u} value={u.value || u}>{u.label || u}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         ) : (
-          <div><Label className="text-xs">qs (MJ/m²)</Label><Input type="number" className="mt-1 h-8 rounded-sm font-mono" value={x.qsi ?? ""} onChange={(e) => update({ qsi: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-qsi`} /></div>
+          <div>
+            <Label className={fieldLabel}>Configuración</Label>
+            <Select value={s.config || "C"} onValueChange={(v) => updateSector(s.id, { config: v })}>
+              <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`sector-${i}-config`}><SelectValue /></SelectTrigger>
+              <SelectContent>{configTypes.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         )}
-        <div><Label className="text-xs">Ci</Label><Input type="number" step={0.01} className="mt-1 h-8 rounded-sm font-mono" value={x.ci ?? 1.44} onChange={(e) => update({ ci: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-ci`} /></div>
-        <div><Label className="text-xs">Ra</Label><Input type="number" step={0.1} className="mt-1 h-8 rounded-sm font-mono" value={x.ra ?? 1} onChange={(e) => update({ ra: e.target.value === "" ? "" : Number(e.target.value) })} data-testid={`estancia-${i}-ra`} /></div>
+        <div>
+          <Label className={fieldLabel}>Situación</Label>
+          <Select value={s.situacion || "sobre_rasante"} onValueChange={(v) => updateSector(s.id, { situacion: v })}>
+            <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`sector-${i}-situacion`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sobre_rasante">Sobre rasante</SelectItem>
+              <SelectItem value="bajo_rasante">Bajo rasante</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className={fieldLabel}>Nº salidas</Label>
+          <NumberInput integer min={1} className="mt-1 h-8 rounded-sm font-mono text-xs" value={s.num_salidas ?? 2} onChange={(v) => updateSector(s.id, { num_salidas: v })} data-testid={`sector-${i}-salidas`} />
+        </div>
+        <div>
+          <Label className={fieldLabel}>Altura evac. (m)</Label>
+          <NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={s.altura_evacuacion ?? 0} onChange={(v) => updateSector(s.id, { altura_evacuacion: v })} data-testid={`sector-${i}-altura`} />
+        </div>
+        <label className="col-span-2 mt-0.5 flex items-center gap-2 text-xs">
+          <Switch checked={!!s.rociadores} onCheckedChange={(v) => updateSector(s.id, { rociadores: v })} data-testid={`sector-${i}-rociadores`} />
+          Rociadores automáticos en todo el sector
+        </label>
       </div>
     </div>
   );
@@ -132,7 +211,13 @@ export function SectoresStep({ data, setData, schema = {} }) {
   const configTypes = (schema.config_types || []).filter((c) => c.value !== "D");
   const usos = schema.dbsi_uses || [];
   const catalog = schema.activity_catalog || [];
-  const secById = Object.fromEntries(sectores.map((s) => [s.id, s]));
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  const toggle = (id) => setExpanded((prev) => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
 
   const addSector = () =>
     setData((d) => ({
@@ -157,237 +242,210 @@ export function SectoresStep({ data, setData, schema = {} }) {
 
   return (
     <TooltipProvider>
-      <div className="space-y-8" data-testid="sectores-step">
-        {/* Sectores · full-width apilados */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-heading text-base">Sectores de incendio</h3>
-            <Button variant="outline" size="sm" className="rounded-sm" onClick={addSector} data-testid="add-sector">
+      <div className="space-y-6" data-testid="sectores-step">
+        {/* ── Bloque A · Sectores de incendio ─────────────────────────── */}
+        <section>
+          <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
+            <div className="flex items-baseline gap-2">
+              <span className="flex h-5 w-5 items-center justify-center bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+              <h3 className="font-heading text-base">Sectores de incendio</h3>
+              <span className="font-mono text-xs text-muted-foreground">{sectores.length}</span>
+            </div>
+            <Button variant="outline" size="sm" className="h-8 rounded-sm" onClick={addSector} data-testid="add-sector">
               <Plus className="mr-1.5 h-4 w-4" /> Añadir sector
             </Button>
           </div>
-          {sectores.length === 0 && (
-            <p className="border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Sin sectores. Crea el primer sector de incendio.</p>
-          )}
-          <div className="space-y-3">
-            {sectores.map((s, i) => {
-              const cte = s.ambito === "cte";
-              return (
-                <div key={s.id} className="border border-border p-4" data-testid={`sector-card-${i}`}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <Badge variant="outline" className="rounded-sm">
-                      {cte ? <Building2 className="mr-1 h-3 w-3" /> : <Flame className="mr-1 h-3 w-3" />}
-                      {cte ? "CTE DB-SI" : "RSCIEI"}
-                    </Badge>
-                    <span className="font-mono text-xs text-muted-foreground">{num(totalC(s.id))} m² construidos (sin LRE)</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeSector(s.id)} data-testid={`remove-sector-${i}`}><Trash2 className="h-4 w-4" /></Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                    <div className="col-span-2 space-y-1.5 lg:col-span-1">
-                      <Label>Nombre</Label>
-                      <Input value={s.nombre || ""} onChange={(e) => updateSector(s.id, { nombre: e.target.value })} data-testid={`sector-${i}-nombre`} />
-                    </div>
-                    <div className="col-span-2 space-y-1.5 lg:col-span-1">
-                      <Label>Actividad</Label>
-                      <Input value={s.actividad || ""} onChange={(e) => updateSector(s.id, { actividad: e.target.value })} placeholder="Taller / Almacén / Oficinas" data-testid={`sector-${i}-actividad`} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Ámbito</Label>
-                      <Select value={s.ambito || "industrial"} onValueChange={(v) => updateSector(s.id, { ambito: v })}>
-                        <SelectTrigger className="rounded-sm" data-testid={`sector-${i}-ambito`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="industrial">Industrial (RSCIEI)</SelectItem>
-                          <SelectItem value="cte">CTE (edificación)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {cte ? (
-                      <div className="space-y-1.5">
-                        <Label>Uso CTE</Label>
-                        <Select value={s.uso_cte || "Administrativo"} onValueChange={(v) => updateSector(s.id, { uso_cte: v })}>
-                          <SelectTrigger className="rounded-sm" data-testid={`sector-${i}-uso`}><SelectValue /></SelectTrigger>
-                          <SelectContent>{usos.map((u) => <SelectItem key={u.value || u} value={u.value || u}>{u.label || u}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        <Label>Configuración</Label>
-                        <Select value={s.config || "C"} onValueChange={(v) => updateSector(s.id, { config: v })}>
-                          <SelectTrigger className="rounded-sm" data-testid={`sector-${i}-config`}><SelectValue /></SelectTrigger>
-                          <SelectContent>{configTypes.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div className="space-y-1.5">
-                      <Label>Situación</Label>
-                      <Select value={s.situacion || "sobre_rasante"} onValueChange={(v) => updateSector(s.id, { situacion: v })}>
-                        <SelectTrigger className="rounded-sm" data-testid={`sector-${i}-situacion`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sobre_rasante">Sobre rasante</SelectItem>
-                          <SelectItem value="bajo_rasante">Bajo rasante (sótano)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Nº de salidas</Label>
-                      <NumberInput integer min={1} value={s.num_salidas ?? 2} onChange={(v) => updateSector(s.id, { num_salidas: v })} data-testid={`sector-${i}-salidas`} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Altura evac. (m)</Label>
-                      <NumberInput min={0} value={s.altura_evacuacion ?? 0} onChange={(v) => updateSector(s.id, { altura_evacuacion: v })} data-testid={`sector-${i}-altura`} />
-                    </div>
-                    <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-3 lg:col-span-4">
-                      <Switch checked={!!s.rociadores} onCheckedChange={(v) => updateSector(s.id, { rociadores: v })} data-testid={`sector-${i}-rociadores`} />
-                      Rociadores automáticos en todo el sector
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Asignación de estancias + clasificación + carga de fuego */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-heading text-base">Asignación de estancias y carga de fuego</h3>
-          </div>
-          {deps.length === 0 ? (
-            <p className="border border-dashed border-border py-6 text-center text-sm text-muted-foreground">No hay estancias. Vuelve al paso «Cuadro de superficies».</p>
-          ) : sectores.length === 0 ? (
-            <p className="border border-dashed border-border py-6 text-center text-sm text-muted-foreground">Crea al menos un sector para asignar las estancias.</p>
+          {sectores.length === 0 ? (
+            <p className="border border-dashed border-border py-5 text-center text-sm text-muted-foreground">Sin sectores. Crea el primer sector de incendio.</p>
           ) : (
-            <div className="space-y-2">
-              {deps.map((x, i) => {
-                const clase = x.clase || "normal";
-                const isEscalera = clase === "escalera" || clase === "escalera_protegida";
-                return (
-                  <div key={x.id} className="border border-border p-3" data-testid={`estancia-row-${i}`}>
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div className="min-w-[150px] flex-1">
-                        <Label className="text-xs">Estancia</Label>
-                        <p className="mt-1 truncate text-sm font-medium" title={x.nombre}>{x.nombre || `Estancia ${i + 1}`}</p>
-                        <p className="font-mono text-xs text-muted-foreground">{num(x.sup_construida || 0)} m² constr.</p>
-                      </div>
-                      <div className="w-48">
-                        <Label className="text-xs">Sector</Label>
-                        <Select value={x.sector_id || ""} onValueChange={(v) => updateDep(x.id, { sector_id: v })}>
-                          <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-sector`}><SelectValue placeholder="Asignar" /></SelectTrigger>
-                          <SelectContent>{sectores.map((s) => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-56">
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs">Clasificación</Label>
-                          {clase === "lre" && (
-                            <Tooltip>
-                              <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help text-amber-600" data-testid={`estancia-${i}-lre-info`} /></TooltipTrigger>
-                              <TooltipContent className="max-w-xs">Esta superficie NO se tiene en cuenta para el cálculo de la carga de fuego del sector, porque está contemplada como Local de Riesgo Especial (se evalúa por separado según la Tabla 2.1 del CTE DB-SI).</TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                        <Select value={clase} onValueChange={(v) => setClase(x.id, v)}>
-                          <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-clase`}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="normal">Estancia normal</SelectItem>
-                            <SelectItem value="lre"><span className="inline-flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> Local de riesgo especial</span></SelectItem>
-                            <SelectItem value="escalera"><span className="inline-flex items-center gap-1"><StretchHorizontal className="h-3 w-3" /> Escalera</span></SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {clase === "lre" ? (
-                      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
-                        <div>
-                          <Label className="text-xs">Riesgo (Tabla 2.1 DB-SI)</Label>
-                          <Select value={x.lre_riesgo || "bajo"} onValueChange={(v) => updateDep(x.id, { lre_riesgo: v, lre_r: RIESGO_R[v] })}>
-                            <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-lre-riesgo`}><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="bajo">Bajo</SelectItem>
-                              <SelectItem value="medio">Medio</SelectItem>
-                              <SelectItem value="alto">Alto</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Resistencia (R)</Label>
-                          <Input className="mt-1 h-8 rounded-sm" value={x.lre_r || RIESGO_R[x.lre_riesgo || "bajo"]} onChange={(e) => updateDep(x.id, { lre_r: e.target.value })} data-testid={`estancia-${i}-lre-r`} />
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs">Tipo de local (Tabla 2.1)</Label>
-                          <Select value={x.lre_tipo || "generico"} onValueChange={(v) => updateDep(x.id, { lre_tipo: v })}>
-                            <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-lre-tipo`}><SelectValue /></SelectTrigger>
-                            <SelectContent>{LRE_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                        <div className="col-span-2 sm:col-span-4">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs">Justificación (Tabla 2.1: superficie, volumen, potencia…)</Label>
-                            <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { lre_justificacion: draftLRE(x) })} data-testid={`estancia-${i}-lre-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
-                          </div>
-                          <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir del tipo y el riesgo, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
-                        </div>
-                      </div>
-                    ) : isEscalera ? (
-                      <>
-                        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
-                          <div>
-                            <Label className="text-xs">Tipo</Label>
-                            <Select value={x.esc_tipo || "protegida"} onValueChange={(v) => updateDep(x.id, { esc_tipo: v, ...(v === "abierta" ? { esc_sentido: "descendente" } : {}) })}>
-                              <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-esc-tipo`}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {ESC_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Sentido evacuación</Label>
-                            <Select value={x.esc_tipo === "abierta" ? "descendente" : (x.esc_sentido || "descendente")} onValueChange={(v) => updateDep(x.id, { esc_sentido: v })} disabled={x.esc_tipo === "abierta"}>
-                              <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-esc-sentido`}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="descendente">Descendente</SelectItem>
-                                <SelectItem value="ascendente">Ascendente</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Situación</Label>
-                            <Select value={x.esc_situacion || "interior"} onValueChange={(v) => updateDep(x.id, { esc_situacion: v })}>
-                              <SelectTrigger className="mt-1 h-8 rounded-sm" data-testid={`estancia-${i}-esc-situacion`}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="interior">Interior</SelectItem>
-                                <SelectItem value="exterior">Exterior</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div><Label className="text-xs">Anchura (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono" value={x.esc_anchura ?? ""} onChange={(v) => updateDep(x.id, { esc_anchura: v })} data-testid={`estancia-${i}-esc-anchura`} /></div>
-                          <div><Label className="text-xs">Capacidad evac. (pers.)</Label><NumberInput integer min={0} className="mt-1 h-8 rounded-sm font-mono" value={x.esc_capacidad ?? ""} onChange={(v) => updateDep(x.id, { esc_capacidad: v })} data-testid={`estancia-${i}-esc-capacidad`} /></div>
-                          <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-4">
-                            <Switch checked={!!x.esc_uso_restringido} onCheckedChange={(v) => updateDep(x.id, { esc_uso_restringido: v })} data-testid={`estancia-${i}-esc-restringido`} />
-                            Uso restringido
-                          </label>
-                          <div className="col-span-2 sm:col-span-4">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs">Justificación CTE (protección, ventilación/vestíbulo, resistencia, evacuación)</Label>
-                              <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { esc_justificacion: draftEscalera(x) })} data-testid={`estancia-${i}-esc-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
-                            </div>
-                            <Textarea className="mt-1 min-h-[64px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla a partir de los parámetros, o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
-                          </div>
-                        </div>
-                        <p className="mt-2 text-xs text-muted-foreground">La escalera SÍ computa carga de fuego (zona de paso peatonal); su protección se justifica por el CTE y consta en el informe.</p>
-                        <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} />
-                      </>
-                    ) : (
-                      <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} />
-                    )}
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {sectores.map((s, i) => (
+                <SectorTile key={s.id} s={s} i={i} cte={s.ambito === "cte"} totalC={totalC(s.id)}
+                  configTypes={configTypes} usos={usos} updateSector={updateSector} removeSector={removeSector} />
+              ))}
             </div>
           )}
-        </div>
+        </section>
+
+        {/* ── Bloque B · Asignación de estancias ──────────────────────── */}
+        <section>
+          <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
+            <div className="flex items-baseline gap-2">
+              <span className="flex h-5 w-5 items-center justify-center bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              <h3 className="font-heading text-base">Asignación de estancias y carga de fuego</h3>
+              <span className="font-mono text-xs text-muted-foreground">{deps.length}</span>
+            </div>
+          </div>
+          {deps.length === 0 ? (
+            <p className="border border-dashed border-border py-5 text-center text-sm text-muted-foreground">No hay estancias. Vuelve al paso «Cuadro de superficies».</p>
+          ) : sectores.length === 0 ? (
+            <p className="border border-dashed border-border py-5 text-center text-sm text-muted-foreground">Crea al menos un sector para asignar las estancias.</p>
+          ) : (
+            <div className="overflow-x-auto border border-border">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/50 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="w-8 px-2 py-2" />
+                    <th className="px-2 py-2 font-semibold">Estancia</th>
+                    <th className="px-2 py-2 text-right font-semibold">m² constr.</th>
+                    <th className="px-2 py-2 font-semibold">Sector</th>
+                    <th className="px-2 py-2 font-semibold">Clasificación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deps.map((x, i) => {
+                    const clase = x.clase || "normal";
+                    const isEscalera = clase === "escalera" || clase === "escalera_protegida";
+                    const meta = CLASE_META[isEscalera ? "escalera" : clase] || CLASE_META.normal;
+                    const isOpen = expanded.has(x.id);
+                    const sinSector = !x.sector_id;
+                    return (
+                      <AssignmentRows key={x.id} {...{ x, i, clase, isEscalera, meta, isOpen, sinSector, sectores, catalog, toggle, updateDep, setClase }} />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </TooltipProvider>
+  );
+}
+
+function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sectores, catalog, toggle, updateDep, setClase }) {
+  return (
+    <>
+      <tr className={`border-b border-border transition-colors hover:bg-secondary/30 ${isOpen ? "bg-secondary/20" : ""}`} data-testid={`estancia-row-${i}`}>
+        <td className="px-2 py-1.5 align-middle">
+          <button onClick={() => toggle(x.id)} className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground" data-testid={`estancia-${i}-expand`} aria-label="Detalles">
+            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </td>
+        <td className="px-2 py-1.5">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium" title={x.nombre}>{x.nombre || `Estancia ${i + 1}`}</span>
+            <span className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold ${meta.cls}`} data-testid={`estancia-${i}-clase-badge`}>{meta.label}</span>
+          </div>
+        </td>
+        <td className="px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">{num(x.sup_construida || 0)}</td>
+        <td className="px-2 py-1.5">
+          <Select value={x.sector_id || ""} onValueChange={(v) => updateDep(x.id, { sector_id: v })}>
+            <SelectTrigger className={`h-8 w-44 rounded-sm text-xs ${sinSector ? "border-amber-400 text-amber-700" : ""}`} data-testid={`estancia-${i}-sector`}><SelectValue placeholder="Asignar…" /></SelectTrigger>
+            <SelectContent>{sectores.map((s) => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}</SelectContent>
+          </Select>
+        </td>
+        <td className="px-2 py-1.5">
+          <div className="flex items-center gap-1">
+            <Select value={clase} onValueChange={(v) => setClase(x.id, v)}>
+              <SelectTrigger className="h-8 w-52 rounded-sm text-xs" data-testid={`estancia-${i}-clase`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Estancia normal</SelectItem>
+                <SelectItem value="lre"><span className="inline-flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> Local de riesgo especial</span></SelectItem>
+                <SelectItem value="escalera"><span className="inline-flex items-center gap-1"><StretchHorizontal className="h-3 w-3" /> Escalera</span></SelectItem>
+              </SelectContent>
+            </Select>
+            {clase === "lre" && (
+              <Tooltip>
+                <TooltipTrigger asChild><Info className="h-3.5 w-3.5 cursor-help text-amber-600" data-testid={`estancia-${i}-lre-info`} /></TooltipTrigger>
+                <TooltipContent className="max-w-xs">Esta superficie NO se computa en la carga de fuego del sector (se evalúa por separado como Local de Riesgo Especial, Tabla 2.1 del CTE DB-SI).</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </td>
+      </tr>
+      {isOpen && (
+        <tr data-testid={`estancia-${i}-detail`}>
+          <td className="border-b border-border bg-slate-50 p-0" colSpan={5}>
+            <div className={`border-l-2 p-3 ${clase === "lre" ? "border-l-amber-400" : isEscalera ? "border-l-blue-400" : "border-l-primary"}`}>
+              {clase === "lre" ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div>
+                    <Label className={fieldLabel}>Riesgo (Tabla 2.1)</Label>
+                    <Select value={x.lre_riesgo || "bajo"} onValueChange={(v) => updateDep(x.id, { lre_riesgo: v, lre_r: RIESGO_R[v] })}>
+                      <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-lre-riesgo`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bajo">Bajo</SelectItem>
+                        <SelectItem value="medio">Medio</SelectItem>
+                        <SelectItem value="alto">Alto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className={fieldLabel}>Resistencia (R)</Label>
+                    <Input className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_r || RIESGO_R[x.lre_riesgo || "bajo"]} onChange={(e) => updateDep(x.id, { lre_r: e.target.value })} data-testid={`estancia-${i}-lre-r`} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className={fieldLabel}>Tipo de local (Tabla 2.1)</Label>
+                    <Select value={x.lre_tipo || "generico"} onValueChange={(v) => updateDep(x.id, { lre_tipo: v })}>
+                      <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-lre-tipo`}><SelectValue /></SelectTrigger>
+                      <SelectContent>{LRE_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2 sm:col-span-4">
+                    <div className="flex items-center justify-between">
+                      <Label className={fieldLabel}>Justificación (Tabla 2.1: superficie, volumen, potencia…)</Label>
+                      <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { lre_justificacion: draftLRE(x) })} data-testid={`estancia-${i}-lre-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
+                    </div>
+                    <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
+                  </div>
+                </div>
+              ) : isEscalera ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div>
+                      <Label className={fieldLabel}>Tipo</Label>
+                      <Select value={x.esc_tipo || "protegida"} onValueChange={(v) => updateDep(x.id, { esc_tipo: v, ...(v === "abierta" ? { esc_sentido: "descendente" } : {}) })}>
+                        <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-esc-tipo`}><SelectValue /></SelectTrigger>
+                        <SelectContent>{ESC_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className={fieldLabel}>Sentido evacuación</Label>
+                      <Select value={x.esc_tipo === "abierta" ? "descendente" : (x.esc_sentido || "descendente")} onValueChange={(v) => updateDep(x.id, { esc_sentido: v })} disabled={x.esc_tipo === "abierta"}>
+                        <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-esc-sentido`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="descendente">Descendente</SelectItem>
+                          <SelectItem value="ascendente">Ascendente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className={fieldLabel}>Situación</Label>
+                      <Select value={x.esc_situacion || "interior"} onValueChange={(v) => updateDep(x.id, { esc_situacion: v })}>
+                        <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-esc-situacion`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="interior">Interior</SelectItem>
+                          <SelectItem value="exterior">Exterior</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <label className="flex items-end gap-2 pb-1 text-xs">
+                      <Switch checked={!!x.esc_uso_restringido} onCheckedChange={(v) => updateDep(x.id, { esc_uso_restringido: v })} data-testid={`estancia-${i}-esc-restringido`} />
+                      Uso restringido
+                    </label>
+                    <div><Label className={fieldLabel}>Anchura (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_anchura ?? ""} onChange={(v) => updateDep(x.id, { esc_anchura: v })} data-testid={`estancia-${i}-esc-anchura`} /></div>
+                    <div><Label className={fieldLabel}>Capacidad (pers.)</Label><NumberInput integer min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_capacidad ?? ""} onChange={(v) => updateDep(x.id, { esc_capacidad: v })} data-testid={`estancia-${i}-esc-capacidad`} /></div>
+                    <div className="col-span-2 sm:col-span-4">
+                      <div className="flex items-center justify-between">
+                        <Label className={fieldLabel}>Justificación CTE (SI 3 / SUA)</Label>
+                        <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { esc_justificacion: draftEscalera(x) })} data-testid={`estancia-${i}-esc-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
+                      </div>
+                      <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">La escalera SÍ computa carga de fuego (zona de paso peatonal).</p>
+                  <div className="mt-2 border-t border-border pt-2">
+                    <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />
+                  </div>
+                </>
+              ) : (
+                <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

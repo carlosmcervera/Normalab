@@ -98,6 +98,8 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-24: **Rediseño del paso 2 (Sectores) — vista compacta y técnica**
+  - Bloque A «Sectores» como mosaico compacto de tiles (grid 2-3 col, campos densos h-8); Bloque B «Asignación» como tabla densa tipo hoja de cálculo con filas expandibles (chevron) que ocultan por defecto la clasificación (LRE/Escalera) y la carga de fuego. Badges de clase (Normal/LRE/Escalera), cabeceras numeradas con divisor para diferenciar ambos bloques. Sin cambios de lógica; testids preservados. Blueprint en `design_guidelines.json`.
 - 2026-07-24: **Plantas + Ocupación por planta + Propuesta IA (validado iter 17, 100%)**
   - Plantas como entidad gestionable (crear/renombrar/eliminar) en el paso 1; cuadro de superficies agrupado por planta con subtotales. Motor: `_build_superficies` devuelve `grupos`; informe y DOCX/XLSX muestran subtotales por planta.
   - Ocupación por planta: bloque de subtotales en el paso 3, en el informe y en descargables. `_build_ocupacion` devuelve `por_planta`.
