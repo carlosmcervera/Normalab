@@ -98,6 +98,10 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-24: **Plantas + Ocupación por planta + Propuesta IA (validado iter 17, 100%)**
+  - Plantas como entidad gestionable (crear/renombrar/eliminar) en el paso 1; cuadro de superficies agrupado por planta con subtotales. Motor: `_build_superficies` devuelve `grupos`; informe y DOCX/XLSX muestran subtotales por planta.
+  - Ocupación por planta: bloque de subtotales en el paso 3, en el informe y en descargables. `_build_ocupacion` devuelve `por_planta`.
+  - Propuesta de ocupación con IA: botón que llama a OpenAI **gpt-4o-mini** (clave propia del usuario en `OPENAI_API_KEY`) vía emergentintegrations (`features/studies/ai.py`, endpoint `POST /studies/{id}/ai-ocupacion`); propone uso+densidad de la Tabla 2.1 CTE DB-SI y el usuario revisa/aplica en un diálogo.
 - 2026-07-23: **3 observaciones del usuario (validadas iter 16 + fix informe)**
   - Números con coma: nuevo `NumberInput` (acepta coma/punto, valida y marca en rojo; expone `data-invalid`). Aplicado en todos los pasos (superficies, carga de fuego, Ci/Ra, alturas, anchuras, densidades, evacuación, DynamicField). `StudyWizardPage.goTo` bloquea el avance si hay campos inválidos.
   - Clasificación «Escalera» (antes «Escalera protegida») con 4 tipos: Abierta (solo Descendente), Protegida, Especialmente protegida, Compartimentada (con sentido Asc/Desc). Justificación automática, informe, motor RSCIEI y exportadores actualizados.
