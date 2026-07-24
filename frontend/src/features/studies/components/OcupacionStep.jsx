@@ -1,7 +1,15 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
+import { useParams } from "react-router-dom";
+import { Sparkles, Loader2, Check } from "lucide-react";
+import { toast } from "sonner";
+import { api, apiError } from "@/lib/api";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { NumberInput } from "@/components/NumberInput";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -23,12 +31,47 @@ function ocupacionDe(dep) {
 }
 
 export function OcupacionStep({ data, setData, densities = [] }) {
+  const { studyId } = useParams();
   const deps = data.dependencias || [];
   const sectores = data.sectores || [];
+  const plantas = data.plantas || [];
   const secName = Object.fromEntries(sectores.map((s) => [s.id, s.nombre]));
+  const [aiLoading, setAiLoading] = useState(false);
+  const [proposals, setProposals] = useState(null);
 
   const updateDep = (id, patch) =>
     setData((d) => ({ ...d, dependencias: d.dependencias.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+
+  const runAi = async () => {
+    setAiLoading(true);
+    try {
+      const estancias = deps.map((x) => ({ id: x.id, nombre: x.nombre, superficie: Number(x.sup_util) || Number(x.sup_construida) || 0 }));
+      const usos = densities.map((p) => ({ uso: p.uso, densidad: p.densidad ?? null }));
+      const res = await api.post(`/studies/${studyId}/ai-ocupacion`, { estancias, usos });
+      const props = (res.data.propuestas || []).filter((p) => p.id);
+      if (!props.length) return toast.error("La IA no ha devuelto propuestas.");
+      setProposals(props);
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applyProposals = () => {
+    setData((d) => ({
+      ...d,
+      dependencias: d.dependencias.map((x) => {
+        const p = proposals.find((q) => q.id === x.id);
+        if (!p) return x;
+        return { ...x, uso_ocupacion: p.uso, densidad: p.densidad ?? "",
+          sin_ocupacion: p.densidad == null, ocupacion_custom: false, ocupacion_manual: "", ocupacion_nota: "" };
+      }),
+    }));
+    toast.success(`Propuesta aplicada a ${proposals.length} estancia(s).`);
+    setProposals(null);
+  };
+
 
   const selectPreset = (dep, value) => {
     if (value === CUSTOM) {
@@ -57,6 +100,12 @@ export function OcupacionStep({ data, setData, densities = [] }) {
 
   return (
     <div className="space-y-4" data-testid="ocupacion-step">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Asigna a cada estancia su uso y densidad (Tabla 2.1 CTE DB-SI). También puedes pedir una propuesta automática con IA.</p>
+        <Button variant="outline" size="sm" className="rounded-sm shrink-0" onClick={runAi} disabled={aiLoading || deps.length === 0} data-testid="ai-ocupacion-btn">
+          {aiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} Proponer ocupación con IA
+        </Button>
+      </div>
       <div className="overflow-x-auto border border-border">
         <table className="w-full text-sm">
           <thead>
@@ -137,7 +186,67 @@ export function OcupacionStep({ data, setData, densities = [] }) {
           </tbody>
         </table>
       </div>
+      {(() => {
+        const orden = [...plantas.map((p) => p.nombre), "Sin planta"];
+        const map = {};
+        deps.forEach((x) => {
+          const k = x.planta && plantas.some((p) => p.nombre === x.planta) ? x.planta : "Sin planta";
+          map[k] = (map[k] || 0) + (ocupacionDe(x) || 0);
+        });
+        const rows = orden.filter((k, idx) => orden.indexOf(k) === idx && k in map).map((k) => ({ planta: k, ocup: map[k] }));
+        if (!rows.length) return null;
+        return (
+          <div className="border border-border" data-testid="ocupacion-por-planta">
+            <div className="border-b border-border bg-secondary/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ocupación por planta</div>
+            <table className="w-full text-sm">
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.planta} className="border-b border-border last:border-0">
+                    <td className="px-3 py-1.5">{r.planta}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-semibold" data-testid={`ocupacion-planta-${r.planta}`}>{r.ocup} pers.</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
       <p className="text-xs text-muted-foreground">La ocupación se calcula como <span className="font-mono">techo(superficie útil / densidad)</span> según la Tabla 2.1 del CTE DB-SI. En «ocupación personalizada» se introduce el nº de personas a mano y se justifica con una nota.</p>
+
+      <Dialog open={!!proposals} onOpenChange={(o) => !o && setProposals(null)}>
+        <DialogContent className="max-w-2xl rounded-sm" data-testid="ai-proposal-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading">Propuesta de ocupación (IA)</DialogTitle>
+            <DialogDescription>Revisa la propuesta generada con IA. Al aplicarla se actualizará el uso y la densidad de cada estancia (podrás editarlos después).</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] overflow-y-auto border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Estancia</th><th className="px-3 py-2">Uso propuesto</th><th className="px-3 py-2 text-right">m²/p</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(proposals || []).map((p) => {
+                  const dep = deps.find((x) => x.id === p.id);
+                  return (
+                    <tr key={p.id} className="border-b border-border last:border-0">
+                      <td className="px-3 py-1.5 font-medium">{dep?.nombre || "—"}</td>
+                      <td className="px-3 py-1.5">{p.uso}{p.motivo ? <span className="block text-xs text-muted-foreground">{p.motivo}</span> : null}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{p.densidad ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-sm" onClick={() => setProposals(null)} data-testid="ai-proposal-cancel">Cancelar</Button>
+            <Button className="rounded-sm" onClick={applyProposals} data-testid="ai-proposal-apply"><Check className="mr-2 h-4 w-4" /> Aplicar propuesta</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

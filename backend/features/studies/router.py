@@ -180,3 +180,21 @@ async def export_xlsx(study_id: str, user: dict = Depends(get_current_user)):
     buf = build_xlsx(_serialize(doc), project)
     name = f"{project.get('code','estudio')}_{doc.get('name','tablas')}.xlsx".replace(" ", "_")
     return _download(buf, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+class AiOcupacionReq(BaseModel):
+    estancias: list = []
+    usos: list = []
+
+
+@router.post("/{study_id}/ai-ocupacion")
+async def ai_ocupacion(study_id: str, payload: AiOcupacionReq, user: dict = Depends(get_current_user)):
+    await _get_study_or_404(study_id)
+    if not payload.estancias:
+        raise HTTPException(status_code=400, detail="No hay estancias para proponer ocupación.")
+    from features.studies.ai import propose_ocupacion
+    try:
+        propuestas = await propose_ocupacion(payload.estancias, payload.usos)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se ha podido generar la propuesta con IA: {e}")
+    return {"propuestas": propuestas}

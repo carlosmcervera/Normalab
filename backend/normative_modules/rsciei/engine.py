@@ -426,39 +426,64 @@ def _compute_sector(sec, deps, establecimiento):
 def _build_superficies(sectores, dependencias):
     sec_name = {s.get("id"): s.get("nombre", "Sector") for s in sectores}
     filas = []
+    grupos = {}
+    orden = []
     tot_util = tot_const = 0.0
     for d in dependencias:
         u = float(d.get("sup_util") or 0)
         c = float(d.get("sup_construida") or 0)
         tot_util += u
         tot_const += c
-        filas.append({"nombre": d.get("nombre", "-"), "planta": d.get("planta", "-"),
-                      "sector": sec_name.get(d.get("sector_id"), "-"),
-                      "sup_util": round(u, 2), "sup_construida": round(c, 2)})
-    return {"filas": filas, "total_util": round(tot_util, 2), "total_construida": round(tot_const, 2)}
+        planta = (d.get("planta") or "").strip() or "Sin planta"
+        fila = {"nombre": d.get("nombre", "-"), "planta": planta,
+                "sector": sec_name.get(d.get("sector_id"), "-"),
+                "sup_util": round(u, 2), "sup_construida": round(c, 2)}
+        filas.append(fila)
+        if planta not in grupos:
+            grupos[planta] = {"planta": planta, "filas": [], "sub_util": 0.0, "sub_construida": 0.0}
+            orden.append(planta)
+        g = grupos[planta]
+        g["filas"].append(fila)
+        g["sub_util"] += u
+        g["sub_construida"] += c
+    for g in grupos.values():
+        g["sub_util"] = round(g["sub_util"], 2)
+        g["sub_construida"] = round(g["sub_construida"], 2)
+    return {"filas": filas, "grupos": [grupos[p] for p in orden],
+            "total_util": round(tot_util, 2), "total_construida": round(tot_const, 2)}
 
 
 def _build_ocupacion(sectores, dependencias):
     sec_name = {s.get("id"): s.get("nombre", "Sector") for s in sectores}
     filas = []
     total = 0
+    por_planta = {}
+    orden_p = []
     for d in dependencias:
         o = _dep_ocupacion(d)
         sup = float(d.get("sup_util") or d.get("sup_construida") or 0)
         dens = d.get("densidad")
         if o:
             total += o
+        planta = (d.get("planta") or "").strip() or "Sin planta"
+        if planta not in por_planta:
+            por_planta[planta] = 0
+            orden_p.append(planta)
+        if o:
+            por_planta[planta] += o
         manual = bool(d.get("ocupacion_custom")) and d.get("ocupacion_manual") not in (None, "")
         densidad_label = ("Sin ocupación" if d.get("sin_ocupacion")
                           else ("Manual" if manual else (f"{dens} m²/p" if dens else "-")))
         filas.append({"nombre": d.get("nombre", "-"),
+                      "planta": planta,
                       "sector": sec_name.get(d.get("sector_id"), "-"),
                       "uso": d.get("uso_ocupacion", "-"),
                       "superficie": round(sup, 2),
                       "densidad": densidad_label,
                       "nota": (d.get("ocupacion_nota") or "").strip() if manual else "",
                       "ocupacion": o if o is not None else "-"})
-    return {"filas": filas, "total": total}
+    return {"filas": filas, "total": total,
+            "por_planta": [{"planta": p, "ocupacion": por_planta[p]} for p in orden_p]}
 
 
 def _build_resumen(sector_results):

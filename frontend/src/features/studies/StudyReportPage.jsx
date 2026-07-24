@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Printer, History, Loader2, AlertTriangle, FileText, FileSpreadsheet } from "lucide-react";
@@ -242,12 +242,25 @@ function Section({ s }) {
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {s.data.filas.map((r, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="px-3 py-1.5 font-sans">{r.nombre}</td><td className="px-3 py-1.5 font-sans">{r.planta}</td>
-                    <td className="px-3 py-1.5 font-sans text-muted-foreground">{r.sector}</td>
-                    <td className="px-3 py-1.5 text-right">{num(r.sup_util, 2)}</td><td className="px-3 py-1.5 text-right">{num(r.sup_construida, 2)}</td>
-                  </tr>
+                {(s.data.grupos || [{ planta: null, filas: s.data.filas, sub_util: null, sub_construida: null }]).map((g, gi) => (
+                  <Fragment key={gi}>
+                    {g.planta && (
+                      <tr className="bg-secondary/30"><td colSpan={5} className="px-3 py-1.5 font-sans text-xs font-semibold uppercase tracking-wider">{g.planta}</td></tr>
+                    )}
+                    {g.filas.map((r, i) => (
+                      <tr key={`${gi}-${i}`} className="border-b border-border">
+                        <td className="px-3 py-1.5 font-sans">{r.nombre}</td><td className="px-3 py-1.5 font-sans">{r.planta}</td>
+                        <td className="px-3 py-1.5 font-sans text-muted-foreground">{r.sector}</td>
+                        <td className="px-3 py-1.5 text-right">{num(r.sup_util, 2)}</td><td className="px-3 py-1.5 text-right">{num(r.sup_construida, 2)}</td>
+                      </tr>
+                    ))}
+                    {g.planta && (
+                      <tr className="border-b border-border bg-secondary/10">
+                        <td colSpan={3} className="px-3 py-1 font-sans text-xs italic text-muted-foreground">Subtotal {g.planta}</td>
+                        <td className="px-3 py-1 text-right text-xs font-semibold">{num(g.sub_util, 2)}</td><td className="px-3 py-1 text-right text-xs font-semibold">{num(g.sub_construida, 2)}</td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
                 <tr className="bg-secondary/40 font-bold">
                   <td className="px-3 py-2 font-sans" colSpan={3}>Total</td>
@@ -284,6 +297,17 @@ function Section({ s }) {
                     <td className="px-3 py-1.5 font-sans text-xs italic text-muted-foreground" colSpan={6} data-testid={`report-ocupacion-nota-${i}`}>Ocupación personalizada · {r.nombre}: {r.nota}</td>
                   </tr>
                 ))}
+                {(s.data.por_planta || []).length > 0 && (
+                  <>
+                    <tr className="border-t border-border bg-secondary/20"><td colSpan={6} className="px-3 py-1 font-sans text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ocupación por planta</td></tr>
+                    {s.data.por_planta.map((p, i) => (
+                      <tr key={`pp-${i}`} className="border-b border-border last:border-0">
+                        <td colSpan={5} className="px-3 py-1 font-sans">{p.planta}</td>
+                        <td className="px-3 py-1 text-right font-bold">{p.ocupacion} pers.</td>
+                      </tr>
+                    ))}
+                  </>
+                )}
               </tbody>
             </table>
           </div>

@@ -234,6 +234,15 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                      _fmt(f.get("sup_util"), 2), _fmt(f.get("sup_construida"), 2)] for f in d.get("filas", [])]
             _generic_table(doc, ["Dependencia", "Planta", "Sector", "S. útil", "S. construida"], rows,
                            totals=["Total", "", "", _fmt(d.get("total_util"), 2), _fmt(d.get("total_construida"), 2)])
+            grupos = d.get("grupos") or []
+            if grupos:
+                gp = doc.add_paragraph()
+                gpr = gp.add_run("Superficies por planta")
+                gpr.bold = True
+                gpr.font.size = Pt(9.5)
+                grows = [[g.get("planta"), _fmt(g.get("sub_util"), 2), _fmt(g.get("sub_construida"), 2)] for g in grupos]
+                _generic_table(doc, ["Planta", "S. útil", "S. construida"], grows,
+                               totals=["Total", _fmt(d.get("total_util"), 2), _fmt(d.get("total_construida"), 2)])
         elif stype == "ocupacion":
             d = s.get("data", {})
             rows = [[f.get("nombre"), f.get("sector"), f.get("uso"), _fmt(f.get("superficie"), 2),
@@ -246,6 +255,13 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                     pr = p.add_run(f"Ocupación personalizada · {f.get('nombre')}: {f.get('nota')}")
                     pr.italic = True
                     pr.font.size = Pt(8)
+            pp = d.get("por_planta") or []
+            if pp:
+                op = doc.add_paragraph()
+                opr = op.add_run("Ocupación por planta")
+                opr.bold = True
+                opr.font.size = Pt(9.5)
+                _generic_table(doc, ["Planta", "Ocupación"], [[x.get("planta"), str(x.get("ocupacion"))] for x in pp])
         elif stype == "resumen":
             rows = [[f.get("nombre"), f.get("config"), _fmt(f.get("superficie")), _fmt(f.get("qs_mj"), 1),
                      f"{f.get('nivel')} · {f.get('categoria')}", f.get("estabilidad"), str(f.get("ocupacion"))]
@@ -340,6 +356,20 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
     for c in range(1, 6):
         ws.cell(row=r, column=c).fill = TOTAL_FILL
         ws.cell(row=r, column=c).border = BORDER
+    grupos = sup.get("grupos") or []
+    if grupos:
+        r += 2
+        ws.cell(row=r, column=1, value="Superficies por planta").font = Font(bold=True)
+        r += 1
+        _header_row(ws, r, ["Planta", "", "", "S. útil (m²)", "S. construida (m²)"])
+        r += 1
+        for g in grupos:
+            ws.cell(row=r, column=1, value=g.get("planta"))
+            ws.cell(row=r, column=4, value=g.get("sub_util"))
+            ws.cell(row=r, column=5, value=g.get("sub_construida"))
+            for c in range(1, 6):
+                ws.cell(row=r, column=c).border = BORDER
+            r += 1
     _autosize(ws, [30, 14, 22, 16, 18])
 
     # --- Hoja Ocupación ----------------------------------------------------- #
@@ -364,6 +394,17 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
     for c in range(1, 8):
         wo.cell(row=r, column=c).fill = TOTAL_FILL
         wo.cell(row=r, column=c).border = BORDER
+    porp = occ.get("por_planta") or []
+    if porp:
+        r += 2
+        wo.cell(row=r, column=1, value="Ocupación por planta").font = Font(bold=True)
+        r += 1
+        for x in porp:
+            wo.cell(row=r, column=1, value=x.get("planta"))
+            wo.cell(row=r, column=6, value=x.get("ocupacion"))
+            for c in range(1, 8):
+                wo.cell(row=r, column=c).border = BORDER
+            r += 1
     _autosize(wo, [30, 22, 22, 16, 16, 14, 40])
 
     # --- Hoja por sector: carga de fuego Qs con fórmulas -------------------- #
