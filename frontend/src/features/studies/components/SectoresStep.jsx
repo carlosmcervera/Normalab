@@ -113,7 +113,7 @@ function CargaFuegoInline({ x, i, catalog, update, top = true }) {
       </div>
       <div>
         <Label className={fieldLabel}>Modo</Label>
-        <Select value={x.modo || "produccion"} onValueChange={(v) => update({ modo: v })}>
+        <Select value={x.modo || "produccion"} onValueChange={(v) => update(v === "deposito" ? { modo: v, ci: 1, ra: 1 } : { modo: v })}>
           <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-modo`}><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="produccion">Producción</SelectItem>
@@ -146,7 +146,7 @@ function CargaFuegoInline({ x, i, catalog, update, top = true }) {
       ) : (
         <div><Label className={fieldLabel}>qs (MJ/m²)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.qsi ?? ""} onChange={(v) => update({ qsi: v })} data-testid={`estancia-${i}-qsi`} /></div>
       )}
-      <div><Label className={fieldLabel}>Ci</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.ci ?? 1.44} onChange={(v) => update({ ci: v })} data-testid={`estancia-${i}-ci`} /></div>
+      <div><Label className={fieldLabel}>Ci</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.ci ?? (deposito ? 1 : 1.44)} onChange={(v) => update({ ci: v })} data-testid={`estancia-${i}-ci`} /></div>
       <div><Label className={fieldLabel}>Ra</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.ra ?? 1} onChange={(v) => update({ ra: v })} data-testid={`estancia-${i}-ra`} /></div>
     </div>
   );
