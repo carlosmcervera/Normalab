@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info, Wand2, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Flame, Building2, ShieldAlert, StretchHorizontal, Info, Wand2, ChevronRight, ChevronDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
 import { sectorCarga, depAporte, depOcupacion, nriBadgeCls } from "@/lib/fireload";
+import { ActivityCatalogDialog } from "@/features/studies/components/ActivityCatalogDialog";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const CUSTOM = "__custom__";
@@ -80,42 +81,35 @@ const fieldLabel = "text-[11px] font-medium uppercase tracking-wide text-muted-f
 
 // Carga de fuego con catálogo (Tabla 1.3.5) + edición manual.
 function CargaFuegoInline({ x, i, catalog, update, top = true }) {
-  const cat = catalog.find((c) => c.category === x.actividad_cat);
   const isCustom = x.actividad_cat === CUSTOM;
   const almacen = x.modo === "almacenamiento";
   const deposito = x.modo === "deposito";
-  const selectCat = (v) => v === CUSTOM
-    ? update({ actividad_cat: CUSTOM, subactividad: "" })
-    : update({ actividad_cat: v, subactividad: "", qsi: undefined, qvi: undefined });
-  const selectSub = (idx) => {
-    const s = cat.subactivities[Number(idx)];
-    update({ subactividad: s.name, modo: s.modo, qsi: s.modo === "produccion" ? s.qsi : undefined,
-      qvi: s.modo === "almacenamiento" ? s.qvi : undefined, ci: s.ci, ra: s.ra, rmin: s.rmin ?? null });
-  };
+  const [dlgOpen, setDlgOpen] = useState(false);
+  const applyCatalog = (category, s) => update({
+    actividad_cat: category, subactividad: s.name, modo: s.modo,
+    qsi: s.modo === "produccion" ? s.qsi : undefined,
+    qvi: s.modo === "almacenamiento" ? s.qvi : undefined,
+    ci: s.ci, ra: s.ra, rmin: s.rmin ?? null,
+  });
   return (
     <div className={`grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 ${top ? "mt-3 border-t border-border pt-3" : ""}`}>
-      <div className="col-span-2 lg:col-span-2">
-        <Label className={fieldLabel}>Actividad (Tabla 1.3.5)</Label>
-        <Select value={x.actividad_cat || ""} onValueChange={selectCat}>
-          <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-cat`}><SelectValue placeholder="Categoría" /></SelectTrigger>
-          <SelectContent>
-            {catalog.map((c) => <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>)}
-            <SelectItem value={CUSTOM}>+ Personalizada</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="col-span-2 lg:col-span-2">
-        <Label className={fieldLabel}>Subactividad</Label>
+      <div className="col-span-2 lg:col-span-4">
+        <div className="flex items-center justify-between">
+          <Label className={fieldLabel}>Actividad (Tabla 1.3.5)</Label>
+          {isCustom
+            ? <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => { update({ actividad_cat: "" }); setDlgOpen(true); }} data-testid={`estancia-${i}-from-table`}>Elegir de la tabla</button>
+            : <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => update({ actividad_cat: CUSTOM, subactividad: "" })} data-testid={`estancia-${i}-custom`}>Personalizada</button>}
+        </div>
         {isCustom ? (
-          <Input className="mt-1 h-8 rounded-sm text-xs" value={x.subactividad || ""} onChange={(e) => update({ subactividad: e.target.value })} placeholder="Descripción" data-testid={`estancia-${i}-sub`} />
+          <Input className="mt-1 h-8 rounded-sm text-xs" value={x.subactividad || ""} onChange={(e) => update({ subactividad: e.target.value })} placeholder="Descripción de la actividad (personalizada)" data-testid={`estancia-${i}-sub`} />
         ) : (
-          <Select value={cat ? String(cat.subactivities.findIndex((s) => s.name === x.subactividad)) : ""} onValueChange={selectSub} disabled={!cat}>
-            <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-sub`}><SelectValue placeholder="Subactividad" /></SelectTrigger>
-            <SelectContent>
-              {(cat?.subactivities || []).map((s, k) => <SelectItem key={k} value={String(k)}>{s.name} · {s.modo === "almacenamiento" ? `qv ${s.qvi}` : `qs ${s.qsi}`} · Ci {s.ci}{s.rmin ? ` · Rmin ${s.rmin}` : ""}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Button type="button" variant="outline" className="mt-1 h-8 w-full justify-between rounded-sm px-2 text-xs font-normal" onClick={() => setDlgOpen(true)} data-testid={`estancia-${i}-cat`}>
+            <span className="truncate">{x.actividad_cat && x.subactividad ? `${x.actividad_cat} · ${x.subactividad}` : "Seleccionar de la tabla 1.3.5…"}</span>
+            <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-60" />
+          </Button>
         )}
+        <ActivityCatalogDialog open={dlgOpen} onOpenChange={setDlgOpen} catalog={catalog}
+          current={{ category: x.actividad_cat, name: x.subactividad }} onSelect={applyCatalog} />
       </div>
       <div>
         <Label className={fieldLabel}>Modo</Label>
