@@ -98,6 +98,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-27: **LRE clasificados por uso + volumen (Tabla 2.1 DB-SI) con riesgo automático (validado iter 20, 100%)**
+  - Al marcar una estancia como Local de Riesgo Especial ahora se pide el **uso** (modal buscador `LreUseDialog` con la Tabla 2.1 del CTE DB-SI, agrupada por uso previsto) y la **altura**; con la superficie del cuadro se calcula el **volumen (= superficie × altura)** y se **determina automáticamente el riesgo** (bajo/medio/alto) y su resistencia R según la métrica del uso (V=volumen, S=superficie, P=potencia, QS, fijo). El riesgo es editable manualmente.
+  - Nuevo `lib/lreCatalog.js` (LRE_USES + `classifyLre`), modal `LreUseDialog.jsx`, y `AssignmentRows.applyLre` que recalcula y persiste `lre_uso/lre_metric/lre_criterio/lre_valor/lre_riesgo/lre_r`. `draftLRE` redacta la justificación con uso + volumen/superficie/potencia + criterio.
+  - Motor (`engine.py`) surfacea en `locales_riesgo_especial`: uso, uso_grupo, altura, volumen, potencia, metric, criterio (+ riesgo/R/superficie/justificación). Informe HTML y DOCX muestran uso, volumen/potencia y criterio. Los LRE siguen computando carga de fuego.
+  - Testing: 6/6 E2E LRE (volumen MEDIO, potencia BAJO/MEDIO/ALTO, escaleras excluidas, informe/DOCX) + flujo UI + 53/53 unit. Sin issues.
 - 2026-07-27: **LRE computan carga de fuego · escaleras no (+ validaciones)**
   - Se **invierte** el tratamiento: los **Locales de Riesgo Especial (LRE)** ahora SÍ computan carga de fuego (se incluyen en A y en el numerador del Qs del sector) y, además, siguen evaluándose como LRE con su resistencia R (Tabla 2.1 DB-SI). Las **escaleras** dejan de computar carga de fuego (zona de paso); solo requieren justificación CTE DB-SI/SUA.
   - Motor (`engine.py`): `calc_deps` excluye escaleras e incluye LRE; `esc_deps` para el listado de escaleras; observaciones y comentarios actualizados. UI (`SectoresStep.jsx`): el detalle LRE incorpora el bloque de carga de fuego (`CargaFuegoInline`); el de escalera lo elimina; fila «Carga (MJ)» muestra «no computa» solo para escaleras; tooltip y drafts actualizados. `fireload.js` filtra escaleras (no LRE). Informe HTML/XLSX con textos coherentes.
