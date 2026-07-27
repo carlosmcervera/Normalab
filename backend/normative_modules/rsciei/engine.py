@@ -255,6 +255,73 @@ MEDIANERA_EI = {"BAJO": "EI 120", "MEDIO": "EI 180", "ALTO": "EI 240"}
 # Tabla 2.2.2 · distancia «d» (m) de la franja de fachada según el ángulo α.
 FACHADA_D = {"90": 2.0, "135": 1.5, "180": 1.0}
 
+# CTE DB-SI SI-3 · Tabla 5.1 · protección de escaleras para evacuación DESCENDENTE.
+# (no_protegida_max, protegida_max) en m de altura de evacuación.
+PROT_ESC_DESC = {
+    "Residencial Vivienda": (14.0, 28.0),
+    "Administrativo/Docente": (14.0, 28.0),
+    "Comercial/Pública concurrencia": (10.0, 20.0),
+    "Hospitalario (hospitalización)": (0.0, 14.0),
+    "Hospitalario (otras zonas)": (10.0, 20.0),
+    "Aparcamiento / Industrial": (14.0, 28.0),
+}
+PROT_ESC_ASC = (2.80, 6.00)  # (no protegida ≤ 2,80 m; protegida ≤ 6,00 m; > 6,00 esp. protegida)
+_ESC_RANK = {"abierta": 0, "no_protegida": 0, "protegida": 1, "compartimentada": 1, "especialmente": 2}
+
+
+def _proteccion_requerida(uso, sentido, h):
+    if sentido == "ascendente":
+        lo, hi = PROT_ESC_ASC
+    else:
+        lo, hi = PROT_ESC_DESC.get(uso, (14.0, 28.0))
+    if h <= lo:
+        return "no_protegida"
+    if h <= hi:
+        return "protegida"
+    return "especialmente"
+
+
+def _anchura_min_escalera(P, sentido, h, protegida, S, min_w):
+    if protegida and S:
+        a = max((P - 3 * S) / 160.0, 0.0)          # E ≤ 3·S + 160·A  →  A ≥ (P − 3·S)/160
+    elif sentido == "ascendente":
+        denom = 160.0 - 10.0 * h
+        a = (P / denom) if denom > 0 else float("inf")  # imposible sin protección
+    else:
+        a = P / 160.0                               # descendente: A ≥ P/160
+    return max(a, min_w)
+
+
+def _escalera_calc(d):
+    """Anchura mínima y grado de protección exigidos a la escalera (CTE DB-SI SI-3)."""
+    tipo = d.get("esc_tipo") or "protegida"
+    sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
+    P = float(d.get("esc_ocupantes") or 0)
+    h = float(d.get("esc_altura_evac") or 0)
+    uso = d.get("esc_uso") or "Aparcamiento / Industrial"
+    S = float(d.get("esc_superficie") or 0)
+    min_w = 0.80 if d.get("esc_uso_restringido") else 1.00
+    proteccion_req = _proteccion_requerida(uso, sentido, h)
+    protegida = proteccion_req in ("protegida", "especialmente")
+    a_min = _anchura_min_escalera(P, sentido, h, protegida, S, min_w)
+    a_proy = float(d.get("esc_anchura") or 0)
+    if a_min == float("inf"):
+        anchura_estado = "no_admitido"
+        a_min_txt = "No admisible sin protección"
+    else:
+        a_min = round(a_min, 2)
+        anchura_estado = "pendiente" if a_proy <= 0 else ("cumple" if a_proy >= a_min - 1e-6 else "no_cumple")
+        a_min_txt = f"{a_min:.2f} m"
+    proteccion_estado = "cumple" if _ESC_RANK.get(tipo, 0) >= _ESC_RANK.get(proteccion_req, 0) else "no_cumple"
+    return {
+        "ocupantes": P, "altura_evacuacion": h, "uso": uso, "sentido": sentido,
+        "anchura_min": None if a_min == float("inf") else a_min, "anchura_min_texto": a_min_txt,
+        "anchura_proyectada": a_proy, "anchura_estado": anchura_estado,
+        "proteccion_requerida": proteccion_req, "proteccion_estado": proteccion_estado,
+        "min_normativo": min_w,
+    }
+
+
 
 def _parse_ei(valor):
     """Extrae los minutos de un texto tipo «EI 240» / «REI 180»."""
