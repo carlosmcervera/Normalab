@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="6" time="3.740" timestamp="2026-07-27T15:27:55.940760+00:00" hostname="agent-env-66f4cb68-54a9-4429-a80e-37c72fd23e5c"><testcase classname="tests.test_incendios_phase2_e2e" name="test_2c_schema_steps_order" time="0.873"><failure message="AssertionError: steps types order incorrecto: []&#10;assert [] == ['superficies... 'evacuacion']&#10;  &#10;  Right contains 5 more items, first extra item: 'superficies_proyecto'&#10;  &#10;  Full diff:&#10;  + []&#10;  - [&#10;  -     'superficies_proyecto',...&#10;  &#10;  ...Full output truncated (5 lines hidden), use '-vv' to show">backend/tests/test_incendios_phase2_e2e.py:90: in test_2c_schema_steps_order
+    assert types == expected, f"steps types order incorrecto: {types}"
+E   AssertionError: steps types order incorrecto: []
+E   assert [] == ['superficies... 'evacuacion']
+E     
+E     Right contains 5 more items, first extra item: 'superficies_proyecto'
+E     
+E     Full diff:
+E     + []
+E     - [
+E     -     'superficies_proyecto',...
+E     
+E     ...Full output truncated (5 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_incendios_phase2_e2e" name="test_2a_construccion_medianera_fachada_no_cumple" time="0.392" /><testcase classname="tests.test_incendios_phase2_e2e" name="test_2a_construccion_alto_cumple" time="0.313" /><testcase classname="tests.test_incendios_phase2_e2e" name="test_2a_construccion_angulo_90" time="0.310" /><testcase classname="tests.test_incendios_phase2_e2e" name="test_2d_export_docx_incluye_construccion" time="0.571" /><testcase classname="tests.test_incendios_phase2_e2e" name="test_regresion_fase1_lre_y_cte" time="0.688" /></testsuite></testsuites>

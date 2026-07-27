@@ -183,6 +183,66 @@ function SectorReport({ s }) {
           </div>
         </div>
       )}
+      {s.construccion && (
+        <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-construccion`}>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Reacción al fuego y propagación exterior (RSCIEI Anexo II · Tablas 2.1.4 / 2.2.1 / 2.2.2)</p>
+          <div className="overflow-x-auto border border-border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-secondary/60 text-left uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2.5 py-1.5">Situación del elemento</th>
+                  <th className="px-2.5 py-1.5">Techos y paredes</th>
+                  <th className="px-2.5 py-1.5">Suelos</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {s.construccion.reaccion.tabla.map((r, i) => {
+                  const hi = s.construccion.reaccion.nri_alto && i === 2;
+                  return (
+                    <tr key={i} className={`border-b border-border last:border-0 ${hi ? "bg-orange-100" : ""}`}>
+                      <td className="px-2.5 py-1.5 font-sans">{r.situacion}</td>
+                      <td className="px-2.5 py-1.5">{r.techos_paredes}</td>
+                      <td className="px-2.5 py-1.5">{r.suelos}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-700">
+            Reacción al fuego de revestimientos:{" "}
+            <span className={s.construccion.reaccion.cumple ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
+              {s.construccion.reaccion.cumple ? "el proyecto cumple las clases exigidas" : "pendiente de verificar/justificar"}
+            </span>
+            {s.construccion.reaccion.observaciones ? ` · ${s.construccion.reaccion.observaciones}` : ""}
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm">
+            <div className="rounded-sm border border-border p-2">
+              <p className="text-xs uppercase text-muted-foreground">Medianeras (Tabla 2.2.1)</p>
+              {s.construccion.medianeras ? (
+                <p className="mt-0.5">Exigido <b className="font-mono">{s.construccion.medianeras.requerido}</b> · proyectado <b className="font-mono">{s.construccion.medianeras.proyectado || "—"}</b>{" "}
+                  <span className={s.construccion.medianeras.estado === "no_cumple" ? "text-red-700 font-semibold" : s.construccion.medianeras.estado === "cumple" ? "text-emerald-700 font-semibold" : "text-slate-500"}>
+                    ({s.construccion.medianeras.estado === "no_cumple" ? "No cumple" : s.construccion.medianeras.estado === "cumple" ? "Cumple" : "Pendiente"})</span>
+                </p>
+              ) : <p className="mt-0.5 text-muted-foreground">No linda con otro establecimiento.</p>}
+            </div>
+            <div className="rounded-sm border border-border p-2">
+              <p className="text-xs uppercase text-muted-foreground">Fachadas (Tabla 2.2.2)</p>
+              {s.construccion.fachadas ? (
+                <p className="mt-0.5">α {s.construccion.fachadas.angulo}° · d ≥ <b className="font-mono">{num(s.construccion.fachadas.distancia_d, 1)} m</b> · exigido <b className="font-mono">{s.construccion.fachadas.requerido}</b> / proyectado <b className="font-mono">{s.construccion.fachadas.proyectado || "—"}</b>{" "}
+                  <span className={s.construccion.fachadas.estado === "no_cumple" ? "text-red-700 font-semibold" : s.construccion.fachadas.estado === "cumple" ? "text-emerald-700 font-semibold" : "text-slate-500"}>
+                    ({s.construccion.fachadas.estado === "no_cumple" ? "No cumple" : s.construccion.fachadas.estado === "cumple" ? "Cumple" : "Pendiente"})</span>
+                </p>
+              ) : <p className="mt-0.5 text-muted-foreground">Sin encuentro de sector en fachada.</p>}
+            </div>
+            <div className="rounded-sm border border-border p-2">
+              <p className="text-xs uppercase text-muted-foreground">Cubierta</p>
+              <p className="mt-0.5">{s.construccion.cubierta.ligera ? "Cubierta ligera" : "Cubierta no ligera"}{s.construccion.cubierta.observaciones ? ` · ${s.construccion.cubierta.observaciones}` : ""}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {s.dbsi && (
         <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-dbsi`}>
           <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">CTE DB-SI · secciones (sector en ámbito CTE)</p>

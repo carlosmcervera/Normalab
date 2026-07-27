@@ -388,7 +388,7 @@ def test_registry_only_incendios_operativo():
 
 def test_schema_exposes_project_flow():
     sc = inc_schema.get_schema()
-    assert [s["type"] for s in sc["steps"]] == ["superficies_proyecto", "ocupacion", "sectores_incendio", "evacuacion"]
+    assert [s["type"] for s in sc["steps"]] == ["superficies_proyecto", "ocupacion", "sectores_incendio", "construccion", "evacuacion"]
     assert sc["activity_catalog"] and sc["config_types"]
     assert sc["dbsi_uses"]
 

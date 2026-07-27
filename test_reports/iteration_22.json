@@ -1,0 +1,47 @@
+{
+  "summary": "FASE 2 — Nuevo paso «Construcción y propagación» (Tablas 2.1.4 + 2.2.1 + 2.2.2) validado E2E.\n\nBACKEND (6/6 PASS — /app/backend/tests/test_incendios_phase2_e2e.py, junit /app/test_reports/pytest/phase2_e2e.xml):\n- test_2c_schema_steps_order: GET /api/modules/INCENDIOS/schema devuelve steps con tipos ['superficies_proyecto','ocupacion','sectores_incendio','construccion','evacuacion'] en ese orden exacto.\n- test_2a_construccion_medianera_fachada_no_cumple: sector NRI MEDIO (qsi=1500·ci=1, Qs=1500, categoria=MEDIO). construccion.reaccion.tabla tiene 4 filas, nri_alto=False, cumple=False, obs='revisar techos'. medianeras.requerido='EI 180', proyectado='EI 120', estado='no_cumple'. fachadas.angulo='135', distancia_d=1.5, requerido='EI 90' (50% de EI 180 delimitador), proyectado='EI 60', estado='no_cumple'. cubierta.ligera=True, obs='chapa sandwich'. Observaciones incluyen error de medianera (2.2.1) y error de fachada (compartimentador), más advertencia de reacción al fuego (2.1.4).\n- test_2a_construccion_alto_cumple: sector ALTO (Qs=7500) con medianera EI 240 (=requerido, cumple), fachada 180° d=1.0 con EI 240 (cumple). construccion.reaccion.nri_alto=True.\n- test_2a_construccion_angulo_90: ángulo 90° → distancia_d=2.0.\n- test_2d_export_docx_incluye_construccion: GET /api/studies/{id}/export/docx → 200 y word/document.xml contiene 'reacci', 'medianer', 'fachada'.\n- test_regresion_fase1_lre_y_cte: LRE excluido de zonas y A=100 (excluye LRE 30 m²); sector CTE tiene config '—' en resumen_sectores; export DOCX 200.\n\nFRONTEND (Playwright, admin login OK):\n- Login → crear proyecto + estudio INCENDIOS + PUT data (1 sector NRI MEDIO, qsi=1500) → wizard.\n- Click en 'Construcción y propagación' (4º paso, entre Sectores e Evacuación). [data-testid=construccion-step] presente. [data-testid=construccion-sector-s1] presente. Badge en vivo muestra 'NRI 4 · MEDIO'. Tabla 2.1.4 renderizada con 4 filas y cabeceras Situación/Techos y paredes/Suelos.\n- Toggle medianera [construccion-s1-medianera-sw] → aparece 'Exigido por NRI: EI 180' y input [construccion-s1-medianera-ei]. Rellenado con 'EI 120'.\n- Toggle fachada [construccion-s1-fachada-sw] → aparecen selector [construccion-s1-fachada-angulo] (con opciones 90°/135°/180°) e input [construccion-s1-fachada-ei]. Seleccionado 135° · d 1,5 m; rellenado 'EI 60'.\n- Click 'Siguiente' → PUT /api/studies/{id} (guarda). Reload → click de nuevo paso 4: switches persisten data-state='true' (medianera y fachada), inputs medianera_ei='EI 120', fachada_ei='EI 60'. PERSISTENCIA OK.\n- Ir a paso Resultados: aparece bloque [data-testid=report-sector-s1-construccion] con: Tabla 2.1.4 completa; 'Reacción al fuego de revestimientos: pendiente de verificar/justificar'; 'Medianeras (Tabla 2.2.1) — Exigido EI 180 · proyectado EI 120 (No cumple)'; 'Fachadas (Tabla 2.2.2) — α 135° · d ≥ 1,5 m · exigido EI 90 / proyectado EI 60 (No cumple)'; sección Cubierta.\n- Regresión Fase 1 dentro del test backend: LRE fuera de Qs y sector CTE config '—' ✓ (además incluidas dentro de test_regresion_fase1_lre_y_cte).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/studies/{id}/compute", "issue": "Cuando construccion.medianeras.estado o construccion.fachadas.estado son 'no_cumple', el sector.estado sigue siendo 'cumple' (Resultado global 'Cumple') aunque se añadan observaciones tipo 'error'. La lógica en engine._compute_sector solo marca 'no_cumple' por sectorización o evacuación, no por incumplimientos de propagación."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Guardado en el paso Construcción", "issue": "No hay autosave real por debounce/useEffect en StudyWizardPage.jsx: el PUT solo se dispara al pulsar 'Siguiente'/'Anterior' (goTo → saveMut.mutateAsync). Si el usuario edita y refresca sin cambiar de paso, se pierden los cambios. Es funcional para el flujo típico pero no es 'autosave' como sugiere el enunciado.", "affected_selectors": ["wizard-next", "construccion-*-sw", "construccion-*-ei"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase2_e2e.py",
+    "/app/test_reports/pytest/phase2_e2e.xml"
+  ],
+  "action_items": [
+    "(Opcional) En engine._compute_sector propagar 'no_cumple' al sector cuando construccion.medianeras.estado o construccion.fachadas.estado == 'no_cumple' (o degradar a 'observaciones' si se prefiere). Hoy el Resultado global queda 'Cumple' aunque haya errores de medianera/fachada, lo que puede inducir a error al usuario.",
+    "(Opcional) Implementar autosave real en el wizard (useEffect debounced sobre `data` que dispare saveMut). Ahora solo se guarda al pulsar Siguiente/Anterior/Guardar versión.",
+    "Considerar eliminar/actualizar tests heredados que hacen os.environ['REACT_APP_BACKEND_URL'] al importar (KeyError en shell limpio): test_incendios_lre_e2e.py, test_incendios_catalog_e2e.py, test_incendios_deposito_e2e.py, test_incendios_complete.py. Los nuevos test_incendios_phase{1,2}_e2e.py cubren la funcionalidad y evitan el KeyError al no ejecutarse los tests si REACT_APP_BACKEND_URL no está en el shell (asegurar export en el runner)."
+  ],
+  "critical_code_review_comments": [
+    "engine.py _construccion: cálculo correcto de la franja de fachada — req_min = max(15, delim//2). Con delim EI 180 y ángulo 135° obtenemos EI 90 y d=1.5. FACHADA_D usa string keys ('90'/'135'/'180'), coherente con lo que envía el frontend.",
+    "engine.py _compute_sector: llama _construccion tras build_requirements usando delim_valor = requisitos.delimitadores.valor. Coherente con la nota 'franja ≥ 50% del EI del elemento compartimentador'.",
+    "engine.py observaciones (línea 520-530): añade 'error' para medianera/fachada no_cumple y 'advertencia' si reaccion.cumple==False. Sin embargo, el estado global del sector NO se degrada (ver minor issue).",
+    "schema.py incendios: los 5 pasos declarados en el orden correcto (superficies_proyecto → ocupacion → sectores_incendio → construccion → evacuacion). ✓",
+    "ConstruccionStep.jsx: usa sectorCarga(sDeps) para calcular NRI en vivo (coherente con backend). El resaltado de la fila 'Aparcamientos y sectores de riesgo intrínseco alto' cuando cat=='ALTO' está bien (i===2). MEDIANERA_EI local coincide con backend.",
+    "StudyReportPage.jsx: bloque report-sector-{id}-construccion renderiza correctamente Tabla 2.1.4, medianeras (exigido vs proyectado + estado en color), fachadas (α, d, exigido vs proyectado + estado) y cubierta. Usa formato 1,5 m (número europeo) → coherente con el resto del informe.",
+    "exporters.py _sector_docx (líneas 210-235): renderiza sección de reacción + medianeras + fachadas en DOCX; no rompe si construccion es None.",
+    "StepBody.jsx: mapea step.type==='construccion' → ConstruccionStep. ✓",
+    "StudyWizardPage.jsx: no hay useEffect autosave real; el guardado ocurre en goTo(). El usuario debe cambiar de paso para persistir. Comportamiento aceptable pero no es autosave."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase2_e2e.py",
+    "/app/test_reports/iteration_22.json"
+  ],
+  "success_rate": {"backend": "100% (6/6 FASE 2)", "frontend": "100% (paso, persistencia, informe verificados)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyectos TEST-INC-PH2, TEST-UI-PH2b, TEST-UI-PH2c y estudios asociados creados y borrados por los tests/scripts.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "FASE 2 completa y validada. construccion es un dict con: reaccion{tabla[4], nri_alto, cumple, observaciones}, medianeras{aplica, requerido, proyectado, estado, nota} (solo si sec.medianera_otro=True), fachadas{aplica, angulo, distancia_d, requerido, proyectado, estado, nota} (solo si sec.fachada_encuentro=True), cubierta{ligera, observaciones}. El requerido de medianera depende de NRI: BAJO→EI 120, MEDIO→EI 180, ALTO→EI 240. El requerido de fachada es max(15, delim//2). FACHADA_D: '90'→2.0, '135'→1.5, '180'→1.0. Observaciones con tipo 'error' para medianera/fachada no_cumple; tipo 'advertencia' para reaccion no cumple. GAP: sector.estado global NO se degrada aunque haya errores de propagación (ver action_items). El guardado en el wizard es explícito al cambiar de paso, no debounce autosave — para persistir hay que pulsar 'Siguiente' o 'Anterior'.",
+  "rca of the issue": "N/A — FASE 2 implementada correctamente. Los issues son minor/de diseño (no bugs de cálculo)."
+}

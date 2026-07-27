@@ -236,6 +236,76 @@ def _evacuacion(sec, categoria, nivel, ocupacion):
     }
 
 
+# --- Construcción y propagación exterior (RSCIEI Anexo II · CTE DB-SI SI-2) --- #
+# Tabla 2.1.4 · Clases de reacción al fuego de los elementos constructivos.
+REACCION_2_1_4 = [
+    {"situacion": "Zonas ocupables, en general", "techos_paredes": "C-s2,d0", "suelos": "CFL-s1"},
+    {"situacion": "Pasillos y escaleras protegidos", "techos_paredes": "B-s1,d0", "suelos": "CFL-s1"},
+    {"situacion": "Aparcamientos y sectores de riesgo intrínseco alto", "techos_paredes": "B-s1,d0", "suelos": "BFL-s1"},
+    {"situacion": "Espacios ocultos no estancos (patinillos, falsos techos, suelos elevados)",
+     "techos_paredes": "B-s3,d0", "suelos": "BFL-s2"},
+]
+# Tabla 2.2.1 · Resistencia al fuego de elementos separadores con otros establecimientos.
+MEDIANERA_EI = {"BAJO": "EI 120", "MEDIO": "EI 180", "ALTO": "EI 240"}
+# Tabla 2.2.2 · distancia «d» (m) de la franja de fachada según el ángulo α.
+FACHADA_D = {"90": 2.0, "135": 1.5, "180": 1.0}
+
+
+def _parse_ei(valor):
+    """Extrae los minutos de un texto tipo «EI 240» / «REI 180»."""
+    if not valor:
+        return None
+    import re
+    m = re.search(r"(\d+)", str(valor))
+    return int(m.group(1)) if m else None
+
+
+def _ei_ok(proyectado, requerido):
+    p, r = _parse_ei(proyectado), _parse_ei(requerido)
+    if p is None:
+        return "pendiente"
+    if r is None:
+        return "cumple"
+    return "cumple" if p >= r else "no_cumple"
+
+
+def _construccion(sec, categoria, delim_valor, ambito="industrial"):
+    """Reacción al fuego (Tabla 2.1.4), medianeras (Tabla 2.2.1) y fachadas (Tabla 2.2.2)."""
+    out = {
+        "ambito": ambito,
+        "reaccion": {
+            "tabla": REACCION_2_1_4,
+            "nri_alto": categoria == "ALTO",
+            "cumple": bool(sec.get("reaccion_cumple")),
+            "observaciones": sec.get("reaccion_obs") or "",
+        },
+        "medianeras": None,
+        "fachadas": None,
+        "cubierta": {"ligera": bool(sec.get("cubierta_ligera")), "observaciones": sec.get("cubierta_obs") or ""},
+    }
+    if sec.get("medianera_otro"):
+        req = MEDIANERA_EI.get(categoria, "EI 120")
+        proy = sec.get("medianera_ei") or ""
+        out["medianeras"] = {"aplica": True, "requerido": req, "proyectado": proy,
+                             "estado": _ei_ok(proy, req),
+                             "nota": ("Reducible a EI 120 en config. tipo B con muros a ≤ 3 m (nota 4, "
+                                      "Tabla 2.2.1); sin exigencia si la separación es > 3 m libre de carga.")}
+    if sec.get("fachada_encuentro"):
+        ang = str(sec.get("fachada_angulo") or "180")
+        d = FACHADA_D.get(ang, 1.0)
+        delim = _parse_ei(delim_valor)
+        req_min = max(15, delim // 2) if delim else None
+        req_txt = f"EI {req_min}" if req_min else "—"
+        proy = sec.get("fachada_ei") or ""
+        out["fachadas"] = {"aplica": True, "angulo": ang, "distancia_d": d,
+                           "requerido": req_txt, "proyectado": proy, "estado": _ei_ok(proy, req_txt),
+                           "nota": ("La fachada donde acomete un elemento compartimentador debe ser ≥ 50% "
+                                    "de su EI en una franja; puntos por debajo, separados ≥ d en proyección "
+                                    "horizontal (d = 3 − α/90).")}
+    return out
+
+
+
 def _compute_sector(sec, deps, establecimiento):
     config = _sector_config(sec, establecimiento)
     situacion = sec.get("situacion", "sobre_rasante")
@@ -331,6 +401,9 @@ def _compute_sector(sec, deps, establecimiento):
     requisitos = build_requirements(req_sec, nivel, categoria, modo_pred, A_const, total_est)
 
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
+
+    delim_valor = (requisitos.get("delimitadores") or {}).get("valor")
+    construccion = _construccion(sec, categoria, delim_valor, ambito=sec.get("ambito") or "industrial")
 
     # Locales de riesgo especial (LRE): NO computan carga de fuego (excluidos del Qs);
     # se clasifican y evalúan conforme al CTE DB-SI (Tabla 2.1) con su resistencia (R).
@@ -444,6 +517,18 @@ def _compute_sector(sec, deps, establecimiento):
         observaciones.append({"tipo": "info", "texto": (
             f"Sector «{sec.get('nombre','?')}»: {dep['justificacion']}")})
 
+    med = construccion.get("medianeras")
+    if med and med.get("estado") == "no_cumple":
+        observaciones.append({"tipo": "error", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: la medianería/separación proyectada ({med['proyectado'] or '—'}) es inferior a la exigida ({med['requerido']}) por la Tabla 2.2.1 del RSCIEI.")})
+    fach = construccion.get("fachadas")
+    if fach and fach.get("estado") == "no_cumple":
+        observaciones.append({"tipo": "error", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: la fachada en el encuentro del elemento compartimentador ({fach['proyectado'] or '—'}) no alcanza el mínimo exigido ({fach['requerido']}, franja con d = {fach['distancia_d']} m).")})
+    if not construccion["reaccion"].get("cumple"):
+        observaciones.append({"tipo": "advertencia", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: verificar/justificar las clases de reacción al fuego de los revestimientos (Tabla 2.1.4).")})
+
     estado = "cumple"
     if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
@@ -468,6 +553,7 @@ def _compute_sector(sec, deps, establecimiento):
         "sectorizacion": sector,
         "requisitos": requisitos,
         "evacuacion": evacuacion,
+        "construccion": construccion,
         "ambito": ambito,
         "uso_cte": sec.get("uso_cte"),
         "locales_riesgo_especial": locales_re,
