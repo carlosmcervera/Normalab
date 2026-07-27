@@ -69,8 +69,21 @@ def _ref_table(doc, t):
     r = p.add_run(t.get("titulo", ""))
     r.bold = True
     r.font.size = Pt(9.5)
+    legend = t.get("legend") or []
+    color_by_idx = {l["idx"]: l["color"].lstrip("#").upper() for l in legend}
+    if legend:
+        lg = doc.add_paragraph()
+        for i, l in enumerate(legend):
+            run = lg.add_run(("  " if i else "") + f"■ {l['nombre']}")
+            run.font.size = Pt(8)
+            try:
+                run.font.color.rgb = RGBColor.from_string(l["color"].lstrip("#").upper())
+            except Exception:
+                pass
     headers = t.get("headers", [])
     rows = t.get("rows", [])
+    cell_sectors = t.get("cell_sectors") or {}
+    row_sectors = t.get("row_sectors") or {}
     hl_rows = set(t.get("highlight_rows") or [])
     hl_cells = {tuple(c) for c in (t.get("highlight_cells") or [])}
     table = doc.add_table(rows=1, cols=len(headers))
@@ -80,11 +93,24 @@ def _ref_table(doc, t):
         _shade(table.rows[0].cells[i], "E2E8F0")
     for ri, row in enumerate(rows):
         cells = table.add_row().cells
+        rsec = row_sectors.get(str(ri))
         for ci, val in enumerate(row):
-            hl = ri in hl_rows or (ri, ci) in hl_cells
-            _set_cell(cells[ci], val, bold=hl)
-            if hl:
-                _shade(cells[ci], "FDBA74")
+            idxs = cell_sectors.get(f"{ri}-{ci}")
+            if not idxs and rsec and ci == 0:
+                idxs = rsec
+            shade = None
+            bold = False
+            if idxs:
+                shade = color_by_idx.get(idxs[0], "FDBA74")
+                bold = True
+            elif rsec:
+                shade = "FEF3C7"
+            elif ri in hl_rows or (ri, ci) in hl_cells:
+                shade = "FDBA74"
+                bold = True
+            _set_cell(cells[ci], val, bold=bold)
+            if shade:
+                _shade(cells[ci], shade)
     if t.get("nota"):
         n = doc.add_paragraph()
         rn = n.add_run(t["nota"])
@@ -469,7 +495,7 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
                 ws.cell(row=rr, column=c).border = BORDER
         ws.cell(row=qs_row + 2, column=1,
                 value=f"NRI resultante: nivel {nr.get('nivel')} ({nr.get('categoria')}). "
-                      "Las escaleras están excluidas del cálculo; los locales de riesgo especial SÍ computan.").font = Font(italic=True, size=9, color="64748B")
+                      "Las escaleras y los locales de riesgo especial están excluidos del cálculo de la carga de fuego.").font = Font(italic=True, size=9, color="64748B")
         _autosize(ws, [28, 16, 14, 14, 10, 10, 16, 16])
 
     buf = BytesIO()

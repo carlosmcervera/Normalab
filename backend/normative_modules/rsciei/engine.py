@@ -74,7 +74,7 @@ def _validate(sectores, dependencias):
         if not deps:
             errors.append(f"El sector «{s.get('nombre', '?')}» no tiene dependencias asignadas.")
         for d in deps:
-            if d.get("clase") in ("escalera", "escalera_protegida"):
+            if d.get("clase") in ("escalera", "escalera_protegida", "lre") or d.get("es_lre"):
                 continue
             nombre = d.get("nombre") or "Dependencia"
             if not d.get("ci") or float(d.get("ci") or 0) <= 0:
@@ -239,12 +239,13 @@ def _evacuacion(sec, categoria, nivel, ocupacion):
 def _compute_sector(sec, deps, establecimiento):
     config = _sector_config(sec, establecimiento)
     situacion = sec.get("situacion", "sobre_rasante")
-    # Las ESCALERAS no computan carga de fuego (zona de paso); se evalúan aparte por CTE.
-    # Los LOCALES DE RIESGO ESPECIAL (LRE) SÍ computan carga de fuego y, además, se
-    # evalúan como locales de riesgo especial (resistencia R).
+    # Las ESCALERAS y los LOCALES DE RIESGO ESPECIAL (LRE) no computan carga de fuego:
+    # se excluyen del Qs y se evalúan aparte por el CTE DB-SI (escaleras: SI-3/SUA;
+    # LRE: Tabla 2.1). El resto de dependencias sí computan.
     esc_deps = [d for d in deps if d.get("clase") in ("escalera", "escalera_protegida")]
-    calc_deps = [d for d in deps if d.get("clase") not in ("escalera", "escalera_protegida")]
-    lre_deps = [d for d in calc_deps if d.get("es_lre") or d.get("clase") == "lre"]
+    lre_deps = [d for d in deps if d.get("es_lre") or d.get("clase") == "lre"]
+    calc_deps = [d for d in deps if d.get("clase") not in ("escalera", "escalera_protegida")
+                 and not (d.get("es_lre") or d.get("clase") == "lre")]
     # Superficie construida (Tabla 2.1.1 · superficie máx. admisible del sector) y
     # superficie útil (denominador de la carga de fuego Qs, según criterio del despacho).
     A_const = sum(float(d.get("sup_construida") or 0) for d in calc_deps)
@@ -331,8 +332,8 @@ def _compute_sector(sec, deps, establecimiento):
 
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
-    # Locales de riesgo especial (LRE): computan carga de fuego (incluidos en Qs) y,
-    # además, se evalúan como locales de riesgo especial con su resistencia (R).
+    # Locales de riesgo especial (LRE): NO computan carga de fuego (excluidos del Qs);
+    # se clasifican y evalúan conforme al CTE DB-SI (Tabla 2.1) con su resistencia (R).
     locales_re = []
     for d in lre_deps:
         sup_lre = float(d.get("sup_construida") or d.get("sup_util") or 0)
@@ -401,6 +402,10 @@ def _compute_sector(sec, deps, establecimiento):
 
     observaciones = []
     observaciones.append({"tipo": "info", "texto": f"Sector «{sec.get('nombre','?')}»: nivel de riesgo intrínseco {nivel} ({categoria}), Tabla 1.3.1."})
+    if ambito == "cte":
+        sector = {**sector, "estado": "no_aplica", "max_admisible": None,
+                  "mensaje": ("Sector de ámbito CTE: no aplica la Tabla 2.1.1 del RSCIEI; la "
+                              "compartimentación y las superficies se evalúan según el CTE DB-SI.")}
     if rmin_req and ra < rmin_req - 1e-6:
         observaciones.append({"tipo": "warning", "texto": (
             f"El coeficiente de activación Ra={ra:.1f} del sector es inferior al mínimo normativo "
@@ -419,7 +424,7 @@ def _compute_sector(sec, deps, establecimiento):
             f"({sec.get('uso_cte') or 'edificación'}); se calcula igualmente la carga de fuego (Qs) y se evalúa con el CTE DB-SI.")})
     if locales_re:
         observaciones.append({"tipo": "info", "texto": (
-            f"Sector «{sec.get('nombre','?')}»: {len(locales_re)} local(es) de riesgo especial incluidos en el cálculo de la carga de fuego del sector; además se evalúan como locales de riesgo especial con su resistencia (R).")})
+            f"Sector «{sec.get('nombre','?')}»: {len(locales_re)} local(es) de riesgo especial que NO computan en la carga de fuego del sector; se clasifican y evalúan conforme al CTE DB-SI (Tabla 2.1), con su resistencia (R).")})
         for l in locales_re:
             if l.get("justificacion"):
                 observaciones.append({"tipo": "info", "texto": f"LRE «{l['nombre']}» (riesgo {l['riesgo'].lower()}, {l['resistencia']}): {l['justificacion']}"})
@@ -544,7 +549,7 @@ def _build_resumen(sector_results):
         filas.append({
             "nombre": s["nombre"],
             "tipo": "Área exterior" if s["tipo"] == "area_exterior" else "Sector",
-            "config": s["config_label"],
+            "config": "—" if s.get("ambito") == "cte" else s["config_label"],
             "superficie": s["sectorizacion"].get("superficie_sector", s["calculo"]["A"]),
             "qs_mj": s["nivel_riesgo"]["qs_mj"],
             "nivel": s["nivel_riesgo"]["nivel"],

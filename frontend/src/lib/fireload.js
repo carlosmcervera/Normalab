@@ -38,10 +38,10 @@ export function depAporte(d) {
   return qsi * ci * s;
 }
 
-// Carga de fuego del sector a partir de sus estancias asignadas (escaleras excluidas;
-// los locales de riesgo especial SÍ computan).
+// Carga de fuego del sector a partir de sus estancias asignadas (escaleras y locales
+// de riesgo especial excluidos: no computan carga de fuego).
 export function sectorCarga(deps) {
-  const calc = deps.filter((d) => d.clase !== "escalera" && d.clase !== "escalera_protegida");
+  const calc = deps.filter((d) => d.clase !== "escalera" && d.clase !== "escalera_protegida" && d.clase !== "lre" && !d.es_lre);
   const A = calc.reduce((a, d) => a + (Number(d.sup_util) || Number(d.sup_construida) || 0), 0);
   let numerador = 0;
   const ras = [];

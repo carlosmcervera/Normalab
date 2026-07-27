@@ -70,7 +70,7 @@ const draftLRE = (x) => {
     partes.push(`con una superficie construida de ${num(sup)} m²`);
   }
   const crit = use ? ` (criterio Tabla 2.1: ${use.crit})` : "";
-  return `${partes.join(", ")} se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI${crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie SÍ computa en la carga de fuego del sector.`;
+  return `${partes.join(", ")} se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI${crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. No computa en la carga de fuego del sector (se evalúa por el CTE, Tabla 2.1).`;
 };
 
 const draftEscalera = (x) => {
@@ -395,7 +395,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
         </td>
         <td className="px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">{num(x.sup_util || x.sup_construida || 0)}</td>
         <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-carga`}>
-          {isEscalera
+          {(isEscalera || clase === "lre")
             ? <span className="text-muted-foreground/70">no computa</span>
             : (() => { const ap = depAporte(x); return ap == null ? <span className="text-muted-foreground/60">—</span> : <span className="font-semibold text-foreground">{num(ap)}</span>; })()}
         </td>
@@ -421,7 +421,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
             {clase === "lre" && (
               <Tooltip>
                 <TooltipTrigger asChild><Info className="h-3.5 w-3.5 cursor-help text-amber-600" data-testid={`estancia-${i}-lre-info`} /></TooltipTrigger>
-                <TooltipContent className="max-w-xs">Este local SÍ computa en la carga de fuego del sector y, además, se evalúa como Local de Riesgo Especial (resistencia R, Tabla 2.1 del CTE DB-SI). Define su carga de fuego más abajo.</TooltipContent>
+                <TooltipContent className="max-w-xs">Este local NO computa en la carga de fuego del sector. Se clasifica y evalúa como Local de Riesgo Especial según el CTE DB-SI (Tabla 2.1), por el uso y el volumen/potencia. Define su uso y altura más abajo.</TooltipContent>
               </Tooltip>
             )}
           </div>
@@ -484,10 +484,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                     <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">El local de riesgo especial SÍ computa carga de fuego; defínela abajo. Su clasificación y resistencia (R) se justifican arriba.</p>
-                <div className="mt-2 border-t border-border pt-2">
-                  <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />
-                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">Los locales de riesgo especial NO computan carga de fuego: se clasifican por el CTE DB-SI (Tabla 2.1) según el uso y el volumen/potencia. Su superficie sí cuenta en el cuadro de superficies.</p>
                 </>
               ) : isEscalera ? (
                 <>

@@ -416,14 +416,15 @@ def test_sector_centric_with_lre_and_cte():
     r = inc.compute({"establecimiento": {"config": "C"}, "sectores": sectores, "dependencias": deps})
     assert [s["id"] for s in r["sectores"]] == ["s1", "s2"]
     s1, s2 = r["sectores"]
-    # LRE SÍ computa (util 800+10=810 / const 900+12=912). La escalera NO computa (excluida).
-    assert s1["calculo"]["A"] == 810
-    assert s1["calculo"]["A_construida"] == 912
-    assert s1["sectorizacion"]["superficie_sector"] == 912
+    # LRE y escaleras NO computan (excluidos). Qs usa superficie ÚTIL solo de d1 (800),
+    # Tabla 2.1.1 usa construida (900). El LRE y la escalera se listan aparte.
+    assert s1["calculo"]["A"] == 800
+    assert s1["calculo"]["A_construida"] == 900
+    assert s1["sectorizacion"]["superficie_sector"] == 900
     assert len(s1["locales_riesgo_especial"]) == 1 and s1["locales_riesgo_especial"][0]["resistencia"] == "R 90"
     assert len(s1["escaleras_protegidas"]) == 1
-    # La escalera no aparece en las zonas de cálculo de carga de fuego
-    assert all("Escalera" not in z["descripcion"] for z in s1["calculo"]["zonas"])
+    # Ni la escalera ni el LRE aparecen en las zonas de cálculo de carga de fuego
+    assert all("Escalera" not in z["descripcion"] and "CT" not in z["descripcion"] for z in s1["calculo"]["zonas"])
     # El sector CTE calcula Qs (>0) y trae secciones DB-SI SI1..SI6
     assert s2["ambito"] == "cte" and s2["nivel_riesgo"]["qs_mj"] > 0
     assert [x["id"] for x in s2["dbsi"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]

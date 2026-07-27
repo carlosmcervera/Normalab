@@ -16,9 +16,31 @@ const ESC_TIPO_LABEL = {
 function RefTable({ t }) {
   const hlRows = new Set(t.highlight_rows || []);
   const hlCells = new Set((t.highlight_cells || []).map(([r, c]) => `${r}-${c}`));
+  const legend = t.legend || [];
+  const colorByIdx = {};
+  legend.forEach((l) => { colorByIdx[l.idx] = l.color; });
+  const cellSectors = t.cell_sectors || {};
+  const rowSectors = t.row_sectors || {};
+  const bgFor = (idxs) => {
+    const cols = idxs.map((i) => colorByIdx[i]).filter(Boolean);
+    if (cols.length === 0) return null;
+    if (cols.length === 1) return cols[0];
+    const step = 100 / cols.length;
+    return `linear-gradient(90deg, ${cols.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`).join(", ")})`;
+  };
   return (
     <div data-testid={`ref-table-${t.id}`}>
       <p className="mb-2 text-sm font-semibold">{t.titulo}</p>
+      {legend.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1" data-testid={`ref-table-${t.id}-legend`}>
+          {legend.map((l) => (
+            <span key={l.idx} className="flex items-center gap-1.5 text-[11px] text-slate-600">
+              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: l.color }} />
+              {l.nombre}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto border border-border">
         <table className="w-full text-xs">
           <thead>
@@ -30,13 +52,18 @@ function RefTable({ t }) {
           </thead>
           <tbody className="font-mono">
             {t.rows.map((row, r) => {
-              const rowHl = hlRows.has(r);
+              const rSec = rowSectors[String(r)];
+              const legacyRow = hlRows.has(r);
               return (
-                <tr key={r} className={`border-b border-border last:border-0 ${rowHl ? "bg-orange-100" : ""}`}>
+                <tr key={r} className={`border-b border-border last:border-0 ${rSec ? "bg-slate-50" : legacyRow ? "bg-orange-100" : ""}`}>
                   {row.map((cell, c) => {
-                    const cellHl = hlCells.has(`${r}-${c}`);
+                    const cSec = cellSectors[`${r}-${c}`] || (c === 0 && rSec ? rSec : null);
+                    const bg = cSec ? bgFor(cSec) : null;
+                    const legacyCell = hlCells.has(`${r}-${c}`);
                     return (
-                      <td key={c} className={`px-2.5 py-1.5 ${c === 0 ? "font-sans" : ""} ${cellHl ? "bg-orange-500 font-bold text-white" : ""}`}>
+                      <td key={c}
+                        className={`px-2.5 py-1.5 ${c === 0 ? "font-sans" : ""} ${bg ? "font-bold text-white" : legacyCell ? "bg-orange-500 font-bold text-white" : ""}`}
+                        style={bg ? (bg.startsWith("linear") ? { backgroundImage: bg } : { backgroundColor: bg }) : undefined}>
                         {cell}
                       </td>
                     );
@@ -125,7 +152,7 @@ function SectorReport({ s }) {
       </div>
       {s.locales_riesgo_especial?.length > 0 && (
         <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-lre`}>
-          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (incluidos en la carga de fuego · resistencia R, Tabla 2.1 DB-SI)</p>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (no computan carga de fuego · clasificados por CTE DB-SI, Tabla 2.1)</p>
           <div className="space-y-2">
             {s.locales_riesgo_especial.map((l, i) => (
               <div key={i} className="text-sm">

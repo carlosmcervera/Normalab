@@ -1,0 +1,31 @@
+{
+  "summary": "FASE 1 — LRE fuera del Qs, sectores CTE con Config '—', tablas de referencia RSCIEI multi-sector con leyenda de colores.\n\nBACKEND (3/3 PASS — /app/backend/tests/test_incendios_phase1_e2e.py, junit /app/test_reports/pytest/phase1_e2e.xml):\n- test_1a_lre_no_computa_qs: sector con estancia normal (S=100, qsi=500, Ci=1) + LRE 'Salas de calderas' P=150 (BAJO · R 90). Se verifica que la zona 'Sala calderas' NO aparece en calculo.zonas (solo 'Nave'), calculo.A = 100.0 (excluye el LRE), numerador = 50000.0 y qs_mj = 500.0. sector.locales_riesgo_especial[0] preserva nombre/metric=P/potencia=150/riesgo=BAJO/resistencia=R 90/volumen=None.\n- test_1b_sector_cte_config_dash_and_no_aplica: 1 sector industrial + 1 sector CTE (Administrativo). results.resumen_sectores[S-CTE].config == '—' (S-Industrial ≠ '—'). El sector CTE tiene sectorizacion.estado == 'no_aplica' y el mensaje menciona la Tabla 2.1.1.\n- test_1c_tablas_legend_rsciei_only_and_multisector_colors: 2 sectores RSCIEI (config C nivel bajo · config B con qsi=2500, ci=1.3) + 1 sector CTE. tablas[*].legend contiene SEC-A y SEC-B con colores distintos y NO contiene SEC-CTE. En la tabla 'superficie' (Tabla 2.1.1), cell_sectors mapea celdas distintas por sector (sectores gobiernan celdas diferentes al tener config/nivel distintos). Regresión: GET /api/studies/{id}/export/docx → 200, DOCX válido, word/document.xml contiene 'SEC-A' y 'SEC-B'.\n\nFRONTEND (Playwright, admin login OK):\n- 1a UI: en 'Sectores de incendio' → estancia 0 (A) expandida → Clasificación cambiada a 'Local de riesgo especial'. La celda de la columna CARGA (MJ) pasa de '20.000' a 'no computa'. El bloque LRE (estancia-0-lre-uso, riesgo automático BAJO · R 90) se muestra, y CargaFuegoInline NO se renderiza (no aparecen marcadores 'PCI', 'qsi', 'qvi', 'Densidad de carga', 'MJ/m²' en el detalle expandido). ✓\n- 1c UI: informe con 2 sectores RSCIEI + 1 CTE. RefTable de la Tabla 2.1.1 (ref-table-superficie) muestra ref-table-superficie-legend con 'SEC-A' y 'SEC-B' (SEC-CTE ausente). En el <table> hay 4 celdas coloreadas con exactamente 2 colores distintos (rgb(220,38,38) y rgb(37,99,235)) — uno por sector. ✓\n- 1b UI: en la tabla 'Resumen de sectores' (headers SECTOR/CONFIG./SUP./QS/NRI/ESTAB./OCUP.), la fila S-CTE tiene Config = '—' y la fila S-IND tiene Config = 'Tipo C - edificio aislado'. ✓\n- Export DOCX desde la UI: botón [data-testid=export-docx] pulsado sin errores.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase1_e2e.py",
+    "/app/test_reports/pytest/phase1_e2e.xml"
+  ],
+  "action_items": [
+    "Ajustar el test heredado /app/backend/tests/test_incendios_lre_e2e.py: sus asserts se hicieron cuando LRE SÍ computaba en Qs (assert any(z.descripcion=='Archivo' for z in zonas)), y ahora contradicen el nuevo contrato (LRE excluido de zonas y de A). Con las variables de entorno del shell este test peta al importar (KeyError REACT_APP_BACKEND_URL) — cuando se corrija, sus asserts sobre carga de fuego fallarán. Sugerido: convertirlo/borrarlo y usar test_incendios_phase1_e2e.py como fuente de verdad."
+  ],
+  "critical_code_review_comments": [
+    "engine.py _compute_sector: calc_deps ahora excluye correctamente escaleras Y LRE (línea 245–248). A_util y numerador solo suman calc_deps; el LRE queda solo en locales_riesgo_especial. Comportamiento correcto según FASE 1.",
+    "engine.py _validate (línea 77): salta la validación de Ci/qsi cuando clase in ('escalera','escalera_protegida','lre') o es_lre True. Coherente con excluir del cálculo.",
+    "engine.py _build_resumen (línea 552): filas[].config == '—' si ambito=='cte'. ✓",
+    "engine.py _compute_sector CTE (línea 405–408): fuerza sectorizacion.estado='no_aplica' + mensaje explicando que se evalúa por CTE DB-SI. ✓",
+    "tablas.py build_tablas: filtra ambito!='cte' y crea legend/color por sector RSCIEI. cell_sectors y row_sectors usan '_idx' del sector RSCIEI (no el índice global) — esto es importante y está correcto porque legend también usa ese mismo idx. ✓",
+    "exporters.py _ref_table: consume legend + cell_sectors/row_sectors con fallback a highlight_rows/highlight_cells (para DB-SI). No rompe en export DOCX (verificado por regresión).",
+    "StudyReportPage.jsx RefTable: renderiza legend con [ref-table-{id}-legend] y colorea celdas con backgroundColor o linear-gradient (para celdas compartidas por >1 sector). Fallback a highlight legacy correcto.",
+    "SectoresStep.jsx (línea 398, 535–537): columna 'Carga (MJ)' muestra 'no computa' para lre/escalera, y CargaFuegoInline solo se renderiza en la rama else (ni lre ni escalera). ✓",
+    "fireload.js sectorCarga (línea 44): calc filtra escalera/lre → Qs en vivo del frontend coherente con el backend."
+  ],
+  "updated_files": ["/app/backend/tests/test_incendios_phase1_e2e.py", "/app/test_reports/iteration_21.json"],
+  "success_rate": {"backend": "100% (3/3 FASE 1)", "frontend": "100% (1a/1b/1c verificado E2E)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyectos TEST-INC-PH1, TEST-UI-PH1 y TEST-UI-1B(2) creados y borrados por los tests/scripts.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "FASE 1 completa. Formato del compute: sector.locales_riesgo_especial mantiene nombre/superficie/riesgo/resistencia/uso/uso_grupo/altura/volumen(solo metric=V)/potencia(solo metric=P)/metric/criterio/justificacion. calculo.zonas ya no incluye LRE ni escaleras. resumen_sectores[].config es '—' para ambito=='cte'. tablas: cada tabla tiene 'legend', 'cell_sectors' y 'row_sectors' que usan índices RELATIVOS a los sectores RSCIEI (los CTE se filtran antes de asignar _idx). Colores en tablas.py SECTOR_COLORS. RefTable en StudyReportPage.jsx usa linear-gradient si una celda es compartida por varios sectores. Test heredado test_incendios_lre_e2e.py contradice ahora la especificación en al menos el assert 'Archivo' in zonas — E1 debe eliminarlo o adaptarlo.",
+  "rca of the issue": "N/A — FASE 1 implementada correctamente y validada."
+}
