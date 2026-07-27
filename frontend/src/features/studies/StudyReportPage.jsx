@@ -71,14 +71,14 @@ function SectorReport({ s }) {
           {s.calculo.zonas.map((z, i) => (
             <tr key={i} className="border-b border-border">
               <td className="px-4 py-1.5 font-sans">{z.descripcion}</td>
-              <td className="px-4 py-1.5 font-sans text-muted-foreground">{z.modo === "almacenamiento" ? "Almac." : "Prod."}</td>
+              <td className="px-4 py-1.5 font-sans text-muted-foreground">{z.modo === "deposito" ? "Depósito" : z.modo === "almacenamiento" ? "Almac." : "Prod."}</td>
               <td className="px-4 py-1.5 text-right">Ci {num(z.ci, 2)}</td>
               <td className="px-4 py-1.5 text-right">{num(z.superficie)} m²</td>
               <td className="px-4 py-1.5 text-right">{num(z.aporte)} MJ</td>
             </tr>
           ))}
           <tr className="bg-secondary/40">
-            <td className="px-4 py-2 font-sans" colSpan={3}>A = {num(sec.superficie_sector)} m² · Ra = {num(s.calculo.ra, 1)}</td>
+            <td className="px-4 py-2 font-sans" colSpan={3}>A = {num(s.calculo.A)} m² (útil) · Ra = {num(s.calculo.ra, 1)}</td>
             <td className="px-4 py-2 text-right font-bold" colSpan={2}>Qs = {num(s.calculo.qs_mj, 1)} MJ/m²</td>
           </tr>
         </tbody>
@@ -193,6 +193,7 @@ function Section({ s }) {
         {s.type === "text" && <p className="leading-relaxed">{s.body}</p>}
 
         {s.type === "resumen_ejecutivo" && (
+          <>
           <div className="overflow-x-auto border border-border" data-testid="report-resumen-ejecutivo">
             <table className="w-full text-sm">
               <thead>
@@ -217,6 +218,15 @@ function Section({ s }) {
               </tbody>
             </table>
           </div>
+          {s.depositos?.length > 0 && (
+            <div className="mt-3 border border-amber-200 bg-amber-50 p-3" data-testid="report-depositos-just">
+              <p className="mb-1.5 text-sm font-semibold text-amber-900">Depósitos de combustible (almacenamiento)</p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+                {s.depositos.map((d, i) => <li key={i}>{d.justificacion}</li>)}
+              </ul>
+            </div>
+          )}
+          </>
         )}
 
         {s.type === "keyvalue" && (

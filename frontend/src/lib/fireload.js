@@ -13,11 +13,20 @@ export function nriFor(qs) {
   return { nivel: 8, categoria: "ALTO" };
 }
 
-// Aporte de una estancia en MJ (producción: qs·Ci·S ; almacenamiento: qv·Ci·hi·S).
+// Aporte de una estancia en MJ (producción: qs·Ci·S ; almacenamiento: qv·Ci·hi·S ;
+// depósito de combustible: PCI·densidad·volumen·Ci). Superficie = útil (fallback construida).
 export function depAporte(d) {
   const ci = Number(d.ci) || 0;
-  const s = Number(d.sup_construida) || 0;
-  if (!ci || !s) return null;
+  const s = Number(d.sup_util) || Number(d.sup_construida) || 0;
+  if (!ci) return null;
+  if (d.modo === "deposito") {
+    const pci = Number(d.pci) || 0;
+    const dens = Number(d.dens_comb) || 0;
+    const vol = Number(d.volumen) || 0;
+    if (!pci || !dens || !vol) return null;
+    return pci * dens * vol * ci;
+  }
+  if (!s) return null;
   if (d.modo === "almacenamiento") {
     const qvi = Number(d.qvi) || 0;
     const hi = Number(d.hi) || 0;
@@ -32,7 +41,7 @@ export function depAporte(d) {
 // Carga de fuego del sector a partir de sus estancias asignadas (LRE excluidos).
 export function sectorCarga(deps) {
   const calc = deps.filter((d) => d.clase !== "lre" && !d.es_lre);
-  const A = calc.reduce((a, d) => a + (Number(d.sup_construida) || 0), 0);
+  const A = calc.reduce((a, d) => a + (Number(d.sup_util) || Number(d.sup_construida) || 0), 0);
   let numerador = 0;
   const ras = [];
   for (const d of calc) {

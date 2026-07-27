@@ -24,6 +24,7 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "type": "resumen_ejecutivo",
             "estado_global": results.get("estado_global"),
             "filas": resumen_ej,
+            "depositos": results.get("depositos", []),
         },
         {
             "id": "objeto",

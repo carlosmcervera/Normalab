@@ -1,0 +1,27 @@
+{
+  "summary": "E2E validación del cambio P0 en módulo INCENDIOS: (1) Qs con superficie ÚTIL y sectorización con CONSTRUIDA, (2) modo 'Depósito de combustible' con fórmula Q = PCI × dens × volumen × Ci sumada al numerador del Qs, (3) exportaciones DOCX/XLSX incluyen depósitos, (4) validaciones 422 si faltan pci/dens_comb/volumen. Todos los tests pytest previos (53/53) siguen pasando. Se añadieron 6 tests E2E vía REACT_APP_BACKEND_URL contra la instancia pública, TODOS PASAN. UI verificada vía Playwright con login admin y estudio existente 6a621d9b091123e452d67c81.\n\nBACKEND E2E (6/6 PASS):\n- test_compute_qs_uses_superficie_util_and_deposito: A_util=820, A_construida=925, sectorización.superficie_sector=925, depositos[0].aporte=469,169.5 (=42.7*845*10*1.3), numerador incluye aporte, calculo.zonas contiene modo='deposito'.\n- test_validation_deposito_missing_fields: 422 cuando pci=0, cuando volumen<=0, cuando dens_comb=0.\n- test_export_docx_contains_deposito: DOCX 200, content-type wordprocessingml, document.xml contiene 'gasoil'/'depósito'.\n- test_export_xlsx_valid_with_deposito: XLSX 200, content-type spreadsheetml, ZIP válido, XML del libro menciona 'gasoil'/'depósito'.\n- test_report_contains_depositos_resumen: sections[resumen_ejecutivo] incluye textos de depósitos con justificación.\n- test_cleanup: limpieza OK.\n\nFRONTEND UI (Playwright, ok):\n- Login admin@normalab.com/Admin1234! OK.\n- /estudios/{id} → paso 'Sectores de incendio' visible, [data-testid=sectores-step] presente.\n- Al expandir la estancia 0 (estancia-0-expand) y abrir el select [data-testid=estancia-0-modo], la opción 'Depósito comb.' es visible y seleccionable.\n- Al seleccionarla aparecen los inputs [data-testid=estancia-0-combustible] + estancia-0-pci + estancia-0-dens + estancia-0-volumen.\n- Al elegir el combustible 'Gasoil / gasóleo' se autocompletan PCI='42,7' y Densidad='845' y siguen siendo editables (se sobreescribió Volumen=10, Ci=1.3 sin problema).\n- Cálculo en vivo: [data-testid=estancia-0-carga] muestra '469.060' MJ (=42.7×845×10×1.3 ≈ 469,059.5) y [data-testid=sector-0-qs] muestra 'Qs 630 MJ/m²' recalculado on-the-fly incluyendo el aporte del depósito.\n- StudyReportPage.jsx confirmado en código: línea 81 renderiza 'A = {calculo.A} m² (útil) · Ra = ...' en la fila de totales; líneas 221-225 renderizan el bloque [data-testid=report-depositos-just] 'Depósitos de combustible (almacenamiento)' con justificacion por depósito dentro del resumen_ejecutivo.\n\nCriterio cumplido end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_deposito_e2e.py",
+    "/app/backend/tests/test_incendios_complete.py",
+    "/app/test_reports/pytest/deposito_e2e.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine.py _compute_sector: correcto — A_util agrega sup_util (fallback sup_construida) y A_const agrega sup_construida; qs_mj = numerador / A_util * ra; sectorizacion.superficie_sector usa A_const (Tabla 2.1.1). Depósito: aporte = pci*dens_comb*volumen*ci se añade a `numerador` (bien) y su superficie útil se suma en A_util (con fallback a construida si no hay útil) — coherente si el técnico rellena sup_util del depósito.",
+    "Validación en _validate: comprueba pci>0, dens_comb>0 y volumen>0 cuando modo=='deposito' (verificado con 422 en API).",
+    "exporters.py DOCX/XLSX: la exportación DOCX incluye bullets con la justificación del depósito en el resumen; XLSX escribe el aporte como valor estático en la hoja Qs (evita rotura de fórmulas por celdas heterogéneas). OK.",
+    "SectoresStep.jsx CargaFuegoInline: opción 'Depósito comb.' + combustibles con PCI/dens editables. depAporte y sectorCarga usan superficie útil — coherente con backend.",
+    "Consideración menor (no bloqueante): en la tabla de estancias del wizard la columna de superficie visible es 'M² CONSTR.' (901 para producción), no la útil. Esto no afecta al cálculo (usa util internamente) pero puede confundir al técnico al comparar con el Qs; el informe HTML ya aclara 'A = ... m² (útil)' en la fila de totales.",
+    "Consideración menor: el depósito, al clasificarse como 'almacenamiento' internamente, participa también en sup_alm para umbrales por almacenamiento — verificar que este comportamiento es el deseado por RSCIEI (parece correcto, es almacenamiento de combustible)."
+  ],
+  "updated_files": ["/app/backend/tests/test_incendios_deposito_e2e.py"],
+  "success_rate": {"backend": "100% (6/6 E2E + 53/53 unit)", "frontend": "100% flujo depósito verificado"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Creado proyecto TEST-DEP-1 y estudio 'TEST Qs util + deposito' durante los tests; borrados en test_cleanup. La UI se probó con el estudio persistente 6a621d9b091123e452d67c81.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Testids nuevos: estancia-{i}-modo (opción 'Depósito comb.'), estancia-{i}-combustible, estancia-{i}-pci, estancia-{i}-dens, estancia-{i}-volumen, report-depositos-just. El engine devuelve results.depositos con {id, sector_id, combustible, pci, dens_comb, volumen, ci, aporte, justificacion}. calculo.zonas incluye modo='deposito' (no 'detalle_zonas'). El compute endpoint devuelve 422 en fallos de validación de depósito.",
+  "rca of the issue": "N/A — no issues encontrados."
+}

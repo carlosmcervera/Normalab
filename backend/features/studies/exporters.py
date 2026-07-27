@@ -135,10 +135,10 @@ def _sector_docx(doc, s):
     calc = s.get("calculo", {})
     rows = []
     for z in calc.get("zonas", []):
-        modo = "Almac." if z.get("modo") == "almacenamiento" else "Prod."
+        modo = {"almacenamiento": "Almac.", "deposito": "Depósito"}.get(z.get("modo"), "Prod.")
         rows.append([z.get("descripcion", ""), modo, f"Ci {_fmt(z.get('ci'), 2)}",
                      f"{_fmt(z.get('superficie'))} m²", f"{_fmt(z.get('aporte'))} MJ"])
-    totals = [f"A = {_fmt(calc.get('A'))} m²  ·  Ra = {_fmt(calc.get('ra'), 1)}", "", "", "",
+    totals = [f"A = {_fmt(calc.get('A'))} m² (útil)  ·  Ra = {_fmt(calc.get('ra'), 1)}", "", "", "",
               f"Qs = {_fmt(calc.get('qs_mj'), 1)} MJ/m²"]
     _generic_table(doc, ["Zona", "Modo", "Ci", "Superficie", "Aporte"], rows, totals=totals)
 
@@ -228,6 +228,10 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                      {"cumple": "Cumple", "no_cumple": "No cumple"}.get(f.get("estado"), "Observaciones")]
                     for f in s.get("filas", [])]
             _generic_table(doc, ["Sector", "Ámbito", "Qs", "NRI", "Estado"], rows)
+            for dep in s.get("depositos", []):
+                p = doc.add_paragraph(style="List Bullet")
+                r = p.add_run(dep.get("justificacion", ""))
+                r.font.size = Pt(9)
         elif stype == "superficies":
             d = s.get("data", {})
             rows = [[f.get("nombre"), f.get("planta"), f.get("sector"),
@@ -420,16 +424,20 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
         first = 5
         r = first
         for z in zonas:
-            almac = z.get("modo") == "almacenamiento"
+            modo = z.get("modo")
+            almac = modo == "almacenamiento"
+            deposito = modo == "deposito"
             ws.cell(row=r, column=1, value=z.get("descripcion"))
-            ws.cell(row=r, column=2, value="Almacenamiento" if almac else "Producción")
-            ws.cell(row=r, column=3, value=(None if almac else z.get("qsi")))
+            ws.cell(row=r, column=2, value={"almacenamiento": "Almacenamiento", "deposito": "Depósito"}.get(modo, "Producción"))
+            ws.cell(row=r, column=3, value=(None if (almac or deposito) else z.get("qsi")))
             ws.cell(row=r, column=4, value=(z.get("qvi") if almac else None))
             ws.cell(row=r, column=5, value=z.get("ci"))
             ws.cell(row=r, column=6, value=(z.get("hi") if almac else None))
             ws.cell(row=r, column=7, value=z.get("superficie"))
-            # Aporte: producción = qsi*Ci*S ; almacenamiento = qvi*Ci*hi*S
-            if almac:
+            # Aporte: producción = qsi*Ci*S ; almacenamiento = qvi*Ci*hi*S ; depósito = PCI*densidad*volumen*Ci (valor calculado)
+            if deposito:
+                ws.cell(row=r, column=8, value=z.get("aporte"))
+            elif almac:
                 ws.cell(row=r, column=8, value=f"=D{r}*E{r}*F{r}*G{r}")
             else:
                 ws.cell(row=r, column=8, value=f"=C{r}*E{r}*G{r}")
@@ -439,7 +447,7 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
         last = r - 1
         r += 1
         a_row, ra_row, num_row, qs_row = r, r + 1, r + 2, r + 3
-        ws.cell(row=a_row, column=1, value="Superficie del sector A (m²)").font = Font(bold=True)
+        ws.cell(row=a_row, column=1, value="Superficie útil del sector A (m²)").font = Font(bold=True)
         ws.cell(row=a_row, column=8, value=(f"=SUM(G{first}:G{last})" if last >= first else calc.get("A")))
         ws.cell(row=ra_row, column=1, value="Coeficiente de activación Ra").font = Font(bold=True)
         ws.cell(row=ra_row, column=8, value=calc.get("ra"))

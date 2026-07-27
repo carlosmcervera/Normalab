@@ -388,7 +388,7 @@ def test_registry_only_incendios_operativo():
 
 def test_schema_exposes_project_flow():
     sc = inc_schema.get_schema()
-    assert [s["type"] for s in sc["steps"]] == ["superficies_proyecto", "sectores_incendio", "ocupacion", "evacuacion"]
+    assert [s["type"] for s in sc["steps"]] == ["superficies_proyecto", "ocupacion", "sectores_incendio", "evacuacion"]
     assert sc["activity_catalog"] and sc["config_types"]
     assert sc["dbsi_uses"]
 
@@ -413,8 +413,10 @@ def test_sector_centric_with_lre_and_cte():
     r = inc.compute({"establecimiento": {"config": "C"}, "sectores": sectores, "dependencias": deps})
     assert [s["id"] for s in r["sectores"]] == ["s1", "s2"]
     s1, s2 = r["sectores"]
-    # LRE excluido del cálculo: A del sector 1 = 900 (no 912)
-    assert s1["calculo"]["A"] == 900
+    # LRE excluido del cálculo. Qs usa superficie ÚTIL (800); Tabla 2.1.1 usa construida (900).
+    assert s1["calculo"]["A"] == 800
+    assert s1["calculo"]["A_construida"] == 900
+    assert s1["sectorizacion"]["superficie_sector"] == 900
     assert len(s1["locales_riesgo_especial"]) == 1 and s1["locales_riesgo_especial"][0]["resistencia"] == "R 90"
     # El sector CTE calcula Qs (>0) y trae secciones DB-SI SI1..SI6
     assert s2["ambito"] == "cte" and s2["nivel_riesgo"]["qs_mj"] > 0

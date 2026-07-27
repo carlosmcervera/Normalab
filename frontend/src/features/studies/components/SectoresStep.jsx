@@ -18,6 +18,14 @@ const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(
 const CUSTOM = "__custom__";
 const RIESGO_R = { bajo: "R 90", medio: "R 120", alto: "R 180" };
 
+// Combustibles habituales: PCI (MJ/kg) y densidad (kg/m³) típicos y editables.
+const COMBUSTIBLES = [
+  { value: "Gasoil / gasóleo", pci: 42.7, dens: 845 },
+  { value: "Gasolina", pci: 44.0, dens: 750 },
+  { value: "Fuelóleo", pci: 40.6, dens: 960 },
+  { value: "Otro (personalizado)", pci: null, dens: null },
+];
+
 const ESC_TIPOS = [
   { value: "abierta", label: "Abierta (solo descendente)" },
   { value: "protegida", label: "Protegida" },
@@ -75,6 +83,7 @@ function CargaFuegoInline({ x, i, catalog, update, top = true }) {
   const cat = catalog.find((c) => c.category === x.actividad_cat);
   const isCustom = x.actividad_cat === CUSTOM;
   const almacen = x.modo === "almacenamiento";
+  const deposito = x.modo === "deposito";
   const selectCat = (v) => v === CUSTOM
     ? update({ actividad_cat: CUSTOM, subactividad: "" })
     : update({ actividad_cat: v, subactividad: "", qsi: undefined, qvi: undefined });
@@ -115,10 +124,27 @@ function CargaFuegoInline({ x, i, catalog, update, top = true }) {
           <SelectContent>
             <SelectItem value="produccion">Producción</SelectItem>
             <SelectItem value="almacenamiento">Almacenam.</SelectItem>
+            <SelectItem value="deposito">Depósito comb.</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {almacen ? (
+      {deposito ? (
+        <>
+          <div className="col-span-2">
+            <Label className={fieldLabel}>Combustible</Label>
+            <Select value={x.combustible || ""} onValueChange={(v) => {
+              const c = COMBUSTIBLES.find((k) => k.value === v);
+              update(c && c.pci ? { combustible: v, pci: c.pci, dens_comb: c.dens } : { combustible: v });
+            }}>
+              <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-combustible`}><SelectValue placeholder="Combustible" /></SelectTrigger>
+              <SelectContent>{COMBUSTIBLES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label className={fieldLabel}>PCI (MJ/kg)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.pci ?? ""} onChange={(v) => update({ pci: v })} data-testid={`estancia-${i}-pci`} /></div>
+          <div><Label className={fieldLabel}>Densidad (kg/m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.dens_comb ?? ""} onChange={(v) => update({ dens_comb: v })} data-testid={`estancia-${i}-dens`} /></div>
+          <div><Label className={fieldLabel}>Volumen (m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.volumen ?? ""} onChange={(v) => update({ volumen: v })} data-testid={`estancia-${i}-volumen`} /></div>
+        </>
+      ) : almacen ? (
         <>
           <div><Label className={fieldLabel}>qv (MJ/m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.qvi ?? ""} onChange={(v) => update({ qvi: v })} data-testid={`estancia-${i}-qvi`} /></div>
           <div><Label className={fieldLabel}>hi (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.hi ?? ""} onChange={(v) => update({ hi: v })} data-testid={`estancia-${i}-hi`} /></div>

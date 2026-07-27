@@ -79,7 +79,14 @@ def _validate(sectores, dependencias):
             nombre = d.get("nombre") or "Dependencia"
             if not d.get("ci") or float(d.get("ci") or 0) <= 0:
                 errors.append(f"«{nombre}»: defina el coeficiente Ci (carga de fuego).")
-            if d.get("modo") == "almacenamiento":
+            if d.get("modo") == "deposito":
+                if not d.get("pci") or float(d.get("pci") or 0) <= 0:
+                    errors.append(f"«{nombre}»: el PCI (MJ/kg) del combustible debe ser mayor que 0.")
+                if not d.get("dens_comb") or float(d.get("dens_comb") or 0) <= 0:
+                    errors.append(f"«{nombre}»: la densidad del combustible (kg/m³) debe ser mayor que 0.")
+                if not d.get("volumen") or float(d.get("volumen") or 0) <= 0:
+                    errors.append(f"«{nombre}»: el volumen del depósito (m³) debe ser mayor que 0.")
+            elif d.get("modo") == "almacenamiento":
                 if not d.get("qvi") or float(d.get("qvi") or 0) <= 0:
                     errors.append(f"«{nombre}»: qvi (MJ/m³) debe ser mayor que 0.")
                 if not d.get("hi") or float(d.get("hi") or 0) <= 0:
@@ -234,25 +241,50 @@ def _compute_sector(sec, deps, establecimiento):
     situacion = sec.get("situacion", "sobre_rasante")
     lre_deps = [d for d in deps if d.get("es_lre")]
     calc_deps = [d for d in deps if not d.get("es_lre")]
-    A = sum(float(d.get("sup_construida") or 0) for d in calc_deps)
+    # Superficie construida (Tabla 2.1.1 · superficie máx. admisible del sector) y
+    # superficie útil (denominador de la carga de fuego Qs, según criterio del despacho).
+    A_const = sum(float(d.get("sup_construida") or 0) for d in calc_deps)
+    A_util = sum(float(d.get("sup_util") or d.get("sup_construida") or 0) for d in calc_deps)
 
     detalle_zonas = []
+    depositos = []
     numerador = 0.0
     rmins, used_ci, ras = [], [], []
     for d in calc_deps:
         ci = float(d.get("ci") or 0)
-        s = float(d.get("sup_construida") or 0)
-        if d.get("modo") == "almacenamiento":
+        s = float(d.get("sup_util") or d.get("sup_construida") or 0)
+        modo = d.get("modo")
+        if modo == "deposito":
+            pci = float(d.get("pci") or 0)
+            dens = float(d.get("dens_comb") or 0)
+            vol = float(d.get("volumen") or 0)
+            aporte = pci * dens * vol * ci
+            comb = d.get("combustible") or "combustible"
+            detalle_zonas.append({"descripcion": d.get("nombre", "Depósito"), "modo": "deposito",
+                                  "combustible": comb, "pci": pci, "dens_comb": dens, "volumen": vol,
+                                  "ci": ci, "superficie": round(s, 2), "aporte": round(aporte, 2)})
+            depositos.append({
+                "sector": sec.get("nombre", "Sector"),
+                "nombre": d.get("nombre", "Depósito"), "combustible": comb,
+                "pci": pci, "dens_comb": dens, "volumen": vol, "ci": ci, "aporte": round(aporte, 2),
+                "justificacion": (
+                    f"El depósito «{d.get('nombre', 'Depósito')}» ({comb}) se clasifica como "
+                    f"almacenamiento de combustible. Su carga de fuego se determina por el volumen "
+                    f"almacenado: Q = PCI × densidad × volumen × Ci = {pci:g} MJ/kg × {dens:g} kg/m³ × "
+                    f"{vol:g} m³ × {ci:g} = {aporte:,.0f} MJ, que se incorpora al sumatorio de carga de "
+                    f"fuego del sector «{sec.get('nombre', 'Sector')}»."),
+            })
+        elif modo == "almacenamiento":
             qvi = float(d.get("qvi") or 0)
             hi = float(d.get("hi") or 0)
             aporte = qvi * ci * hi * s
             detalle_zonas.append({"descripcion": d.get("nombre", "Zona"), "modo": "almacenamiento",
-                                  "qvi": qvi, "hi": hi, "ci": ci, "superficie": s, "aporte": round(aporte, 2)})
+                                  "qvi": qvi, "hi": hi, "ci": ci, "superficie": round(s, 2), "aporte": round(aporte, 2)})
         else:
             qsi = float(d.get("qsi") or 0)
             aporte = qsi * ci * s
             detalle_zonas.append({"descripcion": d.get("nombre", "Zona"), "modo": "produccion",
-                                  "qsi": qsi, "ci": ci, "superficie": s, "aporte": round(aporte, 2)})
+                                  "qsi": qsi, "ci": ci, "superficie": round(s, 2), "aporte": round(aporte, 2)})
         numerador += aporte
         used_ci.append(ci)
         ras.append(float(d.get("ra") or 1.0))
@@ -263,7 +295,7 @@ def _compute_sector(sec, deps, establecimiento):
     ra = float(sec.get("ra") or ra_auto)
     rmin_req = max(rmins) if rmins else None
 
-    qs_mj = (numerador / A) * ra if A > 0 else 0.0
+    qs_mj = (numerador / A_util) * ra if A_util > 0 else 0.0
     qs_mcal = qs_mj * MCAL_PER_MJ
     nivel, categoria = _nri_for(qs_mj)
 
@@ -276,10 +308,10 @@ def _compute_sector(sec, deps, establecimiento):
         factor *= 2.0
         factores.append("Rociadores automáticos en todo el sector (×2)")
 
-    sector = _sectorizacion(config, nivel, A, factor, factores, situacion)
+    sector = _sectorizacion(config, nivel, A_const, factor, factores, situacion)
 
-    sup_alm = sum(float(d.get("sup_construida") or 0) for d in calc_deps if d.get("modo") == "almacenamiento")
-    sup_prod = A - sup_alm
+    sup_alm = sum(float(d.get("sup_construida") or 0) for d in calc_deps if d.get("modo") in ("almacenamiento", "deposito"))
+    sup_prod = A_const - sup_alm
     modo_pred = "almacenamiento" if sup_alm > sup_prod else "produccion"
 
     ocupacion_sector = 0
@@ -291,7 +323,7 @@ def _compute_sector(sec, deps, establecimiento):
     total_est = sum(float(d.get("sup_construida") or 0) for d in establecimiento.get("_all_deps", []))
     req_sec = dict(sec)
     req_sec["config"] = config
-    requisitos = build_requirements(req_sec, nivel, categoria, modo_pred, A, total_est)
+    requisitos = build_requirements(req_sec, nivel, categoria, modo_pred, A_const, total_est)
 
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
@@ -334,7 +366,7 @@ def _compute_sector(sec, deps, establecimiento):
             from normative_modules.cte_dbsi import engine as _dbsi
             dbsi_res = _dbsi.compute({
                 "uso": sec.get("uso_cte") or "Administrativo",
-                "superficie_construida": A or 1,
+                "superficie_construida": A_const or 1,
                 "altura_evacuacion": float(sec.get("altura_evacuacion") or 0),
                 "num_salidas": int(sec.get("num_salidas") or 1),
                 "num_plantas": int(sec.get("num_plantas") or 1),
@@ -389,6 +421,10 @@ def _compute_sector(sec, deps, establecimiento):
         detalle += f"): computa carga de fuego como zona de paso. Justificación CTE DB-SI/SUA: {e['justificacion'] or 'pendiente de justificar'}."
         observaciones.append({"tipo": "info" if e["justificacion"] else "warning", "texto": detalle})
 
+    for dep in depositos:
+        observaciones.append({"tipo": "info", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: {dep['justificacion']}")})
+
     estado = "cumple"
     if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
@@ -406,8 +442,8 @@ def _compute_sector(sec, deps, establecimiento):
         "modo_predominante": modo_pred,
         "ocupacion": ocupacion_sector,
         "rmin_requerido": rmin_req,
-        "calculo": {"numerador": round(numerador, 2), "A": round(A, 2), "ra": ra,
-                    "qs_mj": round(qs_mj, 2), "qs_mcal": round(qs_mcal, 2), "zonas": detalle_zonas},
+        "calculo": {"numerador": round(numerador, 2), "A": round(A_util, 2), "A_construida": round(A_const, 2),
+                    "ra": ra, "qs_mj": round(qs_mj, 2), "qs_mcal": round(qs_mcal, 2), "zonas": detalle_zonas},
         "nivel_riesgo": {"nivel": nivel, "categoria": categoria,
                          "qs_mj": round(qs_mj, 2), "qs_mcal": round(qs_mcal, 2)},
         "sectorizacion": sector,
@@ -418,6 +454,7 @@ def _compute_sector(sec, deps, establecimiento):
         "locales_riesgo_especial": locales_re,
         "escaleras_protegidas": escaleras,
         "dbsi": dbsi_res,
+        "depositos": depositos,
         "observaciones": observaciones,
         "estado": estado,
     }
@@ -494,7 +531,7 @@ def _build_resumen(sector_results):
             "nombre": s["nombre"],
             "tipo": "Área exterior" if s["tipo"] == "area_exterior" else "Sector",
             "config": s["config_label"],
-            "superficie": s["calculo"]["A"],
+            "superficie": s["sectorizacion"].get("superficie_sector", s["calculo"]["A"]),
             "qs_mj": s["nivel_riesgo"]["qs_mj"],
             "nivel": s["nivel_riesgo"]["nivel"],
             "categoria": s["nivel_riesgo"]["categoria"],
@@ -533,6 +570,10 @@ def compute(data: dict) -> dict:
     for s in sector_results:
         observaciones.extend(s["observaciones"])
 
+    depositos = []
+    for s in sector_results:
+        depositos.extend(s.get("depositos", []))
+
     if any(s["estado"] == "no_cumple" for s in sector_results):
         estado_global = "no_cumple"
     elif any(s["estado"] == "observaciones" for s in sector_results):
@@ -547,6 +588,7 @@ def compute(data: dict) -> dict:
         "ocupacion": ocupacion,
         "sectores": sector_results,
         "resumen_sectores": resumen,
+        "depositos": depositos,
         "tablas": tablas,
         "observaciones": observaciones,
         "estado_global": estado_global,
