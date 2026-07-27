@@ -98,6 +98,10 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-27: **Tabla 1.3.5 completa (BOE) + modal buscador de actividades (validado iter 19, 100%)**
+  - `catalog.py` reescrito con la **Tabla 1.3.5 literal del RSCIEI (BOE-A-2025-7190)**: 11 categorías con texto exacto (A. OFICINAS, B. CARTÓN PAPEL, C. INDUSTRIA ALIMENTARIA, D. INDUSTRIA QUÍMICA, E. LOGÍSTICA, F. MATERIAS Y MERCANCÍAS DIVERSAS, G. TEXTILES, H. TRANSFORMACIÓN DE METALES, I. TRANSFORMACIÓN DE PLÁSTICOS, J. ARTÍCULOS DE MADERA, K. OTROS) y 158 subactividades de producción (qs MJ/m²) y almacenamiento (qv bruto y neto MJ/m³), con Ci y Rmin. Helpers `_p`/`_a` (con `qvi_neto`).
+  - Nuevo **modal buscador** `ActivityCatalogDialog.jsx`: al pulsar el campo «Actividad» se abre un diálogo con caja de búsqueda que filtra por texto, agrupado por categoría, con badges Prod./Almac. y valores qs/qv·Ci·Rmin; al seleccionar una fila se rellena la estancia (actividad/subactividad/modo/qsi|qvi/Ci/Ra/Rmin) y recalcula la carga en vivo. Enlaces «Personalizada» y «Elegir de la tabla».
+  - Testing: 9/9 E2E catálogo + modal + 53/53 unit. Sin issues.
 - 2026-07-27: **P0 · Qs con superficie ÚTIL + depósitos de combustible (validado iter 18, 100%)**
   - Carga de fuego Qs ahora usa la **superficie útil** como denominador A y como superficie de aporte de cada estancia (`engine._compute_sector`: `A_util` para Qs, `A_const` para Tabla 2.1.1/sectorización). `calculo` expone `A` (útil) y `A_construida`. `fireload.js` replicado en cliente.
   - Nueva clasificación de estancia **modo='deposito'** (depósito de combustible), tratada como almacenamiento: `Q = PCI(MJ/kg) × densidad(kg/m³) × volumen(m³) × Ci`, sumada al numerador del Qs del sector. Combustibles precargados y editables (Gasoil 42,7/845, Gasolina 44,0/750, Fuelóleo 40,6/960, Otro). UI en `SectoresStep` (campos combustible/pci/dens_comb/volumen). Validación en `_validate`.
