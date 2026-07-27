@@ -98,6 +98,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-27: **Fix informe ↔ tablas (estabilidad R y superficie máx.) + Fase 2 (validado iter 24, 100%)**
+  - BUG: el detalle del sector no coincidía con las tablas de referencia. Causa: el informe modulaba R por altura de evacuación (no propio del RSCIEI) y mostraba la superficie ya afectada por factores sin referenciar la base.
+  - Fix: (1) **estabilidad R = valor base Tabla 2.5.1** (config·situación·nivel), sin modular por altura → coincide con la celda resaltada. (2) **superficie**: `max_admisible_base` = valor puro Tabla 2.1.1 (coincide con la tabla); el ÷2 de planta bajo rasante pasa a ser un factor más (junto a ×2 rociadores y ×1,25 fachada); el mensaje muestra base + notas aplicadas → admisible final. (3) el estado del sector pasa a «no cumple» si medianería/fachada (Fase 2) incumplen.
+  - **FASE 2** (paso «Construcción y propagación»): reacción al fuego (Tabla 2.1.4), medianerías (Tabla 2.2.1) y fachadas (Tabla 2.2.2) por sector, con resultados en el informe (pantalla + DOCX). Validado iter 22.
+  - Testing: 12/12 E2E (coherencia tabla↔informe sobre/bajo rasante, factores, DOCX) + 53/53 unit. Sin issues.
 - 2026-07-27: **FASE 1 — LRE fuera del Qs · config CTE oculta · tablas multi-sector con color (validado iter 21, 100%)**
   - (1a) **LRE ya NO computan carga de fuego**: se excluyen del Qs (calc_deps) y de la validación; se clasifican solo por el CTE (Tabla 2.1: uso + volumen/potencia → riesgo → R). Se quitó el bloque de carga de fuego del detalle LRE; columna «Carga (MJ)» = «no computa».
   - (1b) **Sectores CTE**: en el informe la columna Config. = «—» y su sectorización se marca «no aplica» (Tabla 2.1.1 RSCIEI no procede; se evalúa por DB-SI).
