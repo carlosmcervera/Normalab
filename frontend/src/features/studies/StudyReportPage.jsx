@@ -125,7 +125,7 @@ function SectorReport({ s }) {
       </div>
       {s.locales_riesgo_especial?.length > 0 && (
         <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-lre`}>
-          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (excluidos de la carga de fuego · Tabla 2.1 DB-SI)</p>
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Locales de riesgo especial (incluidos en la carga de fuego · resistencia R, Tabla 2.1 DB-SI)</p>
           <div className="space-y-2">
             {s.locales_riesgo_especial.map((l, i) => (
               <div key={i} className="text-sm">

@@ -74,7 +74,7 @@ def _validate(sectores, dependencias):
         if not deps:
             errors.append(f"El sector «{s.get('nombre', '?')}» no tiene dependencias asignadas.")
         for d in deps:
-            if d.get("es_lre"):
+            if d.get("clase") in ("escalera", "escalera_protegida"):
                 continue
             nombre = d.get("nombre") or "Dependencia"
             if not d.get("ci") or float(d.get("ci") or 0) <= 0:
@@ -239,8 +239,12 @@ def _evacuacion(sec, categoria, nivel, ocupacion):
 def _compute_sector(sec, deps, establecimiento):
     config = _sector_config(sec, establecimiento)
     situacion = sec.get("situacion", "sobre_rasante")
-    lre_deps = [d for d in deps if d.get("es_lre")]
-    calc_deps = [d for d in deps if not d.get("es_lre")]
+    # Las ESCALERAS no computan carga de fuego (zona de paso); se evalúan aparte por CTE.
+    # Los LOCALES DE RIESGO ESPECIAL (LRE) SÍ computan carga de fuego y, además, se
+    # evalúan como locales de riesgo especial (resistencia R).
+    esc_deps = [d for d in deps if d.get("clase") in ("escalera", "escalera_protegida")]
+    calc_deps = [d for d in deps if d.get("clase") not in ("escalera", "escalera_protegida")]
+    lre_deps = [d for d in calc_deps if d.get("es_lre") or d.get("clase") == "lre"]
     # Superficie construida (Tabla 2.1.1 · superficie máx. admisible del sector) y
     # superficie útil (denominador de la carga de fuego Qs, según criterio del despacho).
     A_const = sum(float(d.get("sup_construida") or 0) for d in calc_deps)
@@ -327,7 +331,8 @@ def _compute_sector(sec, deps, establecimiento):
 
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
-    # Locales de riesgo especial (LRE): fuera del cálculo de la carga de fuego del sector.
+    # Locales de riesgo especial (LRE): computan carga de fuego (incluidos en Qs) y,
+    # además, se evalúan como locales de riesgo especial con su resistencia (R).
     locales_re = []
     for d in lre_deps:
         locales_re.append({
@@ -339,23 +344,22 @@ def _compute_sector(sec, deps, establecimiento):
             "justificacion": d.get("lre_justificacion") or "",
         })
 
-    # Escaleras protegidas: SÍ computan carga de fuego (zona de paso) pero requieren
-    # justificación por el CTE DB-SI/SUA (protección, anchura, capacidad, situación…).
+    # Escaleras: NO computan carga de fuego (zona de paso); requieren justificación
+    # por el CTE DB-SI/SUA (protección, anchura, capacidad, situación…).
     escaleras = []
-    for d in calc_deps:
-        if d.get("clase") in ("escalera", "escalera_protegida"):
-            tipo = d.get("esc_tipo") or "protegida"
-            sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
-            escaleras.append({
-                "nombre": d.get("nombre", "Escalera"),
-                "tipo": tipo,
-                "sentido": sentido,
-                "situacion": d.get("esc_situacion") or "interior",
-                "anchura": d.get("esc_anchura"),
-                "capacidad": d.get("esc_capacidad"),
-                "uso_restringido": bool(d.get("esc_uso_restringido")),
-                "justificacion": d.get("esc_justificacion") or "",
-            })
+    for d in esc_deps:
+        tipo = d.get("esc_tipo") or "protegida"
+        sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
+        escaleras.append({
+            "nombre": d.get("nombre", "Escalera"),
+            "tipo": tipo,
+            "sentido": sentido,
+            "situacion": d.get("esc_situacion") or "interior",
+            "anchura": d.get("esc_anchura"),
+            "capacidad": d.get("esc_capacidad"),
+            "uso_restringido": bool(d.get("esc_uso_restringido")),
+            "justificacion": d.get("esc_justificacion") or "",
+        })
 
     # Ámbito del sector: industrial (RSCIEI) o CTE. Los sectores CTE calculan igualmente
     # la carga de fuego (Qs) y, además, se evalúan con las secciones del CTE DB-SI.
@@ -405,7 +409,7 @@ def _compute_sector(sec, deps, establecimiento):
             f"({sec.get('uso_cte') or 'edificación'}); se calcula igualmente la carga de fuego (Qs) y se evalúa con el CTE DB-SI.")})
     if locales_re:
         observaciones.append({"tipo": "info", "texto": (
-            f"Sector «{sec.get('nombre','?')}»: {len(locales_re)} local(es) de riesgo especial excluidos del cálculo de la carga de fuego (se evalúan por separado).")})
+            f"Sector «{sec.get('nombre','?')}»: {len(locales_re)} local(es) de riesgo especial incluidos en el cálculo de la carga de fuego del sector; además se evalúan como locales de riesgo especial con su resistencia (R).")})
         for l in locales_re:
             if l.get("justificacion"):
                 observaciones.append({"tipo": "info", "texto": f"LRE «{l['nombre']}» (riesgo {l['riesgo'].lower()}, {l['resistencia']}): {l['justificacion']}"})
@@ -418,7 +422,7 @@ def _compute_sector(sec, deps, establecimiento):
             detalle += f", capacidad {e['capacidad']} pers."
         if e["uso_restringido"]:
             detalle += ", uso restringido"
-        detalle += f"): computa carga de fuego como zona de paso. Justificación CTE DB-SI/SUA: {e['justificacion'] or 'pendiente de justificar'}."
+        detalle += f"): NO computa carga de fuego (zona de paso). Justificación CTE DB-SI/SUA: {e['justificacion'] or 'pendiente de justificar'}."
         observaciones.append({"tipo": "info" if e["justificacion"] else "warning", "texto": detalle})
 
     for dep in depositos:

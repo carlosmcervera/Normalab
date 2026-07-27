@@ -57,7 +57,7 @@ const CLASE_META = {
 const draftLRE = (x) => {
   const t = LRE_TIPOS.find((k) => k.value === (x.lre_tipo || "generico")) || LRE_TIPOS[6];
   const r = x.lre_riesgo || "bajo";
-  return `El local «${x.nombre || "—"}» (${t.label.toLowerCase()}) se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI, ${t.crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie no se computa en la carga de fuego del sector.`;
+  return `El local «${x.nombre || "—"}» (${t.label.toLowerCase()}) se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI, ${t.crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie SÍ computa en la carga de fuego del sector.`;
 };
 
 const draftEscalera = (x) => {
@@ -74,7 +74,7 @@ const draftEscalera = (x) => {
     especialmente_protegida: "recinto protegido dotado de vestíbulos de independencia y ventilación (natural o por sobrepresión) conforme al CTE DB-SI, SI 3",
     compartimentada: "recinto compartimentado del resto del edificio con la resistencia al fuego exigida y sin comunicación directa con sectores de riesgo",
   }[x.esc_tipo] || "recinto protegido con la resistencia al fuego exigida";
-  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada. Al ser zona de paso peatonal de trabajadores, computa carga de fuego.`;
+  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada. Al ser zona de paso, no computa carga de fuego.`;
 };
 
 const fieldLabel = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
@@ -360,7 +360,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
         </td>
         <td className="px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">{num(x.sup_util || x.sup_construida || 0)}</td>
         <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-carga`}>
-          {clase === "lre"
+          {isEscalera
             ? <span className="text-muted-foreground/70">no computa</span>
             : (() => { const ap = depAporte(x); return ap == null ? <span className="text-muted-foreground/60">—</span> : <span className="font-semibold text-foreground">{num(ap)}</span>; })()}
         </td>
@@ -386,7 +386,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
             {clase === "lre" && (
               <Tooltip>
                 <TooltipTrigger asChild><Info className="h-3.5 w-3.5 cursor-help text-amber-600" data-testid={`estancia-${i}-lre-info`} /></TooltipTrigger>
-                <TooltipContent className="max-w-xs">Esta superficie NO se computa en la carga de fuego del sector (se evalúa por separado como Local de Riesgo Especial, Tabla 2.1 del CTE DB-SI).</TooltipContent>
+                <TooltipContent className="max-w-xs">Este local SÍ computa en la carga de fuego del sector y, además, se evalúa como Local de Riesgo Especial (resistencia R, Tabla 2.1 del CTE DB-SI). Define su carga de fuego más abajo.</TooltipContent>
               </Tooltip>
             )}
           </div>
@@ -397,6 +397,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
           <td className="border-b border-border bg-slate-50 p-0" colSpan={7}>
             <div className={`border-l-2 p-3 ${clase === "lre" ? "border-l-amber-400" : isEscalera ? "border-l-blue-400" : "border-l-primary"}`}>
               {clase === "lre" ? (
+                <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <div>
                     <Label className={fieldLabel}>Riesgo (Tabla 2.1)</Label>
@@ -428,6 +429,11 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                     <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />
                   </div>
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">El local de riesgo especial SÍ computa carga de fuego; defínela abajo. Su clasificación y resistencia (R) se justifican arriba.</p>
+                <div className="mt-2 border-t border-border pt-2">
+                  <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />
+                </div>
+                </>
               ) : isEscalera ? (
                 <>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -472,10 +478,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                       <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
                     </div>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">La escalera SÍ computa carga de fuego (zona de paso peatonal).</p>
-                  <div className="mt-2 border-t border-border pt-2">
-                    <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />
-                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">La escalera NO computa carga de fuego (zona de paso); solo requiere justificación CTE DB-SI/SUA.</p>
                 </>
               ) : (
                 <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />

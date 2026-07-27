@@ -462,7 +462,7 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
                 ws.cell(row=rr, column=c).border = BORDER
         ws.cell(row=qs_row + 2, column=1,
                 value=f"NRI resultante: nivel {nr.get('nivel')} ({nr.get('categoria')}). "
-                      "Los locales de riesgo especial están excluidos del cálculo.").font = Font(italic=True, size=9, color="64748B")
+                      "Las escaleras están excluidas del cálculo; los locales de riesgo especial SÍ computan.").font = Font(italic=True, size=9, color="64748B")
         _autosize(ws, [28, 16, 14, 14, 10, 10, 16, 16])
 
     buf = BytesIO()

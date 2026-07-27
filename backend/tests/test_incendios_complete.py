@@ -406,18 +406,24 @@ def test_sector_centric_with_lre_and_cte():
         {"id": "d1", "sector_id": "s1", "nombre": "Producción", "sup_util": 800, "sup_construida": 900,
          "modo": "produccion", "qsi": 400, "ci": 1.44, "ra": 1.0, "densidad": 10, "uso_ocupacion": "Fabricación"},
         {"id": "d2", "sector_id": "s1", "nombre": "CT", "sup_util": 10, "sup_construida": 12,
-         "es_lre": True, "lre_riesgo": "bajo", "lre_r": "R 90"},
+         "clase": "lre", "es_lre": True, "lre_riesgo": "bajo", "lre_r": "R 90",
+         "modo": "produccion", "qsi": 500, "ci": 1.0, "ra": 1.0},
+        {"id": "d4", "sector_id": "s1", "nombre": "Escalera protegida", "sup_util": 20, "sup_construida": 25,
+         "clase": "escalera", "esc_tipo": "protegida"},
         {"id": "d3", "sector_id": "s2", "nombre": "Planta oficinas", "sup_util": 1000, "sup_construida": 1050,
          "modo": "produccion", "qsi": 600, "ci": 1.0, "ra": 1.0, "densidad": 10, "uso_ocupacion": "Administrativo"},
     ]
     r = inc.compute({"establecimiento": {"config": "C"}, "sectores": sectores, "dependencias": deps})
     assert [s["id"] for s in r["sectores"]] == ["s1", "s2"]
     s1, s2 = r["sectores"]
-    # LRE excluido del cálculo. Qs usa superficie ÚTIL (800); Tabla 2.1.1 usa construida (900).
-    assert s1["calculo"]["A"] == 800
-    assert s1["calculo"]["A_construida"] == 900
-    assert s1["sectorizacion"]["superficie_sector"] == 900
+    # LRE SÍ computa (util 800+10=810 / const 900+12=912). La escalera NO computa (excluida).
+    assert s1["calculo"]["A"] == 810
+    assert s1["calculo"]["A_construida"] == 912
+    assert s1["sectorizacion"]["superficie_sector"] == 912
     assert len(s1["locales_riesgo_especial"]) == 1 and s1["locales_riesgo_especial"][0]["resistencia"] == "R 90"
+    assert len(s1["escaleras_protegidas"]) == 1
+    # La escalera no aparece en las zonas de cálculo de carga de fuego
+    assert all("Escalera" not in z["descripcion"] for z in s1["calculo"]["zonas"])
     # El sector CTE calcula Qs (>0) y trae secciones DB-SI SI1..SI6
     assert s2["ambito"] == "cte" and s2["nivel_riesgo"]["qs_mj"] > 0
     assert [x["id"] for x in s2["dbsi"]["secciones"]] == ["SI1", "SI2", "SI3", "SI4", "SI5", "SI6"]
