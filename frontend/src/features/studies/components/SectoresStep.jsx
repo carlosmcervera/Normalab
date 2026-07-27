@@ -321,7 +321,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
                   <tr className="border-b border-border bg-secondary/50 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="w-8 px-2 py-2" />
                     <th className="px-2 py-2 font-semibold">Estancia</th>
-                    <th className="px-2 py-2 text-right font-semibold">m² constr.</th>
+                    <th className="px-2 py-2 text-right font-semibold">m² útil</th>
                     <th className="px-2 py-2 text-right font-semibold">Carga (MJ)</th>
                     <th className="px-2 py-2 text-right font-semibold">Ocup.</th>
                     <th className="px-2 py-2 font-semibold">Sector</th>
@@ -364,7 +364,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
             <span className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold ${meta.cls}`} data-testid={`estancia-${i}-clase-badge`}>{meta.label}</span>
           </div>
         </td>
-        <td className="px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">{num(x.sup_construida || 0)}</td>
+        <td className="px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">{num(x.sup_util || x.sup_construida || 0)}</td>
         <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-carga`}>
           {clase === "lre"
             ? <span className="text-muted-foreground/70">no computa</span>
