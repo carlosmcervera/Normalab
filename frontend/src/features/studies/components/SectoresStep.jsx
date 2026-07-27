@@ -12,7 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
-import { sectorCarga, depAporte, depOcupacion, nriBadgeCls } from "@/lib/fireload";
+import { sectorCarga, depAporte, depOcupacion, nriBadgeCls, escaleraCalc } from "@/lib/fireload";
 import { ActivityCatalogDialog } from "@/features/studies/components/ActivityCatalogDialog";
 import { LreUseDialog } from "@/features/studies/components/LreUseDialog";
 import { findLreUse, classifyLre } from "@/lib/lreCatalog";
@@ -39,6 +39,16 @@ const ESC_TIPO_LABEL = {
   abierta: "abierta", protegida: "protegida",
   especialmente_protegida: "especialmente protegida", compartimentada: "compartimentada",
 };
+
+// Usos previstos para la protección de escaleras (CTE DB-SI SI 3, Tabla 5.1).
+const ESC_USOS = [
+  "Residencial Vivienda",
+  "Administrativo/Docente",
+  "Comercial/Pública concurrencia",
+  "Hospitalario (hospitalización)",
+  "Hospitalario (otras zonas)",
+  "Aparcamiento / Industrial",
+];
 
 const LRE_TIPOS = [
   { value: "almacen", label: "Almacén / archivo de combustibles", crit: "por volumen (100<V≤200 m³ bajo · 200<V≤400 medio · V>400 alto)" },
@@ -87,7 +97,12 @@ const draftEscalera = (x) => {
     especialmente_protegida: "recinto protegido dotado de vestíbulos de independencia y ventilación (natural o por sobrepresión) conforme al CTE DB-SI, SI 3",
     compartimentada: "recinto compartimentado del resto del edificio con la resistencia al fuego exigida y sin comunicación directa con sectores de riesgo",
   }[x.esc_tipo] || "recinto protegido con la resistencia al fuego exigida";
-  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada. Al ser zona de paso, no computa carga de fuego.`;
+  const c = escaleraCalc(x);
+  let calc = "";
+  if (c.ocupantes || c.altura) {
+    calc = ` Para ${num(c.ocupantes)} ocupantes a evacuar y una altura de evacuación de ${num(c.altura, 2)} m, el CTE DB-SI (SI 3, Tabla 5.1) exige una escalera ${c.proteccionLabel} con recinto ${c.resistencia}, y una anchura mínima de ${c.anchuraMinTexto} (Tabla 4.1).`;
+  }
+  return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada.${calc} Al ser zona de paso, no computa carga de fuego.`;
 };
 
 const fieldLabel = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
@@ -359,6 +374,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
 function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sectores, catalog, toggle, updateDep, setClase }) {
   const [lreDlg, setLreDlg] = useState(false);
   const lreUse = findLreUse(x.lre_uso);
+  const escCalc = isEscalera ? escaleraCalc(x) : null;
   const { riesgo: lreRiesgo } = classifyLre(lreUse, {
     superficie: x.sup_construida, altura: x.lre_altura, potencia: x.lre_potencia,
   });
@@ -507,6 +523,13 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                       </Select>
                     </div>
                     <div>
+                      <Label className={fieldLabel}>Uso previsto (Tabla 5.1)</Label>
+                      <Select value={x.esc_uso || "Aparcamiento / Industrial"} onValueChange={(v) => updateDep(x.id, { esc_uso: v })}>
+                        <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-esc-uso`}><SelectValue /></SelectTrigger>
+                        <SelectContent>{ESC_USOS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <Label className={fieldLabel}>Situación</Label>
                       <Select value={x.esc_situacion || "interior"} onValueChange={(v) => updateDep(x.id, { esc_situacion: v })}>
                         <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-esc-situacion`}><SelectValue /></SelectTrigger>
@@ -516,12 +539,26 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                         </SelectContent>
                       </Select>
                     </div>
-                    <label className="flex items-end gap-2 pb-1 text-xs">
+                    <div><Label className={fieldLabel}>Ocupantes a evacuar (P)</Label><NumberInput integer min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_ocupantes ?? ""} onChange={(v) => updateDep(x.id, { esc_ocupantes: v })} data-testid={`estancia-${i}-esc-ocupantes`} /></div>
+                    <div><Label className={fieldLabel}>Altura evacuación (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_altura_evac ?? ""} onChange={(v) => updateDep(x.id, { esc_altura_evac: v })} data-testid={`estancia-${i}-esc-altura`} /></div>
+                    <div><Label className={fieldLabel}>Anchura proyectada (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_anchura ?? ""} onChange={(v) => updateDep(x.id, { esc_anchura: v })} data-testid={`estancia-${i}-esc-anchura`} /></div>
+                    {(x.esc_tipo === "protegida" || x.esc_tipo === "especialmente_protegida") && (
+                      <div><Label className={fieldLabel}>Sup. recinto (m²)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_superficie ?? ""} onChange={(v) => updateDep(x.id, { esc_superficie: v })} data-testid={`estancia-${i}-esc-superficie`} /></div>
+                    )}
+                    <label className="col-span-2 flex items-center gap-2 pb-1 text-xs sm:col-span-1">
                       <Switch checked={!!x.esc_uso_restringido} onCheckedChange={(v) => updateDep(x.id, { esc_uso_restringido: v })} data-testid={`estancia-${i}-esc-restringido`} />
                       Uso restringido
                     </label>
-                    <div><Label className={fieldLabel}>Anchura (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_anchura ?? ""} onChange={(v) => updateDep(x.id, { esc_anchura: v })} data-testid={`estancia-${i}-esc-anchura`} /></div>
-                    <div><Label className={fieldLabel}>Capacidad (pers.)</Label><NumberInput integer min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.esc_capacidad ?? ""} onChange={(v) => updateDep(x.id, { esc_capacidad: v })} data-testid={`estancia-${i}-esc-capacidad`} /></div>
+                    {/* Resultado en vivo (CTE DB-SI · Tablas 4.1 y 5.1) */}
+                    <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] sm:col-span-4" data-testid={`estancia-${i}-esc-calc`}>
+                      <span className="text-muted-foreground">Protección exigida:{" "}
+                        <b className={`${escCalc?.proteccionEstado === "no_cumple" ? "text-red-700" : "text-blue-800"}`} data-testid={`estancia-${i}-esc-proteccion`}>{escCalc?.proteccionLabel || "—"}</b></span>
+                      <span className="text-muted-foreground">RF recinto: <b className="font-mono text-foreground" data-testid={`estancia-${i}-esc-rf`}>{escCalc?.resistencia || "—"}</b></span>
+                      <span className="text-muted-foreground">Anchura mín. (Tabla 4.1): <b className="font-mono text-foreground" data-testid={`estancia-${i}-esc-anchura-min`}>{escCalc?.anchuraMinTexto || "—"}</b></span>
+                      <span className={`ml-auto rounded-sm px-1.5 py-0.5 font-semibold ${escCalc?.estado === "no_cumple" ? "bg-red-100 text-red-700" : escCalc?.estado === "cumple" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`} data-testid={`estancia-${i}-esc-estado`}>
+                        {escCalc?.estado === "no_cumple" ? "No cumple" : escCalc?.estado === "cumple" ? "Cumple" : "Pendiente"}
+                      </span>
+                    </div>
                     <div className="col-span-2 sm:col-span-4">
                       <div className="flex items-center justify-between">
                         <Label className={fieldLabel}>Justificación CTE (SI 3 / SUA)</Label>
@@ -530,7 +567,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                       <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.esc_justificacion || ""} onChange={(e) => updateDep(x.id, { esc_justificacion: e.target.value })} placeholder="Pulsa «Generar» o escribe tu justificación CTE." data-testid={`estancia-${i}-esc-just`} />
                     </div>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">La escalera NO computa carga de fuego (zona de paso); solo requiere justificación CTE DB-SI/SUA.</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Introduce nº de ocupantes y altura de evacuación: el sistema calcula automáticamente la protección exigida (RF), la sectorización y la anchura mínima según el CTE DB-SI (Tablas 4.1 y 5.1). La escalera NO computa carga de fuego (zona de paso).</p>
                 </>
               ) : (
                 <CargaFuegoInline x={x} i={i} catalog={catalog} update={(p) => updateDep(x.id, p)} top={false} />

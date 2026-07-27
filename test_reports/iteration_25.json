@@ -1,0 +1,29 @@
+{
+  "summary": "FASE 3 (Escaleras + Fundamentos normativos) verificada E2E. Backend 6/6 PASS en /app/backend/tests/test_incendios_phase3_escaleras_e2e.py + regresión completa 95/95 PASS (todos los tests de incendios existentes: catalog, complete, deposito, phase1/2/3-estab-sup, phase3-escaleras). Frontend: informe (/estudios/{id}/informe) renderiza correctamente el bloque report-sector-{id}-escaleras (Protección exigida Tabla 5.1, RF del recinto EI 120, Anchura Tabla 4.1 con mín/proy, estado 'No cumple' cuando corresponde) y la sección report-fundamentos con los 9 extractos (7 base + 2 escaleras) con temas y referencias RSCIEI (RD 164/2025) y CTE DB-SI. Caso NO CUMPLE (abierta, h=20m, Comercial/Pública, 100 ocupantes, 0.9m) → protección exigida 'protegida', anchura mín 1.00m > 0.90m proy, estado sector no_cumple. Caso CUMPLE (protegida, h=20m, Admin/Docente, 100 ocupantes, 1.2m, S=20m²) → protegida requerida, anchura mín 1.00m, cumple. Exports DOCX y XLSX responden 200 con binarios válidos (empiezan por PK, tamaño >5KB/>3KB).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase3_escaleras_e2e.py",
+    "/app/test_reports/pytest/phase3_escaleras_iter25.xml"
+  ],
+  "action_items": [
+    "(Aclaración de producto, NO bug) En la review request se afirma que 'altura 12m + Administrativo/Docente → proteccion_requerida protegida'. Según el CTE DB-SI (SI 3, Tabla 5.1) y la implementación actual (PROT_ESC_DESC['Administrativo/Docente']=(14.0, 28.0)), h≤14m → no_protegida. Se creó test test_escalera_admin_h12_no_protegida documentando este comportamiento (con tipo proyectado 'protegida' → cumple por sobre-protección). Verificar con el redactor si los umbrales deben ajustarse."
+  ],
+  "critical_code_review_comments": [
+    "engine.py::_escalera_calc está correctamente conectado en _compute_sector (línea 527): cada escalera recibe su bloque 'calculo' con proteccion_requerida/label, resistencia (RF), anchura_min/anchura_estado/anchura_min_texto, proteccion_estado y estado global. El estado del sector propaga esc_nc → 'no_cumple' (línea 637-638).",
+    "norm_texts.build_fundamentos(results): base fijo (7 items) + FUNDAMENTO_ESCALERAS_DIM y FUNDAMENTO_ESCALERAS_PROT si hay escaleras. Correctamente integrado en report.py sección '9. Fundamentos normativos'.",
+    "SectoresStep.jsx: todos los data-testid presentes (estancia-{i}-esc-tipo/sentido/uso/situacion/ocupantes/altura/anchura/superficie/restringido/calc/proteccion/rf/anchura-min/estado/gen/just). Panel azul en vivo funciona con escaleraCalc de lib/fireload.js (réplica cliente del cálculo backend).",
+    "StudyReportPage.jsx: bloque report-sector-{id}-escaleras y report-escalera-{i} renderiza Protección/RF/Anchura correctamente. Sección report-fundamentos itera items con tema/cita/referencia.",
+    "Coherencia backend↔frontend: valores idénticos verificados en vivo (proyecto TEST-UI-25/UI-25-esc): resistencia='EI 120', anchura_min='1.00 m', proteccion_requerida_label='protegida', estado='no_cumple' para el caso abierta+20m+0.9m."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase3_escaleras_e2e.py"
+  ],
+  "success_rate": {"backend": "100% (6/6 nuevos + 95/95 regresión total)", "frontend": "100% (informe + fundamentos + escaleras verificados en vivo)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyecto TEST-INC-PH3-ESC + estudios TEST-esc-nc/ok/h12/report/no-esc/export creados por pytest (con teardown automático). Proyecto TEST-UI-25 + estudio UI-25-esc creados para verificación UI y borrados al finalizar.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fase 3 (escaleras + fundamentos) 100% verificada. Suite de regresión de incendios: 95 tests (~9s) en /app/backend/tests/. Requiere REACT_APP_BACKEND_URL en env (o usa fallback a preview). Los tests de escaleras usan _create_study helper que devuelve (sid, results, report) desde la respuesta de /compute (no existe endpoint /report separado; el informe se sirve embebido en la respuesta de compute y persistido en el doc del estudio para exportación DOCX/XLSX).",
+  "rca of the issue": "N/A — no bugs encontrados. La Fase 3 quedó correctamente conectada: _escalera_calc se invoca por cada escalera en _compute_sector, se serializa como escaleras_protegidas[].calculo, propaga estado al sector y a estado_global, aparece en el informe (StudyReportPage + build_docx) y en los extractos de norm_texts.build_fundamentos."
+}

@@ -1,5 +1,6 @@
 """Non-binding report template for the RSCIEI module (RD 164/2025, multi-sector)."""
 from core.models import utcnow_iso
+from normative_modules.rsciei.norm_texts import build_fundamentos
 
 
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
@@ -85,6 +86,12 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "title": "8. Observaciones",
             "type": "observaciones",
             "items": results.get("observaciones", []),
+        },
+        {
+            "id": "fundamentos",
+            "title": "9. Fundamentos normativos (extractos de la norma)",
+            "type": "fundamentos",
+            "items": build_fundamentos(results),
         },
     ]
 

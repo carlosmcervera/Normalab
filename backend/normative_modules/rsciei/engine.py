@@ -268,6 +268,14 @@ PROT_ESC_DESC = {
 PROT_ESC_ASC = (2.80, 6.00)  # (no protegida ≤ 2,80 m; protegida ≤ 6,00 m; > 6,00 esp. protegida)
 _ESC_RANK = {"abierta": 0, "no_protegida": 0, "protegida": 1, "compartimentada": 1, "especialmente": 2}
 
+# Resistencia al fuego (RF) del recinto según el grado de protección exigido (CTE DB-SI SI 1/SI 3).
+ESC_RESISTENCIA = {
+    "no_protegida": {"r": "—", "detalle": "Escalera no protegida: no se exige recinto con resistencia al fuego (CTE DB-SI SI 3, Tabla 5.1)."},
+    "protegida": {"r": "EI 120", "detalle": "Recinto de escalera protegida EI 120, con puertas EI2 60-C5 (CTE DB-SI SI 1 · Tabla 5.1)."},
+    "especialmente": {"r": "EI 120 + vestíbulo", "detalle": "Escalera especialmente protegida: recinto EI 120 y vestíbulo de independencia con ventilación natural o por sobrepresión (CTE DB-SI SI 3, Tabla 5.1)."},
+}
+ESC_PROT_LABEL = {"no_protegida": "no protegida", "protegida": "protegida", "especialmente": "especialmente protegida"}
+
 
 def _proteccion_requerida(uso, sentido, h):
     if sentido == "ascendente":
@@ -313,12 +321,22 @@ def _escalera_calc(d):
         anchura_estado = "pendiente" if a_proy <= 0 else ("cumple" if a_proy >= a_min - 1e-6 else "no_cumple")
         a_min_txt = f"{a_min:.2f} m"
     proteccion_estado = "cumple" if _ESC_RANK.get(tipo, 0) >= _ESC_RANK.get(proteccion_req, 0) else "no_cumple"
+    resist = ESC_RESISTENCIA.get(proteccion_req, ESC_RESISTENCIA["protegida"])
+    if anchura_estado == "no_admitido" or "no_cumple" in (anchura_estado, proteccion_estado):
+        estado = "no_cumple"
+    elif "pendiente" in (anchura_estado, proteccion_estado):
+        estado = "pendiente"
+    else:
+        estado = "cumple"
     return {
         "ocupantes": P, "altura_evacuacion": h, "uso": uso, "sentido": sentido,
         "anchura_min": None if a_min == float("inf") else a_min, "anchura_min_texto": a_min_txt,
         "anchura_proyectada": a_proy, "anchura_estado": anchura_estado,
-        "proteccion_requerida": proteccion_req, "proteccion_estado": proteccion_estado,
-        "min_normativo": min_w,
+        "proteccion_requerida": proteccion_req,
+        "proteccion_requerida_label": ESC_PROT_LABEL.get(proteccion_req, proteccion_req),
+        "proteccion_estado": proteccion_estado,
+        "resistencia": resist["r"], "resistencia_detalle": resist["detalle"],
+        "min_normativo": min_w, "estado": estado,
     }
 
 
@@ -506,6 +524,7 @@ def _compute_sector(sec, deps, establecimiento):
     for d in esc_deps:
         tipo = d.get("esc_tipo") or "protegida"
         sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
+        calc = _escalera_calc(d)
         escaleras.append({
             "nombre": d.get("nombre", "Escalera"),
             "tipo": tipo,
@@ -515,6 +534,7 @@ def _compute_sector(sec, deps, establecimiento):
             "capacidad": d.get("esc_capacidad"),
             "uso_restringido": bool(d.get("esc_uso_restringido")),
             "justificacion": d.get("esc_justificacion") or "",
+            "calculo": calc,
         })
 
     # Ámbito del sector: industrial (RSCIEI) o CTE. Los sectores CTE calculan igualmente
@@ -575,15 +595,25 @@ def _compute_sector(sec, deps, establecimiento):
                 observaciones.append({"tipo": "info", "texto": f"LRE «{l['nombre']}» (riesgo {l['riesgo'].lower()}, {l['resistencia']}): {l['justificacion']}"})
     for e in escaleras:
         tipo_txt = ESC_TIPO_LABEL.get(e["tipo"], "protegida")
+        c = e.get("calculo") or {}
         detalle = f"Escalera {tipo_txt} «{e['nombre']}» ({e['situacion']}, evacuación {e.get('sentido', 'descendente')}"
-        if e.get("anchura"):
-            detalle += f", anchura {e['anchura']} m"
-        if e.get("capacidad"):
-            detalle += f", capacidad {e['capacidad']} pers."
-        if e["uso_restringido"]:
-            detalle += ", uso restringido"
-        detalle += f"): NO computa carga de fuego (zona de paso). Justificación CTE DB-SI/SUA: {e['justificacion'] or 'pendiente de justificar'}."
-        observaciones.append({"tipo": "info" if e["justificacion"] else "warning", "texto": detalle})
+        if c.get("ocupantes"):
+            detalle += f", {c['ocupantes']:.0f} ocupantes a evacuar"
+        if c.get("altura_evacuacion"):
+            detalle += f", altura de evacuación {c['altura_evacuacion']:.2f} m"
+        detalle += ")."
+        detalle += (f" Según el CTE DB-SI (SI 3, Tabla 5.1) se exige una escalera {c.get('proteccion_requerida_label', 'protegida')}"
+                    f" con recinto {c.get('resistencia', 'EI 120')}; anchura mínima {c.get('anchura_min_texto', '—')}"
+                    f" (Tabla 4.1). No computa carga de fuego (zona de paso).")
+        est = c.get("estado")
+        tipo_obs = "error" if est == "no_cumple" else ("warning" if est == "pendiente" else "info")
+        if c.get("anchura_estado") == "no_cumple":
+            detalle += (f" La anchura proyectada ({c.get('anchura_proyectada')} m) es INFERIOR a la mínima exigida"
+                        f" ({c.get('anchura_min_texto')}).")
+        if c.get("proteccion_estado") == "no_cumple":
+            detalle += (f" El grado de protección proyectado ({tipo_txt}) es INSUFICIENTE frente al exigido"
+                        f" ({c.get('proteccion_requerida_label')}).")
+        observaciones.append({"tipo": tipo_obs, "texto": detalle})
 
     for dep in depositos:
         observaciones.append({"tipo": "info", "texto": (
@@ -604,7 +634,8 @@ def _compute_sector(sec, deps, establecimiento):
     estado = "cumple"
     med_nc = bool(med and med.get("estado") == "no_cumple")
     fach_nc = bool(fach and fach.get("estado") == "no_cumple")
-    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or med_nc or fach_nc or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
+    esc_nc = any((e.get("calculo") or {}).get("estado") == "no_cumple" for e in escaleras)
+    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or med_nc or fach_nc or esc_nc or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
     elif any(o["tipo"] == "warning" for o in observaciones):
         estado = "observaciones"

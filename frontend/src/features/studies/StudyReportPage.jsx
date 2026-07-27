@@ -172,14 +172,44 @@ function SectorReport({ s }) {
       )}
       {s.escaleras_protegidas?.length > 0 && (
         <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-escaleras`}>
-          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Escaleras protegidas (justificación CTE)</p>
-          <div className="space-y-2">
-            {s.escaleras_protegidas.map((e, i) => (
-              <div key={i} className="text-sm">
-                <span className="font-medium">{e.nombre} · {ESC_TIPO_LABEL[e.tipo] || "protegida"}{e.sentido ? ` · ${e.sentido}` : ""} · {e.situacion}{e.anchura ? ` · ${e.anchura} m` : ""}{e.capacidad ? ` · ${e.capacidad} pers.` : ""}</span>
-                {e.justificacion && <p className="mt-0.5 text-xs text-muted-foreground">{e.justificacion}</p>}
-              </div>
-            ))}
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Escaleras de evacuación (CTE DB-SI · SI 3, Tablas 4.1 y 5.1)</p>
+          <div className="space-y-3">
+            {s.escaleras_protegidas.map((e, i) => {
+              const c = e.calculo || {};
+              const estCls = c.estado === "no_cumple" ? "text-red-700" : c.estado === "cumple" ? "text-emerald-700" : "text-slate-500";
+              const estTxt = c.estado === "no_cumple" ? "No cumple" : c.estado === "cumple" ? "Cumple" : "Pendiente";
+              return (
+                <div key={i} className="rounded-sm border border-border p-3 text-sm" data-testid={`report-escalera-${i}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{e.nombre} · {ESC_TIPO_LABEL[e.tipo] || "protegida"}{e.sentido ? ` · evac. ${e.sentido}` : ""} · {e.situacion}</span>
+                    <span className={`font-semibold ${estCls}`} data-testid={`report-escalera-${i}-estado`}>{estTxt}</span>
+                  </div>
+                  {(c.ocupantes || c.altura_evacuacion) && (
+                    <p className="mt-1 font-mono text-xs text-slate-600">
+                      P = {num(c.ocupantes)} ocupantes · h = {num(c.altura_evacuacion, 2)} m · uso: {c.uso}
+                    </p>
+                  )}
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
+                    <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
+                      <span className="uppercase text-muted-foreground">Protección exigida (Tabla 5.1)</span>
+                      <p className={`font-semibold ${c.proteccion_estado === "no_cumple" ? "text-red-700" : ""}`}>{c.proteccion_requerida_label || "—"}</p>
+                    </div>
+                    <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
+                      <span className="uppercase text-muted-foreground">RF del recinto</span>
+                      <p className="font-mono font-semibold">{c.resistencia || "—"}</p>
+                    </div>
+                    <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
+                      <span className="uppercase text-muted-foreground">Anchura (Tabla 4.1)</span>
+                      <p className={`font-mono font-semibold ${c.anchura_estado === "no_cumple" ? "text-red-700" : ""}`}>
+                        mín. {c.anchura_min_texto || "—"}{c.anchura_proyectada ? ` · proy. ${num(c.anchura_proyectada, 2)} m` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  {c.resistencia_detalle && <p className="mt-2 text-xs text-muted-foreground">{c.resistencia_detalle}</p>}
+                  {e.justificacion && <p className="mt-1 text-xs text-muted-foreground">{e.justificacion}</p>}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -477,6 +507,18 @@ function Section({ s }) {
               </li>
             ))}
           </ul>
+        )}
+
+        {s.type === "fundamentos" && (
+          <div className="space-y-4" data-testid="report-fundamentos">
+            {s.items.map((f, i) => (
+              <div key={i} className="border-l-2 border-orange-400 pl-3" data-testid={`report-fundamento-${i}`}>
+                <p className="text-sm font-semibold">{f.tema}</p>
+                <blockquote className="mt-1 text-sm italic leading-relaxed text-slate-700">{f.cita}</blockquote>
+                <p className="mt-1 text-xs text-muted-foreground">— {f.referencia}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </section>

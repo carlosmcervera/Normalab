@@ -203,7 +203,15 @@ def _sector_docx(doc, s):
         p = doc.add_paragraph(style="List Bullet")
         tipo = ESC_TIPO_LABEL.get(e.get("tipo"), "protegida")
         sentido = f" · {e.get('sentido')}" if e.get("sentido") else ""
-        r = p.add_run(f"Escalera «{e.get('nombre')}» · {tipo}{sentido} · {e.get('situacion')}"
+        c = e.get("calculo") or {}
+        calc_txt = ""
+        if c:
+            calc_txt = (f" · {_fmt(c.get('ocupantes'))} ocupantes · altura {_fmt(c.get('altura_evacuacion'), 2)} m"
+                        f" · exige escalera {c.get('proteccion_requerida_label', 'protegida')} ({c.get('resistencia', 'EI 120')})"
+                        f" · anchura mín. {c.get('anchura_min_texto', '—')}"
+                        f" / proyectada {_fmt(c.get('anchura_proyectada'), 2)} m"
+                        f" ({'CUMPLE' if c.get('estado') == 'cumple' else 'NO CUMPLE' if c.get('estado') == 'no_cumple' else 'pendiente'})")
+        r = p.add_run(f"Escalera «{e.get('nombre')}» · {tipo}{sentido} · {e.get('situacion')}{calc_txt}"
                       f"{'. ' + e['justificacion'] if e.get('justificacion') else ''}")
         r.font.size = Pt(9)
 
@@ -350,6 +358,20 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
         elif stype == "observaciones":
             for o in s.get("items", []):
                 doc.add_paragraph(o.get("texto", ""), style="List Bullet")
+        elif stype == "fundamentos":
+            for fnd in s.get("items", []):
+                p = doc.add_paragraph()
+                pr = p.add_run(fnd.get("tema", ""))
+                pr.bold = True
+                pr.font.size = Pt(9.5)
+                cp = doc.add_paragraph()
+                cr = cp.add_run(fnd.get("cita", ""))
+                cr.italic = True
+                cr.font.size = Pt(9)
+                rp = doc.add_paragraph()
+                rr = rp.add_run(f"— {fnd.get('referencia', '')}")
+                rr.font.size = Pt(8)
+                rr.font.color.rgb = GREY
 
     doc.add_paragraph()
     disc = doc.add_paragraph()
