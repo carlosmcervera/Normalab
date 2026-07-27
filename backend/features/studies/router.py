@@ -90,12 +90,15 @@ async def compute_study(study_id: str, user: dict = Depends(get_current_user)):
     if not mod or mod.status != "operativo":
         raise HTTPException(status_code=400, detail="Módulo no operativo")
     project = await db.projects.find_one({"_id": ObjectId(doc["project_id"])})
+    data = dict(doc.get("data") or {})
+    if project is not None:
+        data["estancias"] = project.get("estancias", [])
     try:
-        results = mod.compute(doc.get("data") or {})
+        results = mod.compute(data)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     report = mod.build_report(_serialize(project) if project else {}, _serialize(doc),
-                              doc.get("data") or {}, results)
+                              data, results)
     await db.studies.update_one(
         {"_id": ObjectId(study_id)},
         {"$set": {"results": results, "report": report, "status": "calculado",
@@ -116,14 +119,17 @@ async def create_version(study_id: str, payload: VersionNote,
     if not mod or mod.status != "operativo":
         raise HTTPException(status_code=400, detail="Módulo no operativo")
     project = await db.projects.find_one({"_id": ObjectId(doc["project_id"])})
+    data = dict(doc.get("data") or {})
+    if project is not None:
+        data["estancias"] = project.get("estancias", [])
     try:
-        results = mod.compute(doc.get("data") or {})
+        results = mod.compute(data)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     report = mod.build_report(_serialize(project) if project else {}, _serialize(doc),
-                              doc.get("data") or {}, results)
+                              data, results)
     new_version = int(doc.get("current_version", 0)) + 1
-    version = StudyVersion(study_id=study_id, version=new_version, data=doc.get("data") or {},
+    version = StudyVersion(study_id=study_id, version=new_version, data=data,
                            results=results, report=report, note=payload.note,
                            created_by=user["_id"])
     await db.study_versions.insert_one(version.to_mongo())

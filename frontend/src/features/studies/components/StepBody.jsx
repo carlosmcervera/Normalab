@@ -10,9 +10,10 @@ import { AmbitosManager } from "@/features/studies/components/AmbitosManager";
 import { ProyectoSuperficiesStep } from "@/features/studies/components/ProyectoSuperficiesStep";
 import { SectoresStep } from "@/features/studies/components/SectoresStep";
 import { ConstruccionStep } from "@/features/studies/components/ConstruccionStep";
+import { SharedSurfacesStep } from "@/features/studies/components/SharedSurfacesStep";
 
 // Renders a single wizard sub-step given its (sub-)schema, scoped data and setData.
-export function StepBody({ step, schema, data, setData }) {
+export function StepBody({ step, schema, data, setData, study }) {
   const getVal = (f) => (f.target ? (data[f.target] || {})[f.name] : data[f.name]);
   const setVal = (f, v) => setData((d) => (f.target ? { ...d, [f.target]: { ...(d[f.target] || {}), [f.name]: v } } : { ...d, [f.name]: v }));
 
@@ -41,8 +42,9 @@ export function StepBody({ step, schema, data, setData }) {
     );
   }
 
+  if (step.type === "estancias_compartidas") return <SharedSurfacesStep projectId={study?.project_id} />;
   if (step.type === "superficies") return <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />;
-  if (step.type === "superficies_proyecto") return <ProyectoSuperficiesStep data={data} setData={setData} schema={schema} />;
+  if (step.type === "superficies_proyecto") return <ProyectoSuperficiesStep data={data} setData={setData} schema={schema} study={study} />;
   if (step.type === "sectores_incendio") return <SectoresStep data={data} setData={setData} schema={schema} />;
   if (step.type === "ambitos") return <AmbitosManager data={data} setData={setData} schema={schema} />;
   if (step.type === "ocupacion") return <OcupacionStep data={data} setData={setData} densities={schema.occupancy_densities || []} />;

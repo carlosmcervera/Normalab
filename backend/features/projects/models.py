@@ -11,6 +11,8 @@ class Project(BaseDocument):
     location: Optional[str] = None
     description: Optional[str] = None
     owner_id: str
+    # Cuadro de superficies + ocupación compartido por el expediente (editable desde cualquier módulo).
+    estancias: list = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
     updated_at: str = Field(default_factory=utcnow_iso)
 

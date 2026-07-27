@@ -15,6 +15,10 @@ class BulkDelete(BaseModel):
     ids: List[str]
 
 
+class EstanciasPayload(BaseModel):
+    estancias: list = []
+
+
 def _serialize(doc: dict) -> dict:
     doc = dict(doc)
     doc["id"] = str(doc.pop("_id"))
@@ -59,6 +63,26 @@ async def update_project(project_id: str, payload: ProjectUpdate,
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
     doc = await db.projects.find_one({"_id": ObjectId(project_id)})
     return _serialize(doc)
+
+
+@router.get("/{project_id}/estancias")
+async def get_estancias(project_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.projects.find_one({"_id": ObjectId(project_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    return {"estancias": doc.get("estancias", [])}
+
+
+@router.put("/{project_id}/estancias")
+async def put_estancias(project_id: str, payload: EstanciasPayload,
+                        user: dict = Depends(get_current_user)):
+    result = await db.projects.update_one(
+        {"_id": ObjectId(project_id)},
+        {"$set": {"estancias": payload.estancias, "updated_at": utcnow_iso()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    return {"estancias": payload.estancias}
 
 
 @router.post("/bulk-delete")

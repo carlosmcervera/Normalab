@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { Plus, Loader2, FileText, ArrowLeft, Trash2 } from "lucide-react";
+import { Plus, Loader2, FileText, ArrowLeft, Trash2, Layers, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
 import { formatDate, STATE_META } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { ModuleIcon } from "@/components/ModuleIcon";
+import { SharedSurfacesStep } from "@/features/studies/components/SharedSurfacesStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ export default function ProjectDetailPage() {
   const [open, setOpen] = useState(false);
   const [studyName, setStudyName] = useState("");
   const [moduleCode, setModuleCode] = useState("");
+  const [showSurfaces, setShowSurfaces] = useState(false);
 
   const { data: project } = useQuery({ queryKey: ["project", projectId], queryFn: () => api.get(`/projects/${projectId}`).then((r) => r.data) });
   const { data: modules = [] } = useQuery({ queryKey: ["modules"], queryFn: () => api.get("/modules").then((r) => r.data) });
@@ -103,6 +105,22 @@ export default function ProjectDetailPage() {
           </Dialog>
         }
       />
+
+      <div className="mb-6 border border-border bg-background" data-testid="shared-surfaces-card">
+        <button onClick={() => setShowSurfaces((v) => !v)} className="flex w-full items-center justify-between px-5 py-3.5 text-left" data-testid="toggle-shared-surfaces">
+          <span className="flex items-center gap-2 font-heading text-base">
+            <Layers className="h-4 w-4 text-orange-500" /> Cuadro de superficies y ocupación
+            <Badge variant="secondary" className="rounded-sm text-[10px]">compartido</Badge>
+          </span>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showSurfaces ? "rotate-180" : ""}`} />
+        </button>
+        {showSurfaces && (
+          <div className="border-t border-border p-5">
+            <p className="mb-4 text-sm text-muted-foreground">Inventario único del expediente. Lo comparten todos los módulos (Incendios lo importa; REBT y RITE lo usan directamente).</p>
+            <SharedSurfacesStep projectId={projectId} />
+          </div>
+        )}
+      </div>
 
       <h2 className="mb-4 font-heading text-xl">Estudios</h2>
       {isLoading ? (

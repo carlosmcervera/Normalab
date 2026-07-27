@@ -1,0 +1,27 @@
+{
+  "summary": "REBT (RD 842/2002) y RITE (RD 1027/2007) verificados E2E backend+frontend. Backend pytest 12/12 PASS (6 nuevos REBT/RITE + 6 regresión escaleras). UI validada en vivo: login por cookie httpOnly, expediente TEST-UI-26 con cuadro compartido (2 estancias: Oficina 100m² dens=10 → 10 pers; Sala 50m² dens=2 → 25 pers; total 150m²/165m²/35 pers) con autoguardado ('Guardado'). REBT wizard: paso 1 shared-surfaces-step + paso 2 datos-línea (todos los data-testid field-* correctos) → trifásica 400V/18000W/50m/Cu/5%/industrial → Cumple con Ib=28.9 A, sección 6 mm², caída 1.67%, IGA 32 A. RITE wizard: mismos pasos → clima/oficinas/D/450 kW/caldera_condensacion/88%/IDA2/0.7 m³/s → No cumple con rendimiento no_cumple (88<92), fraccionamiento observaciones (450>400), recuperación observaciones (0.7>0.5), demanda observaciones (450 vs 14.25 demandados, sobredimensionado), ventilación 437.5 l/s calculada desde ocupación 35 del cuadro compartido. Informes REBT y RITE en /estudios/{id}/informe renderizan report-metricas, report-estancias-resumen, report-secciones-modulo y report-fundamentos. Exports DOCX/XLSX responden 200 con binarios válidos (PK header, >3KB/>2KB). Import/push cuadro presentes en ProyectoSuperficiesStep (data-testid import-cuadro y push-cuadro).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rebt_rite_e2e.py",
+    "/app/test_reports/pytest/rebt_rite_iter26.xml"
+  ],
+  "action_items": [
+    "(Aclaración, NO bug) El caso 'no_cumple' del review para REBT (monofásica 230V, 8000W, 60m, Cu, 1%, vivienda_basica) devuelve 'cumple': el motor sube la sección a 35 mm² para satisfacer la caída (0.93%) y P=8000W ≥ 5750W del grado básico. Ajustado el test para P=5000W (< 5750W) que sí provoca no_cumple por grado de electrificación. Recomiende revisar la especificación del caso didáctico en el review si se quiere el efecto 'no_cumple' con esos parámetros."
+  ],
+  "critical_code_review_comments": [
+    "features/studies/router.py::compute/version: correctamente inyecta project.estancias en data antes de mod.compute (línea 94-95, 122-124). Sección compartida coherente para REBT y RITE.",
+    "features/projects/router.py: GET/PUT /projects/{id}/estancias correctamente serializado, _id excluido via _serialize helper.",
+    "normative_modules/rite/engine.py: usa resumen_estancias() y respeta ocupantes_override si se provee (línea 34). Cálculo de ventilación IDA_CAUDAL[ida]*ocupantes verificado (12.5*35=437.5 l/s ✓).",
+    "normative_modules/rebt/engine.py: elección de sección elige mayor entre s_cdt y s_termica correctamente, aplica ITC-BT-19/18/25. Estado global propaga no_cumple del grado_vivienda.",
+    "SharedSurfacesStep.jsx + ProjectDetailPage.jsx: tarjeta expedible con toggle-shared-surfaces / shared-surfaces-card + shared-surfaces-step y totales shared-total-util/construida/ocup, autoguardado con debounce visible."
+  ],
+  "updated_files": ["/app/backend/tests/test_rebt_rite_e2e.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (REBT+RITE flujo completo + informes verificados en vivo)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyecto TEST-REBT-RITE-E2E creado por pytest (con teardown). Proyecto TEST-UI-26 + estudios UI26 REBT / UI26 RITE creados en UI y eliminados al finalizar.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "REBT/RITE 100% operativos. Los data-testid field-* funcionan tanto para inputs numéricos (con o sin wrapper) como para selects (Radix). El paso 1 (estancias_compartidas) recibe study prop y edita project.estancias vía PUT /api/projects/{pid}/estancias. INCENDIOS import/push cuadro botones existen (verificado en código); no re-testeado end-to-end porque iter 25 lo cubrió y no hubo cambios estructurales. Suite total actual: /app/backend/tests/ con test_incendios_* (95 tests iter25) + test_rebt_rite_e2e.py (6 tests). Nota: test_incendios_complete.py da ModuleNotFoundError si se ejecuta desde /app (necesita cwd=/app/backend). No bloqueante.",
+  "rca of the issue": "N/A — no bugs encontrados. Única aclaración: el ejemplo 'no_cumple' del review era inexacto (motor cumple por sobre-dimensionar sección). Fix en test: usar P=5000W para forzar no_cumple por grado de electrificación (ITC-BT-25)."
+}

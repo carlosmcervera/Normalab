@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Plus, Trash2, Layers } from "lucide-react";
+import { Plus, Trash2, Layers, Download, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { api, apiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/NumberInput";
@@ -12,10 +14,52 @@ const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(
 const SIN = "__sin__";
 
 // Paso 1 · Cuadro de superficies agrupado por planta (plantas como entidad gestionable).
-export function ProyectoSuperficiesStep({ data, setData }) {
+export function ProyectoSuperficiesStep({ data, setData, study }) {
   const deps = data.dependencias || [];
   const plantas = data.plantas || [];
   const [nuevaPlanta, setNuevaPlanta] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const projectId = study?.project_id;
+
+  const importarCuadro = async () => {
+    setSyncing(true);
+    try {
+      const { data: res } = await api.get(`/projects/${projectId}/estancias`);
+      const estancias = res.estancias || [];
+      if (!estancias.length) { toast.info("El cuadro del expediente está vacío."); return; }
+      setData((d) => {
+        const byId = new Map((d.dependencias || []).map((x) => [x.id, x]));
+        estancias.forEach((e) => {
+          const prev = byId.get(e.id) || { id: e.id, modo: "produccion", ci: 1.44 };
+          byId.set(e.id, {
+            ...prev, nombre: e.nombre || prev.nombre || "", planta: e.planta || prev.planta || "",
+            sup_util: e.sup_util ?? prev.sup_util ?? "", sup_construida: e.sup_construida ?? prev.sup_construida ?? "",
+            densidad: e.densidad ?? prev.densidad, uso_ocupacion: e.uso_ocupacion ?? prev.uso_ocupacion,
+            sin_ocupacion: e.sin_ocupacion ?? prev.sin_ocupacion,
+          });
+        });
+        const nombres = new Set((d.plantas || []).map((p) => p.nombre));
+        const nuevasPlantas = [...(d.plantas || [])];
+        estancias.forEach((e) => { if (e.planta && !nombres.has(e.planta)) { nombres.add(e.planta); nuevasPlantas.push({ id: genId(), nombre: e.planta }); } });
+        return { ...d, dependencias: Array.from(byId.values()), plantas: nuevasPlantas };
+      });
+      toast.success(`Importadas ${estancias.length} estancias del cuadro del expediente.`);
+    } catch (e) { toast.error(apiError(e)); } finally { setSyncing(false); }
+  };
+
+  const enviarCuadro = async () => {
+    setSyncing(true);
+    try {
+      const estancias = (data.dependencias || []).map((d) => ({
+        id: d.id, nombre: d.nombre || "", planta: d.planta || "",
+        sup_util: d.sup_util ?? "", sup_construida: d.sup_construida ?? "", altura: d.altura ?? "",
+        uso_ocupacion: d.uso_ocupacion || "", densidad: d.densidad ?? "",
+        sin_ocupacion: !!d.sin_ocupacion, ocupacion_custom: !!d.ocupacion_custom, ocupacion_manual: d.ocupacion_manual ?? "",
+      }));
+      await api.put(`/projects/${projectId}/estancias`, { estancias });
+      toast.success("Cuadro del expediente actualizado con estas estancias.");
+    } catch (e) { toast.error(apiError(e)); } finally { setSyncing(false); }
+  };
 
   const addDep = (planta = "") =>
     setData((d) => ({
@@ -84,11 +128,23 @@ export function ProyectoSuperficiesStep({ data, setData }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Estancias agrupadas por planta. Asigna cada estancia a su planta; los sectores se definen en el paso siguiente.</p>
-        <Button variant="outline" size="sm" className="rounded-sm shrink-0" onClick={() => addDep(plantas[0]?.nombre || "")} data-testid="add-dependencia">
-          <Plus className="mr-1.5 h-4 w-4" /> Añadir estancia
-        </Button>
+        <div className="flex items-center gap-2">
+          {projectId && (
+            <>
+              <Button variant="outline" size="sm" className="rounded-sm" onClick={importarCuadro} disabled={syncing} data-testid="import-cuadro">
+                <Download className="mr-1.5 h-4 w-4" /> Importar del cuadro
+              </Button>
+              <Button variant="outline" size="sm" className="rounded-sm" onClick={enviarCuadro} disabled={syncing} data-testid="push-cuadro">
+                <Upload className="mr-1.5 h-4 w-4" /> Actualizar cuadro
+              </Button>
+            </>
+          )}
+          <Button variant="outline" size="sm" className="rounded-sm shrink-0" onClick={() => addDep(plantas[0]?.nombre || "")} data-testid="add-dependencia">
+            <Plus className="mr-1.5 h-4 w-4" /> Añadir estancia
+          </Button>
+        </div>
       </div>
 
       {deps.length === 0 ? (

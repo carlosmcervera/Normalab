@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { StepBody } from "@/features/studies/components/StepBody";
 import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
+import { GenericResultsPanel } from "@/features/studies/components/GenericResultsPanel";
 
 const defaultData = (code) => (code === "INCENDIOS" ? { establecimiento: { config: "C" }, sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
 
@@ -63,6 +64,15 @@ export default function StudyWizardPage() {
 
   const schema = schemaQ.data?.schema;
   const isIncendios = study?.module_code === "INCENDIOS";
+
+  useEffect(() => {
+    if (!schema || data === null || isIncendios) return;
+    const defs = {};
+    (schema.steps || []).forEach((st) => (st.fields || []).forEach((f) => {
+      if (f.default !== undefined && data[f.name] === undefined) defs[f.name] = f.default;
+    }));
+    if (Object.keys(defs).length) setData((d) => ({ ...d, ...defs }));
+  }, [schema]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const steps = useMemo(() => {
     if (!schema) return [];
@@ -139,14 +149,16 @@ export default function StudyWizardPage() {
         {current.description && <p className="mt-1 text-sm text-muted-foreground">{current.description}</p>}
 
         <div className="mt-6">
-          {!current.synthetic && <StepBody step={current} schema={schema} data={data} setData={setData} />}
+          {!current.synthetic && <StepBody step={current} schema={schema} data={data} setData={setData} study={study} />}
 
           {current.synthetic && (
             <div>
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                isIncendios && !results?.sectores ? <IncendiosResultsPanel results={results} /> : <ResultsPanel results={results} />
+                results?.sectores ? <ResultsPanel results={results} />
+                  : results?.ambitos ? <IncendiosResultsPanel results={results} />
+                    : <GenericResultsPanel results={results} />
               ) : (
                 <div className="border border-dashed border-border py-12 text-center">
                   <p className="text-sm text-muted-foreground">Pulsa «Calcular» para ejecutar el motor de reglas.</p>

@@ -520,6 +520,80 @@ function Section({ s }) {
             ))}
           </div>
         )}
+
+        {s.type === "metricas" && (
+          <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4" data-testid="report-metricas">
+            {(s.items || []).map((m, i) => (
+              <div key={i} className="bg-background p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{m.label}</p>
+                <p className="mt-1 font-mono text-2xl font-light">{m.valor}<span className="text-xs text-muted-foreground"> {m.unidad}</span></p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {s.type === "estancias_resumen" && (
+          <div className="overflow-x-auto border border-border" data-testid="report-estancias-resumen">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-secondary/60 text-left uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2.5 py-2 font-semibold">Estancia</th><th className="px-2.5 py-2 font-semibold">Planta</th>
+                  <th className="px-2.5 py-2 text-right font-semibold">S. útil</th><th className="px-2.5 py-2 text-right font-semibold">S. constr.</th>
+                  <th className="px-2.5 py-2 text-right font-semibold">Vol.</th><th className="px-2.5 py-2 font-semibold">Uso</th>
+                  <th className="px-2.5 py-2 text-right font-semibold">Ocup.</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {(s.data?.filas || []).map((f, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-2.5 py-1.5 font-sans">{f.nombre}</td><td className="px-2.5 py-1.5 font-sans">{f.planta}</td>
+                    <td className="px-2.5 py-1.5 text-right">{num(f.sup_util, 2)}</td><td className="px-2.5 py-1.5 text-right">{num(f.sup_construida, 2)}</td>
+                    <td className="px-2.5 py-1.5 text-right">{f.volumen ? num(f.volumen, 2) : "—"}</td><td className="px-2.5 py-1.5 font-sans">{f.uso}</td>
+                    <td className="px-2.5 py-1.5 text-right">{f.ocupacion}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border bg-secondary/40 font-mono font-bold">
+                  <td className="px-2.5 py-2 font-sans" colSpan={2}>TOTAL</td>
+                  <td className="px-2.5 py-2 text-right">{num(s.data?.total_util, 2)}</td>
+                  <td className="px-2.5 py-2 text-right">{num(s.data?.total_construida, 2)}</td>
+                  <td className="px-2.5 py-2 text-right">{num(s.data?.total_volumen, 2)}</td>
+                  <td /><td className="px-2.5 py-2 text-right">{s.data?.total_ocupacion}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {s.type === "secciones_modulo" && (
+          <div className="space-y-4" data-testid="report-secciones-modulo">
+            {(s.items || []).map((sec) => {
+              const badge = sec.estado === "cumple" ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : sec.estado === "no_cumple" ? "border-red-300 bg-red-50 text-red-800"
+                  : sec.estado === "observaciones" ? "border-amber-300 bg-amber-50 text-amber-800"
+                    : "border-slate-300 bg-slate-50 text-slate-600";
+              const lbl = sec.estado === "cumple" ? "Cumple" : sec.estado === "no_cumple" ? "No cumple" : sec.estado === "observaciones" ? "Revisar" : "Info";
+              return (
+                <div key={sec.id} className="border border-border" data-testid={`report-seccion-${sec.id}`}>
+                  <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-3 py-2">
+                    <span className="font-medium">{sec.titulo}</span>
+                    <span className={`rounded-sm border px-2 py-0.5 text-xs font-medium ${badge}`}>{lbl}</span>
+                  </div>
+                  {sec.descripcion && <p className="px-3 pt-2 text-xs text-muted-foreground">{sec.descripcion}</p>}
+                  <div className="p-1.5">
+                    {(sec.items || []).map((it, i) => (
+                      <div key={i} className="flex items-start justify-between gap-3 px-1.5 py-1">
+                        <span>{it.nombre}</span>
+                        <span className={`text-right font-mono text-xs ${it.estado === "no_cumple" ? "font-semibold text-red-700" : it.estado === "cumple" ? "font-semibold text-emerald-700" : "text-muted-foreground"}`}>{it.detalle}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

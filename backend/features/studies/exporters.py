@@ -355,6 +355,34 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
             for it in s.get("items", []):
                 p = doc.add_paragraph(style="List Bullet")
                 p.add_run(f"{it.get('nombre')} — {'Obligatorio' if it.get('obligatorio') else 'No exigible'}: {it.get('detalle', '')}")
+        elif stype == "metricas":
+            rows = [[m.get("label"), f"{m.get('valor')} {m.get('unidad', '')}".strip()] for m in s.get("items", [])]
+            _generic_table(doc, ["Magnitud", "Valor"], rows)
+        elif stype == "estancias_resumen":
+            d = s.get("data", {})
+            rows = [[f.get("nombre"), f.get("planta"), _fmt(f.get("sup_util"), 2), _fmt(f.get("sup_construida"), 2),
+                     _fmt(f.get("volumen"), 2) if f.get("volumen") else "—", f.get("uso"), str(f.get("ocupacion"))]
+                    for f in d.get("filas", [])]
+            _generic_table(doc, ["Estancia", "Planta", "S. útil", "S. constr.", "Vol.", "Uso", "Ocup."], rows,
+                           totals=["Total", "", _fmt(d.get("total_util"), 2), _fmt(d.get("total_construida"), 2),
+                                   _fmt(d.get("total_volumen"), 2), "", str(d.get("total_ocupacion"))])
+        elif stype == "secciones_modulo":
+            for sec in s.get("items", []):
+                est = sec.get("estado")
+                label = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}.get(est, "Info")
+                p = doc.add_paragraph()
+                pr = p.add_run(f"{sec.get('titulo', '')}  —  {label}")
+                pr.bold = True
+                pr.font.size = Pt(10)
+                if sec.get("descripcion"):
+                    dp = doc.add_paragraph()
+                    dr = dp.add_run(sec["descripcion"])
+                    dr.italic = True
+                    dr.font.size = Pt(8.5)
+                    dr.font.color.rgb = GREY
+                for it in sec.get("items", []):
+                    b = doc.add_paragraph(style="List Bullet")
+                    b.add_run(f"{it.get('nombre')}: {it.get('detalle', '')}").font.size = Pt(9)
         elif stype == "observaciones":
             for o in s.get("items", []):
                 doc.add_paragraph(o.get("texto", ""), style="List Bullet")
@@ -418,9 +446,77 @@ def _autosize(ws, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 
+def _build_generic_xlsx(wb: Workbook, results: dict, project: dict) -> BytesIO:
+    from normative_modules.shared_estancias import resumen_estancias
+    # Hoja Resumen
+    ws = wb.active
+    ws.title = "Resumen"
+    ws.cell(row=1, column=1, value=f"Resumen · {project.get('code','')} {project.get('name','')}").font = Font(bold=True, size=12)
+    _header_row(ws, 3, ["Magnitud", "Valor", "Unidad"])
+    r = 4
+    for m in results.get("resumen", []):
+        ws.cell(row=r, column=1, value=m.get("label"))
+        ws.cell(row=r, column=2, value=m.get("valor"))
+        ws.cell(row=r, column=3, value=m.get("unidad"))
+        for c in range(1, 4):
+            ws.cell(row=r, column=c).border = BORDER
+        r += 1
+    ws.cell(row=r + 1, column=1, value="Estado global").font = Font(bold=True)
+    ws.cell(row=r + 1, column=2, value=results.get("estado_global")).font = Font(bold=True)
+    _autosize(ws, [34, 20, 12])
+
+    # Hoja Estancias
+    est = resumen_estancias(results.get("estancias") or [])
+    if est["filas"]:
+        we = wb.create_sheet("Estancias")
+        we.cell(row=1, column=1, value="Cuadro de superficies y ocupación").font = Font(bold=True, size=12)
+        _header_row(we, 3, ["Estancia", "Planta", "S. útil (m²)", "S. constr. (m²)", "Volumen (m³)", "Uso", "Ocupación"])
+        r = 4
+        for f in est["filas"]:
+            for c, key in enumerate(["nombre", "planta", "sup_util", "sup_construida", "volumen", "uso", "ocupacion"], start=1):
+                we.cell(row=r, column=c, value=f.get(key))
+                we.cell(row=r, column=c).border = BORDER
+            r += 1
+        we.cell(row=r, column=1, value="TOTAL").font = Font(bold=True)
+        we.cell(row=r, column=3, value=est["total_util"]).font = Font(bold=True)
+        we.cell(row=r, column=4, value=est["total_construida"]).font = Font(bold=True)
+        we.cell(row=r, column=5, value=est["total_volumen"]).font = Font(bold=True)
+        we.cell(row=r, column=7, value=est["total_ocupacion"]).font = Font(bold=True)
+        for c in range(1, 8):
+            we.cell(row=r, column=c).fill = TOTAL_FILL
+            we.cell(row=r, column=c).border = BORDER
+        _autosize(we, [28, 14, 16, 16, 14, 22, 14])
+
+    # Hoja Verificación
+    wv = wb.create_sheet("Verificación")
+    wv.cell(row=1, column=1, value="Verificación de exigencias").font = Font(bold=True, size=12)
+    _header_row(wv, 3, ["Apartado", "Estado", "Concepto", "Detalle"])
+    r = 4
+    labels = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar", "info": "Info"}
+    for sec in results.get("secciones", []):
+        for it in sec.get("items", []):
+            wv.cell(row=r, column=1, value=sec.get("titulo"))
+            wv.cell(row=r, column=2, value=labels.get(sec.get("estado"), "Info"))
+            wv.cell(row=r, column=3, value=it.get("nombre"))
+            wv.cell(row=r, column=4, value=it.get("detalle"))
+            for c in range(1, 5):
+                wv.cell(row=r, column=c).border = BORDER
+            r += 1
+    _autosize(wv, [34, 12, 32, 60])
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
 def build_xlsx(study: dict, project: dict) -> BytesIO:
     results = study.get("results") or {}
     wb = Workbook()
+
+    # Módulos genéricos (REBT/RITE): sin sectores de incendio → libro genérico.
+    if results.get("secciones") is not None and not results.get("sectores"):
+        return _build_generic_xlsx(wb, results, project)
 
     # --- Hoja Superficies --------------------------------------------------- #
     ws = wb.active

@@ -29,11 +29,9 @@ def bootstrap_modules():
     """Import and register all normative modules. Adding a new normative only
     requires creating its module class and registering it here."""
     from normative_modules.incendios.module import IncendiosModule
-    from normative_modules.placeholders import (
-        RebtModule,
-        RiteModule,
-        AccesibilidadModule,
-    )
+    from normative_modules.rebt.module import RebtModule
+    from normative_modules.rite.module import RiteModule
+    from normative_modules.placeholders import AccesibilidadModule
 
     registry.register(IncendiosModule())
     registry.register(RebtModule())
