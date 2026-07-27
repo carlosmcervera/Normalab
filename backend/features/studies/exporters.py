@@ -161,8 +161,15 @@ def _sector_docx(doc, s):
 
     for l in s.get("locales_riesgo_especial", []):
         p = doc.add_paragraph(style="List Bullet")
+        magnitud = ""
+        if l.get("volumen") is not None:
+            magnitud = f"{_fmt(l.get('volumen'), 1)} m³ · "
+        elif l.get("potencia") is not None:
+            magnitud = f"{_fmt(l.get('potencia'), 1)} · "
+        uso = f" · uso: {l['uso']}" if l.get("uso") else ""
+        crit = f" ({l['criterio']})" if l.get("criterio") else ""
         r = p.add_run(f"LRE «{l.get('nombre')}» · riesgo {str(l.get('riesgo', '')).lower()} · "
-                      f"{_fmt(l.get('superficie'))} m² · {l.get('resistencia')}"
+                      f"{magnitud}{_fmt(l.get('superficie'))} m² · {l.get('resistencia')}{uso}{crit}"
                       f"{'. ' + l['justificacion'] if l.get('justificacion') else ''}")
         r.font.size = Pt(9)
 

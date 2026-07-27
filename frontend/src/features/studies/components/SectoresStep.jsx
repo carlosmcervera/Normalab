@@ -14,6 +14,8 @@ import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
 import { sectorCarga, depAporte, depOcupacion, nriBadgeCls } from "@/lib/fireload";
 import { ActivityCatalogDialog } from "@/features/studies/components/ActivityCatalogDialog";
+import { LreUseDialog } from "@/features/studies/components/LreUseDialog";
+import { findLreUse, classifyLre } from "@/lib/lreCatalog";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const CUSTOM = "__custom__";
@@ -55,9 +57,20 @@ const CLASE_META = {
 };
 
 const draftLRE = (x) => {
-  const t = LRE_TIPOS.find((k) => k.value === (x.lre_tipo || "generico")) || LRE_TIPOS[6];
+  const use = findLreUse(x.lre_uso);
   const r = x.lre_riesgo || "bajo";
-  return `El local «${x.nombre || "—"}» (${t.label.toLowerCase()}) se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI, ${t.crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie SÍ computa en la carga de fuego del sector.`;
+  const sup = Number(x.sup_construida) || 0;
+  const partes = [`El local «${x.nombre || "—"}»`];
+  if (use) partes.push(`destinado a ${use.name.charAt(0).toLowerCase()}${use.name.slice(1)}`);
+  if (use && use.metric === "V" && x.lre_altura) {
+    partes.push(`con un volumen construido de ${num(sup * Number(x.lre_altura), 1)} m³ (superficie ${num(sup)} m² × altura ${x.lre_altura} m)`);
+  } else if (use && use.metric === "P" && x.lre_potencia) {
+    partes.push(`con una potencia de ${x.lre_potencia} ${use.unit}`);
+  } else if (use && use.metric === "S") {
+    partes.push(`con una superficie construida de ${num(sup)} m²`);
+  }
+  const crit = use ? ` (criterio Tabla 2.1: ${use.crit})` : "";
+  return `${partes.join(", ")} se clasifica como local de riesgo especial de riesgo ${r} conforme a la Tabla 2.1 del CTE DB-SI${crit}. En consecuencia se dota de estructura ${x.lre_r || RIESGO_R[r]}, sectorización EI y las condiciones de acceso/vestíbulo de independencia exigidas para riesgo ${r}. Su superficie SÍ computa en la carga de fuego del sector.`;
 };
 
 const draftEscalera = (x) => {
@@ -344,6 +357,28 @@ export function SectoresStep({ data, setData, schema = {} }) {
 }
 
 function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sectores, catalog, toggle, updateDep, setClase }) {
+  const [lreDlg, setLreDlg] = useState(false);
+  const lreUse = findLreUse(x.lre_uso);
+  const { riesgo: lreRiesgo } = classifyLre(lreUse, {
+    superficie: x.sup_construida, altura: x.lre_altura, potencia: x.lre_potencia,
+  });
+  // Aplica un cambio a un LRE y recalcula el riesgo (bajo/medio/alto) según la Tabla 2.1.
+  const applyLre = (patch) => {
+    const merged = { ...x, ...patch };
+    const use = findLreUse(merged.lre_uso);
+    const { riesgo, valor } = classifyLre(use, {
+      superficie: merged.sup_construida, altura: merged.lre_altura, potencia: merged.lre_potencia,
+    });
+    const eff = riesgo && riesgo !== "ninguno" ? riesgo : (merged.lre_riesgo || "bajo");
+    updateDep(x.id, {
+      ...patch,
+      lre_metric: use?.metric || null,
+      lre_criterio: use?.crit || null,
+      lre_valor: valor,
+      lre_riesgo: eff,
+      lre_r: RIESGO_R[eff] || merged.lre_r || RIESGO_R.bajo,
+    });
+  };
   return (
     <>
       <tr className={`border-b border-border transition-colors hover:bg-secondary/30 ${isOpen ? "bg-secondary/20" : ""}`} data-testid={`estancia-row-${i}`}>
@@ -399,8 +434,35 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
               {clase === "lre" ? (
                 <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="col-span-2 sm:col-span-2">
+                    <Label className={fieldLabel}>Uso del local (Tabla 2.1 DB-SI)</Label>
+                    <Button type="button" variant="outline" className="mt-1 h-8 w-full justify-between rounded-sm px-2 text-xs font-normal" onClick={() => setLreDlg(true)} data-testid={`estancia-${i}-lre-uso`}>
+                      <span className="truncate">{x.lre_uso || "Seleccionar uso…"}</span>
+                      <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-60" />
+                    </Button>
+                    <LreUseDialog open={lreDlg} onOpenChange={setLreDlg} current={x.lre_uso}
+                      onSelect={(group, u) => applyLre({ lre_uso: u.name, lre_uso_grupo: group })} />
+                  </div>
+                  {lreUse && lreUse.metric === "V" && (
+                    <div><Label className={fieldLabel}>Altura (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_altura ?? ""} onChange={(v) => applyLre({ lre_altura: v })} data-testid={`estancia-${i}-lre-altura`} /></div>
+                  )}
+                  {lreUse && lreUse.metric === "P" && (
+                    <div><Label className={fieldLabel}>Potencia ({lreUse.unit})</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_potencia ?? ""} onChange={(v) => applyLre({ lre_potencia: v })} data-testid={`estancia-${i}-lre-potencia`} /></div>
+                  )}
+                  <div className="col-span-2 sm:col-span-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px]">
+                    <span className="text-muted-foreground">Superficie constr. <b className="text-foreground font-mono">{num(x.sup_construida || 0)}</b> m²</span>
+                    {lreUse?.metric === "V" && <span className="text-muted-foreground">Volumen <b className="text-foreground font-mono">{num((Number(x.sup_construida) || 0) * (Number(x.lre_altura) || 0), 1)}</b> m³</span>}
+                    <span className="text-muted-foreground">Criterio: {lreUse?.crit || "—"}</span>
+                    <span className="ml-auto text-muted-foreground" data-testid={`estancia-${i}-lre-riesgo-auto`}>
+                      Riesgo:{" "}
+                      {lreRiesgo === "ninguno"
+                        ? <b className="text-amber-700">No alcanza umbral (revisar)</b>
+                        : <span className={`rounded-sm px-1.5 py-0.5 font-semibold ${nriBadgeCls(String(lreRiesgo || "").toUpperCase() === "ALTO" ? "ALTO" : String(lreRiesgo || "").toUpperCase() === "MEDIO" ? "MEDIO" : "BAJO")}`}>{(lreRiesgo || x.lre_riesgo || "bajo").toUpperCase()}</span>}
+                      {" · "}{x.lre_r || RIESGO_R[x.lre_riesgo || "bajo"]}
+                    </span>
+                  </div>
                   <div>
-                    <Label className={fieldLabel}>Riesgo (Tabla 2.1)</Label>
+                    <Label className={fieldLabel}>Riesgo (editable)</Label>
                     <Select value={x.lre_riesgo || "bajo"} onValueChange={(v) => updateDep(x.id, { lre_riesgo: v, lre_r: RIESGO_R[v] })}>
                       <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-lre-riesgo`}><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -414,16 +476,9 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                     <Label className={fieldLabel}>Resistencia (R)</Label>
                     <Input className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_r || RIESGO_R[x.lre_riesgo || "bajo"]} onChange={(e) => updateDep(x.id, { lre_r: e.target.value })} data-testid={`estancia-${i}-lre-r`} />
                   </div>
-                  <div className="col-span-2">
-                    <Label className={fieldLabel}>Tipo de local (Tabla 2.1)</Label>
-                    <Select value={x.lre_tipo || "generico"} onValueChange={(v) => updateDep(x.id, { lre_tipo: v })}>
-                      <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-lre-tipo`}><SelectValue /></SelectTrigger>
-                      <SelectContent>{LRE_TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
                   <div className="col-span-2 sm:col-span-4">
                     <div className="flex items-center justify-between">
-                      <Label className={fieldLabel}>Justificación (Tabla 2.1: superficie, volumen, potencia…)</Label>
+                      <Label className={fieldLabel}>Justificación (Tabla 2.1: uso, volumen/superficie/potencia)</Label>
                       <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => updateDep(x.id, { lre_justificacion: draftLRE(x) })} data-testid={`estancia-${i}-lre-gen`}><Wand2 className="mr-1 h-3 w-3" /> Generar</Button>
                     </div>
                     <Textarea className="mt-1 min-h-[56px] rounded-sm text-sm" value={x.lre_justificacion || ""} onChange={(e) => updateDep(x.id, { lre_justificacion: e.target.value })} placeholder="Pulsa «Generar» para redactarla, o escribe tu justificación." data-testid={`estancia-${i}-lre-just`} />

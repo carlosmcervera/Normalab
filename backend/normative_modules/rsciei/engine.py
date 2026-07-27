@@ -335,12 +335,22 @@ def _compute_sector(sec, deps, establecimiento):
     # además, se evalúan como locales de riesgo especial con su resistencia (R).
     locales_re = []
     for d in lre_deps:
+        sup_lre = float(d.get("sup_construida") or d.get("sup_util") or 0)
+        metric = d.get("lre_metric")
+        volumen = round(sup_lre * float(d.get("lre_altura") or 0), 2) if metric == "V" and d.get("lre_altura") else None
         locales_re.append({
             "nombre": d.get("nombre", "Local de riesgo especial"),
-            "superficie": round(float(d.get("sup_construida") or d.get("sup_util") or 0), 2),
+            "superficie": round(sup_lre, 2),
             "riesgo": (d.get("lre_riesgo") or "bajo").upper(),
             "resistencia": d.get("lre_r") or "R 90",
-            "actividad": d.get("actividad_cat") or d.get("uso_ocupacion") or "-",
+            "actividad": d.get("lre_uso") or d.get("actividad_cat") or d.get("uso_ocupacion") or "-",
+            "uso": d.get("lre_uso") or "",
+            "uso_grupo": d.get("lre_uso_grupo") or "",
+            "altura": d.get("lre_altura"),
+            "volumen": volumen,
+            "potencia": d.get("lre_potencia") if metric == "P" else None,
+            "metric": metric or "",
+            "criterio": d.get("lre_criterio") or "",
             "justificacion": d.get("lre_justificacion") or "",
         })
 

@@ -131,8 +131,12 @@ function SectorReport({ s }) {
               <div key={i} className="text-sm">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{l.nombre} · riesgo {l.riesgo?.toLowerCase?.()}</span>
-                  <span className="font-mono text-muted-foreground">{num(l.superficie)} m² · {l.resistencia}</span>
+                  <span className="font-mono text-muted-foreground">
+                    {l.volumen != null ? `${num(l.volumen, 1)} m³ · ` : (l.potencia != null ? `${num(l.potencia, 1)} · ` : "")}
+                    {num(l.superficie)} m² · {l.resistencia}
+                  </span>
                 </div>
+                {l.uso && <p className="mt-0.5 text-xs text-slate-600">Uso (Tabla 2.1): {l.uso}{l.criterio ? ` — ${l.criterio}` : ""}</p>}
                 {l.justificacion && <p className="mt-0.5 text-xs text-muted-foreground">{l.justificacion}</p>}
               </div>
             ))}
