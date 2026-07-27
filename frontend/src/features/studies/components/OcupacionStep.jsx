@@ -33,9 +33,7 @@ function ocupacionDe(dep) {
 export function OcupacionStep({ data, setData, densities = [] }) {
   const { studyId } = useParams();
   const deps = data.dependencias || [];
-  const sectores = data.sectores || [];
   const plantas = data.plantas || [];
-  const secName = Object.fromEntries(sectores.map((s) => [s.id, s.nombre]));
   const [aiLoading, setAiLoading] = useState(false);
   const [proposals, setProposals] = useState(null);
 
@@ -72,7 +70,6 @@ export function OcupacionStep({ data, setData, densities = [] }) {
     setProposals(null);
   };
 
-
   const selectPreset = (dep, value) => {
     if (value === CUSTOM) {
       updateDep(dep.id, { sin_ocupacion: false, ocupacion_custom: true, densidad: "",
@@ -94,6 +91,11 @@ export function OcupacionStep({ data, setData, densities = [] }) {
   };
 
   const total = deps.reduce((a, x) => a + (ocupacionDe(x) || 0), 0);
+  const nombresPlanta = plantas.map((p) => p.nombre);
+  const groups = [
+    ...plantas.map((p) => ({ key: p.nombre, label: p.nombre, filas: deps.filter((x) => x.planta === p.nombre) })),
+    { key: "__sin__", label: "Sin planta asignada", filas: deps.filter((x) => !x.planta || !nombresPlanta.includes(x.planta)) },
+  ].filter((g) => g.filas.length > 0);
 
   if (deps.length === 0)
     return <p className="border border-dashed border-border py-8 text-center text-sm text-muted-foreground" data-testid="ocupacion-empty">Primero añade dependencias en el paso «Cuadro de superficies».</p>;
@@ -101,17 +103,17 @@ export function OcupacionStep({ data, setData, densities = [] }) {
   return (
     <div className="space-y-4" data-testid="ocupacion-step">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Asigna a cada estancia su uso y densidad (Tabla 2.1 CTE DB-SI). También puedes pedir una propuesta automática con IA.</p>
+        <p className="text-sm text-muted-foreground">Asigna a cada estancia su uso y densidad (Tabla 2.1 CTE DB-SI). Las estancias se agrupan por planta con la ocupación total de cada una.</p>
         <Button variant="outline" size="sm" className="rounded-sm shrink-0" onClick={runAi} disabled={aiLoading || deps.length === 0} data-testid="ai-ocupacion-btn">
           {aiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} Proponer ocupación con IA
         </Button>
       </div>
+
       <div className="overflow-x-auto border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 font-semibold">Dependencia</th>
-              <th className="px-3 py-2 font-semibold">Sector</th>
               <th className="px-3 py-2 text-right font-semibold">Sup. (m²)</th>
               <th className="px-3 py-2 font-semibold">Uso / densidad (CTE)</th>
               <th className="px-3 py-2 text-right font-semibold">m²/persona</th>
@@ -119,100 +121,89 @@ export function OcupacionStep({ data, setData, densities = [] }) {
             </tr>
           </thead>
           <tbody>
-            {deps.map((x, i) => {
-              const oc = ocupacionDe(x);
-              const custom = !!x.ocupacion_custom;
-              const noteMissing = custom && !(x.ocupacion_nota || "").trim();
+            {groups.map((g) => {
+              const sub = g.filas.reduce((a, x) => a + (ocupacionDe(x) || 0), 0);
               return (
-                <Fragment key={x.id}>
-                  <tr className="border-b border-border" data-testid={`ocupacion-row-${i}`}>
-                    <td className="px-3 py-1.5 font-medium">{x.nombre || "—"}</td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{secName[x.sector_id] || "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">{num(Number(x.sup_util) || Number(x.sup_construida) || 0, 2)}</td>
-                    <td className="px-3 py-1.5">
-                      <Select value={presetIndex(x)} onValueChange={(v) => selectPreset(x, v)}>
-                        <SelectTrigger className="h-8 w-56 rounded-sm" data-testid={`ocupacion-${i}-preset`}><SelectValue placeholder="Selecciona uso" /></SelectTrigger>
-                        <SelectContent>
-                          {densities.map((p, idx) => <SelectItem key={idx} value={String(idx)}>{p.uso}{p.densidad != null ? ` · ${p.densidad} m²/p` : ""}</SelectItem>)}
-                          <SelectItem value={CUSTOM}>+ Ocupación personalizada (a mano)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-3 py-1.5">
-                      {custom ? (
-                        <span className="block text-right font-mono text-muted-foreground">—</span>
-                      ) : (
-                        <NumberInput min={0} className="h-8 w-20 rounded-sm text-right font-mono" disabled={x.sin_ocupacion}
-                          value={x.sin_ocupacion ? "" : (x.densidad ?? "")} data-testid={`ocupacion-${i}-densidad`}
-                          onChange={(v) => updateDep(x.id, { densidad: v, sin_ocupacion: false })} />
-                      )}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      {custom ? (
-                        <NumberInput integer min={0} className="h-8 w-24 rounded-sm text-right font-mono font-semibold"
-                          value={x.ocupacion_manual ?? ""} data-testid={`ocupacion-${i}-manual`}
-                          onChange={(v) => updateDep(x.id, { ocupacion_manual: v })} />
-                      ) : (
-                        <span className="block text-right font-mono font-semibold" data-testid={`ocupacion-${i}-result`}>
-                          {x.sin_ocupacion ? "—" : (oc == null ? "?" : oc)}
-                        </span>
-                      )}
-                    </td>
+                <Fragment key={g.key}>
+                  <tr className="bg-secondary/25">
+                    <td colSpan={5} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-foreground/80" data-testid={`ocupacion-group-${g.label}`}>{g.label} · {g.filas.length} estancia(s)</td>
                   </tr>
-                  {custom && (
-                    <tr className="border-b border-border bg-amber-50/50" data-testid={`ocupacion-${i}-note-row`}>
-                      <td colSpan={6} className="px-3 py-2">
-                        <Label className="text-xs text-amber-800">Motivo de la ocupación personalizada (obligatorio) *</Label>
-                        <Textarea
-                          className="mt-1 min-h-[52px] rounded-sm text-sm"
-                          value={x.ocupacion_nota || ""}
-                          onChange={(e) => updateDep(x.id, { ocupacion_nota: e.target.value })}
-                          placeholder="Ej.: ocupación fijada por proyecto de actividad / aforo autorizado / uso específico no tabulado en la Tabla 2.1."
-                          data-testid={`ocupacion-${i}-nota`}
-                          data-invalid={noteMissing ? "true" : undefined}
-                          aria-invalid={noteMissing ? true : undefined}
-                        />
-                        {noteMissing && <p className="mt-1 text-xs text-destructive">Indica el motivo de la ocupación personalizada para continuar.</p>}
-                      </td>
-                    </tr>
-                  )}
+                  {g.filas.map((x) => {
+                    const i = deps.indexOf(x);
+                    const oc = ocupacionDe(x);
+                    const custom = !!x.ocupacion_custom;
+                    const noteMissing = custom && !(x.ocupacion_nota || "").trim();
+                    return (
+                      <Fragment key={x.id}>
+                        <tr className="border-b border-border" data-testid={`ocupacion-row-${i}`}>
+                          <td className="px-3 py-1.5 font-medium">{x.nombre || "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{num(Number(x.sup_util) || Number(x.sup_construida) || 0, 2)}</td>
+                          <td className="px-3 py-1.5">
+                            <Select value={presetIndex(x)} onValueChange={(v) => selectPreset(x, v)}>
+                              <SelectTrigger className="h-8 w-56 rounded-sm" data-testid={`ocupacion-${i}-preset`}><SelectValue placeholder="Selecciona uso" /></SelectTrigger>
+                              <SelectContent>
+                                {densities.map((p, idx) => <SelectItem key={idx} value={String(idx)}>{p.uso}{p.densidad != null ? ` · ${p.densidad} m²/p` : ""}</SelectItem>)}
+                                <SelectItem value={CUSTOM}>+ Ocupación personalizada (a mano)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {custom ? (
+                              <span className="block text-right font-mono text-muted-foreground">—</span>
+                            ) : (
+                              <NumberInput min={0} className="h-8 w-20 rounded-sm text-right font-mono" disabled={x.sin_ocupacion}
+                                value={x.sin_ocupacion ? "" : (x.densidad ?? "")} data-testid={`ocupacion-${i}-densidad`}
+                                onChange={(v) => updateDep(x.id, { densidad: v, sin_ocupacion: false })} />
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {custom ? (
+                              <NumberInput integer min={0} className="h-8 w-24 rounded-sm text-right font-mono font-semibold"
+                                value={x.ocupacion_manual ?? ""} data-testid={`ocupacion-${i}-manual`}
+                                onChange={(v) => updateDep(x.id, { ocupacion_manual: v })} />
+                            ) : (
+                              <span className="block text-right font-mono font-semibold" data-testid={`ocupacion-${i}-result`}>
+                                {x.sin_ocupacion ? "—" : (oc == null ? "?" : oc)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {custom && (
+                          <tr className="border-b border-border bg-amber-50/50" data-testid={`ocupacion-${i}-note-row`}>
+                            <td colSpan={5} className="px-3 py-2">
+                              <Label className="text-xs text-amber-800">Motivo de la ocupación personalizada (obligatorio) *</Label>
+                              <Textarea
+                                className="mt-1 min-h-[52px] rounded-sm text-sm"
+                                value={x.ocupacion_nota || ""}
+                                onChange={(e) => updateDep(x.id, { ocupacion_nota: e.target.value })}
+                                placeholder="Ej.: ocupación fijada por proyecto de actividad / aforo autorizado / uso específico no tabulado en la Tabla 2.1."
+                                data-testid={`ocupacion-${i}-nota`}
+                                data-invalid={noteMissing ? "true" : undefined}
+                                aria-invalid={noteMissing ? true : undefined}
+                              />
+                              {noteMissing && <p className="mt-1 text-xs text-destructive">Indica el motivo de la ocupación personalizada para continuar.</p>}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                  <tr className="border-b border-border bg-secondary/10">
+                    <td colSpan={4} className="px-3 py-1.5 text-right text-xs italic text-muted-foreground">Subtotal ocupación · {g.label}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold" data-testid={`ocupacion-planta-${g.label}`}>{sub} pers.</td>
+                  </tr>
                 </Fragment>
               );
             })}
             <tr className="bg-secondary/40">
-              <td className="px-3 py-2 font-medium" colSpan={5}>Ocupación total del establecimiento</td>
+              <td className="px-3 py-2 font-medium" colSpan={4}>Ocupación total del establecimiento</td>
               <td className="px-3 py-2 text-right font-mono font-bold" data-testid="ocupacion-total">{total} pers.</td>
             </tr>
           </tbody>
         </table>
       </div>
-      {(() => {
-        const orden = [...plantas.map((p) => p.nombre), "Sin planta"];
-        const map = {};
-        deps.forEach((x) => {
-          const k = x.planta && plantas.some((p) => p.nombre === x.planta) ? x.planta : "Sin planta";
-          map[k] = (map[k] || 0) + (ocupacionDe(x) || 0);
-        });
-        const rows = orden.filter((k, idx) => orden.indexOf(k) === idx && k in map).map((k) => ({ planta: k, ocup: map[k] }));
-        if (!rows.length) return null;
-        return (
-          <div className="border border-border" data-testid="ocupacion-por-planta">
-            <div className="border-b border-border bg-secondary/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ocupación por planta</div>
-            <table className="w-full text-sm">
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.planta} className="border-b border-border last:border-0">
-                    <td className="px-3 py-1.5">{r.planta}</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-semibold" data-testid={`ocupacion-planta-${r.planta}`}>{r.ocup} pers.</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      })()}
 
-      <p className="text-xs text-muted-foreground">La ocupación se calcula como <span className="font-mono">techo(superficie útil / densidad)</span> según la Tabla 2.1 del CTE DB-SI. En «ocupación personalizada» se introduce el nº de personas a mano y se justifica con una nota.</p>
+      <p className="text-xs text-muted-foreground">La ocupación se calcula como <span className="font-mono">techo(superficie útil / densidad)</span> según la Tabla 2.1 del CTE DB-SI. En «ocupación personalizada» se introduce el nº de personas a mano (sin m²/persona) y se justifica con una nota.</p>
 
       <Dialog open={!!proposals} onOpenChange={(o) => !o && setProposals(null)}>
         <DialogContent className="max-w-2xl rounded-sm" data-testid="ai-proposal-dialog">
