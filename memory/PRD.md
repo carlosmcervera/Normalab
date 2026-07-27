@@ -98,6 +98,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-27: **FASE 1 — LRE fuera del Qs · config CTE oculta · tablas multi-sector con color (validado iter 21, 100%)**
+  - (1a) **LRE ya NO computan carga de fuego**: se excluyen del Qs (calc_deps) y de la validación; se clasifican solo por el CTE (Tabla 2.1: uso + volumen/potencia → riesgo → R). Se quitó el bloque de carga de fuego del detalle LRE; columna «Carga (MJ)» = «no computa».
+  - (1b) **Sectores CTE**: en el informe la columna Config. = «—» y su sectorización se marca «no aplica» (Tabla 2.1.1 RSCIEI no procede; se evalúa por DB-SI).
+  - (1c) **Tablas de referencia multi-sector**: cada sector RSCIEI tiene color propio + leyenda; las celdas/filas aplicables se pintan con el color del sector que las activa (`tablas.py` genera `legend` + `cell_sectors`/`row_sectors`; `RefTable` y DOCX `_ref_table` los renderizan). Los sectores CTE se excluyen de las tablas RSCIEI.
+  - Testing: 3/3 E2E Fase 1 + flujo UI (1a/1b/1c) + 53/53 unit. Sin issues. (Eliminado test obsoleto `test_incendios_lre_e2e.py`.)
 - 2026-07-27: **LRE clasificados por uso + volumen (Tabla 2.1 DB-SI) con riesgo automático (validado iter 20, 100%)**
   - Al marcar una estancia como Local de Riesgo Especial ahora se pide el **uso** (modal buscador `LreUseDialog` con la Tabla 2.1 del CTE DB-SI, agrupada por uso previsto) y la **altura**; con la superficie del cuadro se calcula el **volumen (= superficie × altura)** y se **determina automáticamente el riesgo** (bajo/medio/alto) y su resistencia R según la métrica del uso (V=volumen, S=superficie, P=potencia, QS, fijo). El riesgo es editable manualmente.
   - Nuevo `lib/lreCatalog.js` (LRE_USES + `classifyLre`), modal `LreUseDialog.jsx`, y `AssignmentRows.applyLre` que recalcula y persiste `lre_uso/lre_metric/lre_criterio/lre_valor/lre_riesgo/lre_r`. `draftLRE` redacta la justificación con uso + volumen/superficie/potencia + criterio.
