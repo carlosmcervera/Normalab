@@ -156,14 +156,16 @@ def _sectorizacion(config, nivel, A, factor, factores_aplicados, situacion):
         factores_aplicados.append("Planta bajo rasante: superficie base ÷ 2 (nota 1, Tabla 2.1.1)")
     max_adm = base_val * factor
     cumple = A <= max_adm
+    # Mensaje coherente con la Tabla 2.1.1: valor base de la tabla + notas aplicadas → admisible final.
+    notas = "; ".join(factores_aplicados)
+    ajuste = f" Aplicadas notas Tabla 2.1.1 ({notas}) → máx. admisible {max_adm:.0f} m²." if factores_aplicados else ""
     base.update({
         "max_admisible_base": base_val,
         "max_admisible": round(max_adm, 2),
         "estado": "cumple" if cumple else "no_cumple",
-        "mensaje": (f"Superficie {A:.0f} m² ≤ máx. admisible {max_adm:.0f} m²."
-                    if cumple else
-                    f"Superficie {A:.0f} m² SUPERA el máximo admisible {max_adm:.0f} m². "
-                    "Es necesario compartimentar en varios sectores de incendio."),
+        "mensaje": (f"Superficie {A:.0f} m². Máx. admisible base (Tabla 2.1.1, nivel {nivel}, tipo {config}) = "
+                    f"{valor:.0f} m².{ajuste} Superficie {'≤' if cumple else '>'} máx. admisible "
+                    f"{max_adm:.0f} m²: {'cumple' if cumple else 'SUPERA el máximo, es necesario compartimentar en varios sectores de incendio'}."),
     })
     return base
 
@@ -530,7 +532,9 @@ def _compute_sector(sec, deps, establecimiento):
             f"Sector «{sec.get('nombre','?')}»: verificar/justificar las clases de reacción al fuego de los revestimientos (Tabla 2.1.4).")})
 
     estado = "cumple"
-    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
+    med_nc = bool(med and med.get("estado") == "no_cumple")
+    fach_nc = bool(fach and fach.get("estado") == "no_cumple")
+    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or med_nc or fach_nc or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
     elif any(o["tipo"] == "warning" for o in observaciones):
         estado = "observaciones"

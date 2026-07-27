@@ -1,0 +1,44 @@
+{
+  "summary": "Fix E2E validado: R exigido en el informe = valor base de la Tabla 2.5.1 (sin bump por altura de evacuación) y coincide con la celda resaltada de la tabla 'estabilidad'; el mensaje de sectorización muestra el valor base de la Tabla 2.1.1 y lista los factores aplicados (×2 rociadores, ×1,25 fachada) con el admisible final; medianera no cumple → sector.estado='no_cumple'. Regresiones OK (schema 5 pasos, export DOCX 200, resumen sectores).\n\nBACKEND (9/10 PASS — /app/backend/tests/test_incendios_phase3_estab_sup_e2e.py, junit /app/test_reports/pytest/phase3_estab_sup_e2e.xml):\n- test_3a_estabilidad_no_bump_por_altura[5|10|20|40] (4/4): C·sobre_rasante·BAJO → R='R 30' constante para h=5, 10, 20, 40. Bump por altura eliminado con éxito.\n- test_3b_bajo_rasante_columna_bajo: C·bajo_rasante·BAJO → R='R 60' (columna 'bajo' de ESTABILIDAD[C]).\n- test_3c_max_admisible_base_sin_factores: C·sobre_rasante·nivel 2 (qsi=500) → max_admisible_base=12000 == MAX_SURFACE['C'][2]; sin factores max_admisible=12000; mensaje contiene '12000'.\n- test_3d_rociadores_factor_x2: rociadores=true → max_admisible_base=12000 (intacto), max_admisible=24000 (=base×2); mensaje incluye 'Rociadores automáticos ... (×2)' y '24000 m²'.\n- test_3e_coherencia_tabla_informe (FAIL): estabilidad OK (celdas cell_sectors iguales al string requisitos.estabilidad.valor para ambos sectores). Superficie OK para sobre_rasante, FALLA para bajo_rasante: sector B·bajo·MEDIO(nivel 4) → celda tabla '6.000' pero sectorizacion.max_admisible_base=3000. Ver bug detallado.\n- test_3f_medianera_no_cumple_degrada_estado: NRI MEDIO + medianera_ei='EI 120' (< req 'EI 180') → sector.construccion.medianeras.estado='no_cumple' y sector.estado='no_cumple'; observación tipo 'error' con texto 'medianer'.\n- test_3g_schema_and_docx: GET /api/modules/INCENDIOS/schema devuelve steps ['superficies_proyecto','ocupacion','sectores_incendio','construccion','evacuacion']. Export DOCX → 200.\n\nFRONTEND (verificación en vivo con estudio creado por API + navegación al informe /estudios/{id}/informe):\n- Login admin OK.\n- Sector C·sobre_rasante·BAJO·rociadores=true (qsi=500): backend informe R='R 30', max_base=12000, max_adm=24000. UI muestra en el detalle del sector 'ESTABILIDAD R 30' y 'DELIMITADORES EI 120'; mensaje: 'Superficie 100 m². Máx. admisible base (Tabla 2.1.1, nivel 2, tipo C) = 12000 m². Aplicadas notas Tabla 2.1.1 (Rociadores automáticos en todo el sector (×2)) → máx. admisible 24000 m². Superficie ≤ máx. admisible 24000 m²: cumple.'.\n- Tabla 2.5.1 'estabilidad' cell_sectors={'0-0':[0], '0-8':[0]} → fila 0 col 8 (C s/rasante BAJO) = 'R 30' == informe. ✓\n- Tabla 2.1.1 'superficie' cell_sectors={'1-4':[0]} → fila 1 col 4 (nivel 2, Tipo C) = '12.000' == max_admisible_base. ✓\n- Resumen ejecutivo muestra 'Cumple' y 'R 30' coherente. Sin errores de consola.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/studies/{id}/compute (RSCIEI · sectorización con situación='bajo_rasante')",
+        "issue": "results.sectores[].sectorizacion.max_admisible_base NO coincide con la celda resaltada de la Tabla 2.1.1 cuando el sector es bajo_rasante. Actualmente engine._sectorizacion hace `base_val = valor/2 if bajo_rasante else valor` y expone base_val como max_admisible_base, por lo que un sector B·bajo·nivel 4 tiene max_admisible_base=3000 mientras la celda tabla muestra 6000 (valor Tabla 2.1.1 puro). Además el mensaje del informe imprime f\"{valor:.0f} m²\" (=6000) → inconsistente consigo mismo: dice '6000 m²' pero max_admisible_base=3000. Fix propuesto: dejar `base_val = valor` (max_admisible_base = valor tabla), añadir 'Planta bajo rasante ÷ 2 (nota 1)' a factores_aplicados (ya se hace) y aplicar el ÷2 dentro de `factor` en vez de en base_val — así se preserva la coincidencia tabla↔informe también en bajo rasante y el mensaje ya narra la nota. Todos los tests sobre_rasante siguen pasando; sólo se rompe para bajo_rasante."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase3_estab_sup_e2e.py",
+    "/app/test_reports/pytest/phase3_estab_sup_e2e.xml"
+  ],
+  "action_items": [
+    "En /app/backend/normative_modules/rsciei/engine.py::_sectorizacion, hacer que max_admisible_base sea SIEMPRE el valor puro de MAX_SURFACE[config][nivel] (Tabla 2.1.1), independiente de bajo_rasante. Aplicar el ÷2 de planta bajo rasante como un factor multiplicativo más (junto con ×2 rociadores y ×1,25 fachada) en el cálculo de max_admisible. Esto garantizará que max_admisible_base==celda_tabla también para bajo_rasante y que el mensaje sea internamente consistente (hoy imprime 'valor' pero guarda 'valor/2'). Los 9 casos sobre_rasante ya son coherentes.",
+    "(Opcional, ya reportado en iter 22) Autosave debounced en StudyWizardPage.jsx."
+  ],
+  "critical_code_review_comments": [
+    "requirements.py: OK — eliminada la llamada a _modular_r_por_altura; estabilidad = ESTABILIDAD[config][sit_key][categoria] (valor base). Se conservan las funciones _modular_r_por_altura y _ESCALA_R sin usar en el módulo (código muerto): considerar borrarlas para evitar confusión futura.",
+    "engine.py _sectorizacion: mensaje muestra `valor` (valor puro de la tabla) pero max_admisible_base guarda `base_val` (=valor/2 en bajo rasante). Contradicción interna. Ver bug arriba.",
+    "engine.py _compute_sector: propagación de estado a 'no_cumple' con med_nc/fach_nc funciona correctamente (validado por test_3f). Coherente con la nueva regla.",
+    "tablas.py _t_estabilidad y _t_superficie: cell_sectors se calcula con ESTABILIDAD[cfg][sitk][cat] y MAX_SURFACE[cfg][nivel] respectivamente — mismos valores base que build_requirements y engine para sobre_rasante. Para bajo_rasante el informe ya no coincide (ver bug).",
+    "StudyReportPage.jsx: render de `s.requisitos.estabilidad?.valor` y `sec.mensaje` como passthrough del backend — sin lógica adicional; correcto.",
+    "engine.py: `_ESCALA_R` (código muerto tras el fix) y helper `_modular_r_por_altura` en requirements.py — no se usan; conviene retirar."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase3_estab_sup_e2e.py",
+    "/app/test_reports/iteration_23.json"
+  ],
+  "success_rate": {"backend": "90% (9/10) — fallo aislado en bajo_rasante en test_3e", "frontend": "100% en escenario sobre_rasante verificado en el informe"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyecto TEST-INC-PH3 y varios estudios TEST-3a..3g creados y borrados por los tests. Proyecto TEST-UI-PH3 + estudio creados por Playwright y borrados al final.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El fix del bug reportado por el usuario (bump por altura eliminado, mensaje de superficie citando base+factores→admisible, propagación de no_cumple por medianera/fachada) está correctamente implementado y coherente con las tablas de referencia para el escenario más común (sobre_rasante). Existe un caso residual: cuando situacion='bajo_rasante', engine._sectorizacion incluye el ÷2 en base_val y por tanto max_admisible_base ya no coincide con la celda de la Tabla 2.1.1 (que es el valor bruto). Además el propio mensaje imprime 'valor' (bruto) pero max_admisible_base guarda 'valor/2': incoherencia interna. Solución: mover el ÷2 al bucket de factores multiplicativos, dejando max_admisible_base = valor bruto de tabla. Nota: código muerto en requirements.py (`_modular_r_por_altura`, `_ESCALA_R`).",
+  "rca of the issue": "Bug de coherencia tabla↔informe en superficie para bajo_rasante — engine.py::_sectorizacion aplica el ÷2 de planta bajo rasante DENTRO de base_val (línea `base_val = valor/2 if bajo_rasante else valor`) mientras que (a) la tabla 2.1.1 sigue mostrando el valor bruto para la celda resaltada y (b) el mensaje imprime `valor` (bruto). Reproducción: crear sector con config='B', situacion='bajo_rasante', qsi=1500 (→ nivel 4 MEDIO); resultado: max_admisible_base=3000, celda tabla='6.000', mensaje '= 6000 m²'. Fix: base_val=valor y añadir factor 0.5 a `factor` con nota 'Planta bajo rasante ÷ 2 (nota 1, Tabla 2.1.1)' — la nota ya se añade a factores_aplicados hoy, así que sólo hay que multiplicar por 0.5 en factor."
+}
