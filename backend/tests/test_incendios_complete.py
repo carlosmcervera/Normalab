@@ -121,7 +121,9 @@ def test_sectorizacion_factors():
     assert r2["max_admisible"] == pytest.approx(12000 * 1.25 * 2)
 
     r3 = rs.compute(rsciei_sector(qsi=100, ci=1.0, sup=100, config="B", situacion="bajo_rasante"))["sectores"][0]["sectorizacion"]
-    assert r3["max_admisible_base"] == pytest.approx(6000)
+    # Base = valor puro de la Tabla 2.1.1; el ÷2 de bajo rasante se aplica como factor.
+    assert r3["max_admisible_base"] == pytest.approx(12000)
+    assert r3["max_admisible"] == pytest.approx(6000)
 
 
 def test_sector_exceeds_surface_no_cumple():

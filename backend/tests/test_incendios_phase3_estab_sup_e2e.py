@@ -21,7 +21,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/") + "/api"
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://normlab.preview.emergentagent.com").rstrip("/") + "/api"
 ADMIN_EMAIL = "admin@normalab.com"
 ADMIN_PWD = "Admin1234!"
 
@@ -221,6 +221,56 @@ def test_3e_coherencia_tabla_informe(sess, project_id):
             assert key in t_sup["cell_sectors"], f"celda {key} no resaltada en superficie"
     finally:
         sess.delete(f"{BASE_URL}/studies/{sid}")
+
+
+# ============================================================== #
+# 3e-bis) bajo_rasante · nivel 5 · B → max_admisible_base = tabla, max_admisible = base/2
+# ============================================================== #
+def test_3e_bis_bajo_rasante_base_es_tabla_pura(sess, project_id):
+    # B, bajo_rasante, qsi que caiga en nivel 5 (MEDIO): 1700 <= Qs < 3400
+    # qsi=2000, ci=1 -> Qs=2000 (nivel 5, MEDIO). MAX_SURFACE['B'][5]=5000.
+    data = _base_data(config="B", situacion="bajo_rasante", qsi=2000)
+    sid, res = _mk_study(sess, project_id, "TEST-3e-bis", data)
+    try:
+        sec = res["sectores"][0]
+        assert sec["nivel_riesgo"]["nivel"] == 5, sec["nivel_riesgo"]
+        sect = sec["sectorizacion"]
+        # base = valor puro tabla (5000), NO 2500
+        assert sect["max_admisible_base"] == 5000, sect
+        # max_admisible = base * 0.5 = 2500
+        assert sect["max_admisible"] == 2500.0, sect
+        # Mensaje cita 'bajo rasante' con ÷ 2 y admisible final 2500
+        msg = sect["mensaje"]
+        assert "bajo rasante" in msg.lower(), msg
+        assert "÷ 2" in msg or "/2" in msg or "÷2" in msg, msg
+        # Coincide con celda resaltada tabla 2.1.1 (fila nivel-1=4, col B=3)
+        t_sup = {t["id"]: t for t in res["tablas"]}["superficie"]
+        cell = t_sup["rows"][4][3]
+        assert cell == "5.000", cell
+        assert "4-3" in t_sup["cell_sectors"], t_sup["cell_sectors"]
+    finally:
+        sess.delete(f"{BASE_URL}/studies/{sid}")
+
+
+# ============================================================== #
+# 3e-ter) bajo_rasante + rociadores + fachada → base intacto, factores combinados
+# ============================================================== #
+def test_3e_ter_bajo_rasante_con_factores_combinados(sess, project_id):
+    # C, bajo_rasante, qsi=500 -> nivel 2 (BAJO). MAX_SURFACE['C'][2]=12000
+    # rociadores(x2) + fachada(x1.25) + bajo_rasante(/2) -> 12000 * 2 * 1.25 * 0.5 = 15000
+    data = _base_data(config="C", situacion="bajo_rasante", qsi=500,
+                      rociadores=True, fachada_accesible=True)
+    sid, res = _mk_study(sess, project_id, "TEST-3e-ter", data)
+    try:
+        sec = res["sectores"][0]
+        sect = sec["sectorizacion"]
+        assert sect["max_admisible_base"] == 12000, sect
+        assert sect["max_admisible"] == 15000.0, sect
+        aplicados = " | ".join(sect.get("factores_aplicados") or [])
+        assert "Rociadores" in aplicados and "Fachada" in aplicados and "bajo rasante" in aplicados.lower(), aplicados
+    finally:
+        sess.delete(f"{BASE_URL}/studies/{sid}")
+
 
 
 # ============================================================== #

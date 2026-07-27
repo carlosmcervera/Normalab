@@ -1,0 +1,29 @@
+{
+  "summary": "RETEST del fix bajo_rasante (iter_23 residual). 12/12 pytest PASS en /app/backend/tests/test_incendios_phase3_estab_sup_e2e.py (10 originales + 2 nuevos: 3e-bis y 3e-ter). Fix aplicado correctamente en engine._sectorizacion: base_val = MAX_SURFACE[cfg][nivel] (valor puro Tabla 2.1.1) SIEMPRE, y el ÷ 2 de planta bajo rasante se aplica como factor multiplicativo (factor*=0.5) junto con rociadores (×2) y fachada (×1,25). Verificado por API + UI para sector B · bajo_rasante · nivel 5 · MEDIO (qsi=2000): max_admisible_base=5000 == celda tabla '5.000' (fila 4 col 3, cell_sectors '4-3'), max_admisible=2500 (=5000×0.5), R='R 120' == celda estabilidad fila 1 col 5 (cell_sectors '1-5'), mensaje: 'Máx. admisible base ... = 5000 m². Aplicadas notas Tabla 2.1.1 (Planta bajo rasante: superficie ÷ 2 (nota 1, Tabla 2.1.1)) → máx. admisible 2500 m²'. Regresiones OK: 3a estabilidad no-bump por altura (h=5/10/20/40 → R constante), 3b bajo columna, 3c/3d sobre_rasante con y sin factores, 3f medianera→no_cumple, 3g schema 5 pasos + DOCX 200. Frontend Informe renderiza los valores exactos del backend (verificado via /estudios/{id}/informe body-text).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase3_estab_sup_e2e.py",
+    "/app/test_reports/pytest/phase3_estab_sup_e2e_iter24.xml"
+  ],
+  "action_items": [
+    "(Opcional, no bloqueante) Retirar código muerto: requirements.py _modular_r_por_altura y engine.py _ESCALA_R si aún existen tras el fix.",
+    "(Opcional, ya reportado en iter 22) Autosave debounced en StudyWizardPage.jsx."
+  ],
+  "critical_code_review_comments": [
+    "engine.py::_sectorizacion (líneas ~153-166): correcto — base_val = valor puro Tabla 2.1.1; bajo_rasante añade factor 0.5 y nota 'Planta bajo rasante: superficie ÷ 2 (nota 1, Tabla 2.1.1)' a factores_aplicados; max_adm = base_val * factor. Mensaje internamente coherente ('base = X m² → aplicadas notas → máx. admisible Y m²').",
+    "requirements.py: estabilidad = ESTABILIDAD[cfg][sit][cat] sin _modular_r_por_altura. Coincide con celda resaltada de Tabla 2.5.1.",
+    "tablas.py _t_estabilidad/_t_superficie: cell_sectors se calcula con los MISMOS valores base que engine/build_requirements → coherencia tabla↔informe garantizada para sobre_rasante Y bajo_rasante."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase3_estab_sup_e2e.py",
+    "/app/test_reports/iteration_24.json"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (verificación en vivo bajo_rasante)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Proyecto TEST-INC-PH3 + estudios TEST-3a..3g/3e-bis/3e-ter creados y borrados. Proyecto TEST-UI-24 + estudio UI-24 creados y borrados vía API.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix del bug bajo_rasante confirmado. Tabla↔informe coherentes tanto en sobre_rasante como en bajo_rasante, con o sin factores combinados. Tests reutilizables en test_incendios_phase3_estab_sup_e2e.py (12 tests, ~3.6s). Suite completa de incendios (phase1/2/3, catalog, deposito, complete) sigue siendo el punto de partida para futuras iteraciones. Nota: BASE_URL en el test ahora tiene fallback a la URL preview para permitir ejecución directa con pytest sin exportar la variable.",
+  "rca of the issue": "Confirmado que la incoherencia de iter_23 (max_admisible_base=3000 vs celda tabla '6.000' para B·bajo·nivel 4) queda resuelta al mover el ÷ 2 de planta bajo rasante desde base_val al bucket de factores multiplicativos. Ahora max_admisible_base coincide siempre con MAX_SURFACE[cfg][nivel] (la celda resaltada de la Tabla 2.1.1) y max_admisible = base × Π(factores). Verificado con casos B/bajo/nivel 5 (base 5000, adm 2500) y C/bajo/nivel 2 con rociadores+fachada (base 12000, adm 15000)."
+}

@@ -151,9 +151,12 @@ def _sectorizacion(config, nivel, A, factor, factores_aplicados, situacion):
                      "mensaje": "Sin límite de superficie establecido para esta configuración y nivel."})
         return base
     bajo_rasante = situacion == "bajo_rasante"
-    base_val = valor / 2 if bajo_rasante else valor
+    # max_admisible_base = valor puro de la Tabla 2.1.1 (coincide con la celda resaltada).
+    # El ÷2 de planta bajo rasante se aplica como un factor más (igual que ×2 rociadores o ×1,25 fachada).
+    base_val = valor
     if bajo_rasante:
-        factores_aplicados.append("Planta bajo rasante: superficie base ÷ 2 (nota 1, Tabla 2.1.1)")
+        factor = factor * 0.5
+        factores_aplicados.append("Planta bajo rasante: superficie ÷ 2 (nota 1, Tabla 2.1.1)")
     max_adm = base_val * factor
     cumple = A <= max_adm
     # Mensaje coherente con la Tabla 2.1.1: valor base de la tabla + notas aplicadas → admisible final.
