@@ -12,7 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
-import { sectorCarga, depAporte, nriBadgeCls } from "@/lib/fireload";
+import { sectorCarga, depAporte, depOcupacion, nriBadgeCls } from "@/lib/fireload";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const CUSTOM = "__custom__";
@@ -132,7 +132,7 @@ function CargaFuegoInline({ x, i, catalog, update, top = true }) {
   );
 }
 
-function SectorTile({ s, i, cte, carga, configTypes, usos, updateSector, removeSector }) {
+function SectorTile({ s, i, cte, carga, ocup, configTypes, usos, updateSector, removeSector }) {
   return (
     <div className="border border-border bg-secondary/30 p-3" data-testid={`sector-card-${i}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -145,6 +145,7 @@ function SectorTile({ s, i, cte, carga, configTypes, usos, updateSector, removeS
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-border pb-2 font-mono text-[11px]">
         <span className="text-muted-foreground">A <b className="text-foreground">{num(carga.A)}</b> m² <span className="opacity-60">s/LRE</span></span>
         <span className="text-muted-foreground" data-testid={`sector-${i}-qs`}>Qs <b className="text-foreground">{carga.hasData ? num(carga.qs) : "—"}</b> MJ/m²</span>
+        <span className="text-muted-foreground" data-testid={`sector-${i}-ocup`}>Ocup <b className="text-foreground">{ocup}</b> p.</span>
         {carga.hasData
           ? <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold ${nriBadgeCls(carga.categoria)}`} data-testid={`sector-${i}-nri`}>NRI {carga.nivel} · {carga.categoria}</span>
           : <span className="text-muted-foreground">NRI —</span>}
@@ -267,6 +268,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {sectores.map((s, i) => (
                 <SectorTile key={s.id} s={s} i={i} cte={s.ambito === "cte"} carga={sectorCarga(deps.filter((d) => d.sector_id === s.id))}
+                  ocup={deps.filter((d) => d.sector_id === s.id).reduce((a, d) => a + (depOcupacion(d) || 0), 0)}
                   configTypes={configTypes} usos={usos} updateSector={updateSector} removeSector={removeSector} />
               ))}
             </div>
@@ -295,6 +297,7 @@ export function SectoresStep({ data, setData, schema = {} }) {
                     <th className="px-2 py-2 font-semibold">Estancia</th>
                     <th className="px-2 py-2 text-right font-semibold">m² constr.</th>
                     <th className="px-2 py-2 text-right font-semibold">Carga (MJ)</th>
+                    <th className="px-2 py-2 text-right font-semibold">Ocup.</th>
                     <th className="px-2 py-2 font-semibold">Sector</th>
                     <th className="px-2 py-2 font-semibold">Clasificación</th>
                   </tr>
@@ -341,6 +344,9 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
             ? <span className="text-muted-foreground/70">no computa</span>
             : (() => { const ap = depAporte(x); return ap == null ? <span className="text-muted-foreground/60">—</span> : <span className="font-semibold text-foreground">{num(ap)}</span>; })()}
         </td>
+        <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-ocup`}>
+          {(() => { const o = depOcupacion(x); return o == null ? <span className="text-muted-foreground/60">—</span> : <span className="text-foreground">{o}</span>; })()}
+        </td>
         <td className="px-2 py-1.5">
           <Select value={x.sector_id || ""} onValueChange={(v) => updateDep(x.id, { sector_id: v })}>
             <SelectTrigger className={`h-8 w-44 rounded-sm text-xs ${sinSector ? "border-amber-400 text-amber-700" : ""}`} data-testid={`estancia-${i}-sector`}><SelectValue placeholder="Asignar…" /></SelectTrigger>
@@ -368,7 +374,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
       </tr>
       {isOpen && (
         <tr data-testid={`estancia-${i}-detail`}>
-          <td className="border-b border-border bg-slate-50 p-0" colSpan={6}>
+          <td className="border-b border-border bg-slate-50 p-0" colSpan={7}>
             <div className={`border-l-2 p-3 ${clase === "lre" ? "border-l-amber-400" : isEscalera ? "border-l-blue-400" : "border-l-primary"}`}>
               {clase === "lre" ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

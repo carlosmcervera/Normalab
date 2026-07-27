@@ -47,6 +47,20 @@ export function sectorCarga(deps) {
   return { A, numerador, ra, qs, nivel, categoria, hasData: numerador > 0 && A > 0 };
 }
 
+// Ocupación de una estancia (techo(sup útil / densidad) o manual).
+export function depOcupacion(d) {
+  if (d.sin_ocupacion) return 0;
+  if (d.ocupacion_custom) {
+    const m = Number(d.ocupacion_manual);
+    return d.ocupacion_manual === "" || d.ocupacion_manual == null || Number.isNaN(m) ? null : Math.ceil(m);
+  }
+  const dens = Number(d.densidad);
+  if (!dens || dens <= 0) return null;
+  const sup = Number(d.sup_util) || Number(d.sup_construida) || 0;
+  if (sup <= 0) return 0;
+  return Math.ceil(sup / dens);
+}
+
 export const nriBadgeCls = (categoria) =>
   categoria === "ALTO" ? "bg-red-100 text-red-700"
     : categoria === "MEDIO" ? "bg-amber-100 text-amber-700"

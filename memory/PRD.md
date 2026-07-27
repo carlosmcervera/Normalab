@@ -98,6 +98,7 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-27: **Mejoras ocupación** — (1) `presetIndex` en OcupacionStep reconoce coincidencias por densidad y por uso (no solo exactas), evitando el falso «personalizada». (2) Ocupación heredada en el paso Sectores: `depOcupacion` en `lib/fireload.js`; el tile del sector muestra la ocupación total en vivo y el bloque B añade columna «Ocup.» por estancia.
 - 2026-07-27: **Ocupación reordenada al paso 2 y agrupada por planta** — nuevo orden del asistente: Superficies → Ocupación → Sectores (carga de fuego) → Evacuación. `OcupacionStep` reescrito: tabla agrupada por planta (mismo esquema que el paso 1) con subtotal de ocupación por planta + total; se retiró la columna Sector (los sectores se definen después). Mantiene botón IA, ocupación personalizada a mano (sin m²/persona) y nota obligatoria.
 - 2026-07-24: **Carga de fuego en vivo en el paso 2** — nuevo `lib/fireload.js` (réplica cliente del motor RSCIEI). Bloque A: cada tile de sector muestra A (m² sin LRE), Qs (MJ/m²) y badge NRI que se actualizan al asignar estancias. Bloque B: columna «Carga (MJ)» con el aporte por estancia, visible con la fila contraída o expandida (LRE → «no computa»). Confirmado que «Ocupación personalizada» ya usa solo nº de personas a mano (sin m²/persona).
 - 2026-07-24: **Rediseño del paso 2 (Sectores) — vista compacta y técnica**

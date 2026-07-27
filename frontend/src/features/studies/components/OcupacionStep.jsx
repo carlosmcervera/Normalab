@@ -86,7 +86,10 @@ export function OcupacionStep({ data, setData, densities = [] }) {
   const presetIndex = (dep) => {
     if (dep.ocupacion_custom) return CUSTOM;
     if (dep.sin_ocupacion) return String(densities.findIndex((p) => p.densidad == null));
-    const idx = densities.findIndex((p) => p.densidad != null && Math.abs(p.densidad - Number(dep.densidad)) < 1e-6 && p.uso === dep.uso_ocupacion);
+    const d = Number(dep.densidad);
+    let idx = densities.findIndex((p) => p.densidad != null && Math.abs(p.densidad - d) < 1e-6 && p.uso === dep.uso_ocupacion);
+    if (idx < 0) idx = densities.findIndex((p) => p.densidad != null && Math.abs(p.densidad - d) < 1e-6);
+    if (idx < 0 && dep.uso_ocupacion) idx = densities.findIndex((p) => p.densidad != null && p.uso === dep.uso_ocupacion);
     return idx >= 0 ? String(idx) : CUSTOM;
   };
 
