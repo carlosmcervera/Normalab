@@ -1,46 +1,54 @@
-"""Informe no vinculante del módulo REBT (RD 842/2002)."""
+"""Informe no vinculante del módulo REBT v2 (cuadro eléctrico)."""
 from core.models import utcnow_iso
 from normative_modules.rebt.norm_texts import FUNDAMENTOS
 from normative_modules.shared_estancias import resumen_estancias
+
+_TIPO = {"alumbrado": "Alumbrado", "tomas": "Tomas de corriente", "fuerza": "Fuerza",
+         "motor": "Motor", "clima": "Climatización", "otros": "Otros"}
 
 
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
     d = results.get("datos", {})
     est = resumen_estancias(results.get("estancias", []))
     sections = [
-        {"id": "resumen", "title": "Resumen del cálculo", "type": "metricas",
+        {"id": "resumen", "title": "Resumen del cuadro", "type": "metricas",
          "items": results.get("resumen", []), "estado_global": results.get("estado_global")},
         {"id": "objeto", "title": "1. Objeto", "type": "text",
-         "body": ("Estudio orientativo del dimensionado de la línea eléctrica de baja tensión conforme "
-                  "al Reglamento Electrotécnico para Baja Tensión (RD 842/2002) y sus Instrucciones "
-                  "Técnicas Complementarias (ITC-BT). Determina la sección del conductor, las "
-                  "protecciones y la puesta a tierra.")},
-        {"id": "datos", "title": "2. Datos de la instalación", "type": "keyvalue",
+         "body": ("Estudio orientativo del cuadro eléctrico de baja tensión (esquema unifilar) conforme al "
+                  "REBT (RD 842/2002) y sus ITC-BT. Incluye el cuadro de potencias, las protecciones de "
+                  "cabecera (IGA y diferencial general), los diferenciales y magnetotérmicos de cada "
+                  "circuito, los subcuadros y el dimensionado de todas las líneas.")},
+        {"id": "datos", "title": "2. Datos generales", "type": "keyvalue",
          "rows": [
              {"k": "Expediente", "v": f"{project.get('code', '')} · {project.get('name', '')}"},
              {"k": "Tipo de suministro", "v": "Trifásico 400 V" if d.get("suministro") == "trifasica" else "Monofásico 230 V"},
-             {"k": "Potencia prevista", "v": f"{d.get('potencia', 0):,.0f} W"},
-             {"k": "Factor de potencia (cos φ)", "v": f"{d.get('cosphi', 0.9)}"},
-             {"k": "Longitud de la línea", "v": f"{d.get('longitud', 0):g} m"},
              {"k": "Material del conductor", "v": "Aluminio" if d.get("material") == "Al" else "Cobre"},
-             {"k": "Caída de tensión máx. admisible", "v": f"{d.get('caida_max_pct', 3):g} %"},
+             {"k": "Potencia total instalada", "v": f"{d.get('potencia_instalada', 0):,.0f} W"},
+             {"k": "Potencia de cálculo (con simultaneidad)", "v": f"{d.get('potencia_demandada', 0):,.0f} W"},
+             {"k": "Corriente de diseño general (Ib)", "v": f"{d.get('Ib', 0):.1f} A"},
+             {"k": "IGA de cabecera", "v": f"{d.get('iga', 0)} A"},
+             {"k": "Nº total de líneas", "v": f"{d.get('num_lineas', 0)}"},
          ]},
-        {"id": "estancias", "title": "3. Cuadro de superficies (ubicación de circuitos)", "type": "estancias_resumen",
-         "data": est},
-        {"id": "secciones", "title": "4. Verificación y dimensionado", "type": "secciones_modulo",
-         "items": results.get("secciones", [])},
-        {"id": "observaciones", "title": "5. Observaciones", "type": "observaciones",
+        {"id": "cuadro_potencias", "title": "3. Cuadro de potencias", "type": "rebt_potencias",
+         "items": results.get("cuadro_potencias", []),
+         "total_instalada": d.get("potencia_instalada", 0), "total_calculo": d.get("potencia_demandada", 0)},
+        {"id": "esquema", "title": "4. Esquema unifilar", "type": "rebt_esquema", "arbol": results.get("arbol")},
+        {"id": "lineas", "title": "5. Dimensionado y comprobación de líneas", "type": "rebt_lineas",
+         "items": results.get("lineas", [])},
+        {"id": "estancias", "title": "6. Cuadro de superficies (ubicación)", "type": "estancias_resumen", "data": est},
+        {"id": "observaciones", "title": "7. Observaciones", "type": "observaciones",
          "items": results.get("observaciones", [])},
-        {"id": "fundamentos", "title": "6. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
+        {"id": "fundamentos", "title": "8. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
          "items": FUNDAMENTOS},
     ]
     return {
         "module_code": "REBT",
-        "title": "Informe no vinculante — Estudio REBT (baja tensión)",
+        "title": "Informe no vinculante — Cuadro eléctrico REBT (esquema unifilar)",
         "generated_at": utcnow_iso(),
         "estado_global": results.get("estado_global"),
         "sections": sections,
         "disclaimer": ("Informe ORIENTATIVO y NO VINCULANTE. El dimensionado definitivo debe verificar el "
-                       "método de instalación, agrupamientos, temperatura y coeficientes de la ITC-BT-19, "
-                       "así como la coordinación de protecciones. No sustituye al proyecto eléctrico."),
+                       "método de instalación, agrupamientos, temperatura, coeficientes de la ITC-BT-19, la "
+                       "selectividad y coordinación de protecciones, y las intensidades de cortocircuito. No "
+                       "sustituye al proyecto eléctrico."),
     }

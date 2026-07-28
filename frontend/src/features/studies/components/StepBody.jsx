@@ -11,6 +11,7 @@ import { ProyectoSuperficiesStep } from "@/features/studies/components/ProyectoS
 import { SectoresStep } from "@/features/studies/components/SectoresStep";
 import { ConstruccionStep } from "@/features/studies/components/ConstruccionStep";
 import { SharedSurfacesStep } from "@/features/studies/components/SharedSurfacesStep";
+import { RebtCuadroStep } from "@/features/studies/components/RebtCuadroStep";
 
 // Renders a single wizard sub-step given its (sub-)schema, scoped data and setData.
 export function StepBody({ step, schema, data, setData, study }) {
@@ -43,6 +44,7 @@ export function StepBody({ step, schema, data, setData, study }) {
   }
 
   if (step.type === "estancias_compartidas") return <SharedSurfacesStep projectId={study?.project_id} />;
+  if (step.type === "rebt_cuadro") return <RebtCuadroStep data={data} setData={setData} study={study} />;
   if (step.type === "superficies") return <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />;
   if (step.type === "superficies_proyecto") return <ProyectoSuperficiesStep data={data} setData={setData} schema={schema} study={study} />;
   if (step.type === "sectores_incendio") return <SectoresStep data={data} setData={setData} schema={schema} />;

@@ -41,4 +41,20 @@ FUNDAMENTOS = [
                  "acondicionado, secadora y sistemas de automatización.»"),
         "referencia": "REBT, ITC-BT-25, apartados 3 y 4.",
     },
+    {
+        "tema": "Previsión de cargas y coeficiente de simultaneidad",
+        "cita": ("«La previsión de cargas de la instalación se obtiene a partir de la potencia prevista "
+                 "para cada circuito o receptor, aplicando los coeficientes de simultaneidad y de "
+                 "utilización correspondientes. La potencia de cálculo de la línea de alimentación de "
+                 "un cuadro es la resultante de aplicar dichos coeficientes al conjunto de sus cargas.»"),
+        "referencia": "REBT, ITC-BT-10 (Previsión de cargas) e ITC-BT-25.",
+    },
+    {
+        "tema": "Selectividad y coordinación de protecciones",
+        "cita": ("«Los dispositivos de protección se dispondrán de forma que quede garantizada la "
+                 "protección contra sobrecargas y cortocircuitos de todas las canalizaciones, "
+                 "asegurando la coordinación entre la protección general de cabecera y las protecciones "
+                 "de los circuitos derivados y de los subcuadros.»"),
+        "referencia": "REBT, ITC-BT-22 e ITC-BT-17.",
+    },
 ]

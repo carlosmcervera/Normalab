@@ -383,6 +383,33 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                 for it in sec.get("items", []):
                     b = doc.add_paragraph(style="List Bullet")
                     b.add_run(f"{it.get('nombre')}: {it.get('detalle', '')}").font.size = Pt(9)
+        elif stype == "rebt_potencias":
+            rows = [[r.get("cuadro"), r.get("circuito"), r.get("tipo"), _fmt(r.get("potencia"), 0),
+                     str(r.get("factor_uso")), _fmt(r.get("potencia_calculo"), 0)] for r in s.get("items", [])]
+            _generic_table(doc, ["Cuadro", "Circuito", "Tipo", "P inst. (W)", "F.u.", "P cálc. (W)"], rows,
+                           totals=["TOTAL", "", "", _fmt(s.get("total_instalada"), 0), "", _fmt(s.get("total_calculo"), 0)])
+        elif stype == "rebt_lineas":
+            lbl = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}
+            rows = [[l.get("cuadro"), l.get("circuito"), _fmt(l.get("Ib"), 2), l.get("seccion_txt"),
+                     f"{l.get('caida_acum_pct')}%", l.get("proteccion"), l.get("diferencial"), l.get("tierra"),
+                     lbl.get(l.get("estado"), "Info")] for l in s.get("items", [])]
+            _generic_table(doc, ["Cuadro", "Línea", "Ib", "Sección", "Caída ac.", "Protec.", "Difer.", "Tierra", "Estado"], rows)
+        elif stype == "rebt_esquema":
+            def _board_docx(b, nivel):
+                p = doc.add_paragraph()
+                pr = p.add_run(("    " * nivel) + f"■ {b.get('nombre')} · IGA {b.get('iga')} A · ID {b.get('diferencial_general_ma')} mA · "
+                               f"P cálc. {b.get('potencia_demandada')} W · {(b.get('alimentacion') or {}).get('seccion_txt')} mm²")
+                pr.bold = True
+                pr.font.size = Pt(9)
+                for c in b.get("cargas", []):
+                    cp = doc.add_paragraph(style="List Bullet")
+                    cp.add_run(("    " * nivel) + f"{c.get('nombre')} · {c.get('magneto')} A · {c.get('seccion_txt')} mm² · "
+                               f"{c.get('potencia')} W · caída {c.get('caida_acum_pct')}% (máx {c.get('limite_total')}%) · "
+                               f"{'CUMPLE' if c.get('estado') == 'cumple' else 'NO CUMPLE' if c.get('estado') == 'no_cumple' else 'revisar'}").font.size = Pt(8.5)
+                for sc in b.get("subcuadros", []):
+                    _board_docx(sc, nivel + 1)
+            if s.get("arbol"):
+                _board_docx(s["arbol"], 0)
         elif stype == "observaciones":
             for o in s.get("items", []):
                 doc.add_paragraph(o.get("texto", ""), style="List Bullet")
@@ -487,22 +514,49 @@ def _build_generic_xlsx(wb: Workbook, results: dict, project: dict) -> BytesIO:
             we.cell(row=r, column=c).border = BORDER
         _autosize(we, [28, 14, 16, 16, 14, 22, 14])
 
-    # Hoja Verificación
-    wv = wb.create_sheet("Verificación")
-    wv.cell(row=1, column=1, value="Verificación de exigencias").font = Font(bold=True, size=12)
-    _header_row(wv, 3, ["Apartado", "Estado", "Concepto", "Detalle"])
-    r = 4
-    labels = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar", "info": "Info"}
-    for sec in results.get("secciones", []):
-        for it in sec.get("items", []):
-            wv.cell(row=r, column=1, value=sec.get("titulo"))
-            wv.cell(row=r, column=2, value=labels.get(sec.get("estado"), "Info"))
-            wv.cell(row=r, column=3, value=it.get("nombre"))
-            wv.cell(row=r, column=4, value=it.get("detalle"))
-            for c in range(1, 5):
-                wv.cell(row=r, column=c).border = BORDER
+    # Hoja Verificación (RITE) o Cuadro de potencias + Líneas (REBT)
+    if results.get("lineas") is not None:
+        wp = wb.create_sheet("Cuadro de potencias")
+        _header_row(wp, 1, ["Cuadro", "Circuito", "Tipo", "P instalada (W)", "F. uso", "P cálculo (W)"])
+        r = 2
+        for it in results.get("cuadro_potencias", []):
+            for c, key in enumerate(["cuadro", "circuito", "tipo", "potencia", "factor_uso", "potencia_calculo"], start=1):
+                wp.cell(row=r, column=c, value=it.get(key))
+                wp.cell(row=r, column=c).border = BORDER
             r += 1
-    _autosize(wv, [34, 12, 32, 60])
+        wp.cell(row=r, column=1, value="TOTAL").font = Font(bold=True)
+        wp.cell(row=r, column=4, value=results.get("datos", {}).get("potencia_instalada")).font = Font(bold=True)
+        wp.cell(row=r, column=6, value=results.get("datos", {}).get("potencia_demandada")).font = Font(bold=True)
+        _autosize(wp, [26, 26, 14, 16, 10, 16])
+
+        wl = wb.create_sheet("Líneas")
+        _header_row(wl, 1, ["Cuadro", "Línea", "Ib (A)", "Sección (mm²)", "Iz (A)", "Caída acum. (%)", "Protección", "Diferencial", "Tierra (mm²)", "Estado"])
+        r = 2
+        lbl = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}
+        for l in results.get("lineas", []):
+            vals = [l.get("cuadro"), l.get("circuito"), l.get("Ib"), l.get("seccion_txt"), l.get("iz"),
+                    l.get("caida_acum_pct"), l.get("proteccion"), l.get("diferencial"), l.get("tierra"), lbl.get(l.get("estado"), "Info")]
+            for c, v in enumerate(vals, start=1):
+                wl.cell(row=r, column=c, value=v)
+                wl.cell(row=r, column=c).border = BORDER
+            r += 1
+        _autosize(wl, [24, 30, 10, 14, 10, 16, 14, 16, 12, 12])
+    else:
+        wv = wb.create_sheet("Verificación")
+        wv.cell(row=1, column=1, value="Verificación de exigencias").font = Font(bold=True, size=12)
+        _header_row(wv, 3, ["Apartado", "Estado", "Concepto", "Detalle"])
+        r = 4
+        labels = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar", "info": "Info"}
+        for sec in results.get("secciones", []):
+            for it in sec.get("items", []):
+                wv.cell(row=r, column=1, value=sec.get("titulo"))
+                wv.cell(row=r, column=2, value=labels.get(sec.get("estado"), "Info"))
+                wv.cell(row=r, column=3, value=it.get("nombre"))
+                wv.cell(row=r, column=4, value=it.get("detalle"))
+                for c in range(1, 5):
+                    wv.cell(row=r, column=c).border = BORDER
+                r += 1
+        _autosize(wv, [34, 12, 32, 60])
 
     buf = BytesIO()
     wb.save(buf)
@@ -515,7 +569,7 @@ def build_xlsx(study: dict, project: dict) -> BytesIO:
     wb = Workbook()
 
     # Módulos genéricos (REBT/RITE): sin sectores de incendio → libro genérico.
-    if results.get("secciones") is not None and not results.get("sectores"):
+    if (results.get("secciones") is not None or results.get("lineas") is not None) and not results.get("sectores"):
         return _build_generic_xlsx(wb, results, project)
 
     # --- Hoja Superficies --------------------------------------------------- #

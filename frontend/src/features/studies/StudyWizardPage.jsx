@@ -10,6 +10,7 @@ import { StepBody } from "@/features/studies/components/StepBody";
 import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 import { GenericResultsPanel } from "@/features/studies/components/GenericResultsPanel";
+import { RebtResultsPanel } from "@/features/studies/components/RebtResultsPanel";
 
 const defaultData = (code) => (code === "INCENDIOS" ? { establecimiento: { config: "C" }, sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
 
@@ -156,9 +157,10 @@ export default function StudyWizardPage() {
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                results?.sectores ? <ResultsPanel results={results} />
-                  : results?.ambitos ? <IncendiosResultsPanel results={results} />
-                    : <GenericResultsPanel results={results} />
+                results?.arbol ? <RebtResultsPanel results={results} />
+                  : results?.sectores ? <ResultsPanel results={results} />
+                    : results?.ambitos ? <IncendiosResultsPanel results={results} />
+                      : <GenericResultsPanel results={results} />
               ) : (
                 <div className="border border-dashed border-border py-12 text-center">
                   <p className="text-sm text-muted-foreground">Pulsa «Calcular» para ejecutar el motor de reglas.</p>

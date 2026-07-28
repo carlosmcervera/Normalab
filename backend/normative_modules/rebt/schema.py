@@ -1,4 +1,4 @@
-"""Schema del asistente REBT."""
+"""Schema del asistente REBT v2 (cuadro eléctrico con subcuadros)."""
 from normative_modules.rebt.catalog import SUMINISTROS, MATERIALES, TIPOS_INSTALACION
 
 
@@ -7,21 +7,21 @@ def get_schema() -> dict:
         "steps": [
             {"id": "superficies", "type": "estancias_compartidas",
              "title": "Cuadro de superficies y ocupación",
-             "description": "Inventario compartido del expediente (editable desde cualquier módulo). Sirve para ubicar los circuitos por estancia."},
-            {"id": "datos", "title": "Datos de la línea",
-             "description": "Introduce los datos de la línea eléctrica a dimensionar (ITC-BT-19).",
+             "description": "Inventario compartido del expediente. Sirve para ubicar los circuitos por estancia."},
+            {"id": "generales", "title": "Datos generales del cuadro",
+             "description": "Condiciones de la instalación (ITC-BT-19).",
              "fields": [
                  {"name": "suministro", "label": "Tipo de suministro", "type": "select", "required": True,
-                  "options": SUMINISTROS, "default": "monofasica"},
-                 {"name": "potencia", "label": "Potencia prevista (W)", "type": "number", "required": True, "min": 1,
-                  "help": "Potencia de cálculo de la línea (W)."},
-                 {"name": "cosphi", "label": "Factor de potencia (cos φ)", "type": "number", "min": 0, "default": 0.9},
-                 {"name": "longitud", "label": "Longitud de la línea (m)", "type": "number", "required": True, "min": 0.1},
+                  "options": SUMINISTROS, "default": "trifasica"},
                  {"name": "material", "label": "Material del conductor", "type": "select", "options": MATERIALES, "default": "Cu"},
-                 {"name": "caida_max_pct", "label": "Caída de tensión máx. admisible (%)", "type": "number", "min": 0.1, "default": 3,
-                  "help": "3 % alumbrado / 5 % otros usos; 1–1,5 % derivación individual (ITC-BT-19)."},
                  {"name": "tipo_instalacion", "label": "Tipo de instalación / local", "type": "select",
-                  "options": TIPOS_INSTALACION, "default": "otro", "full": True},
+                  "options": TIPOS_INSTALACION, "default": "otro"},
+                 {"name": "caida_max_di", "label": "Caída máx. derivación individual (%)", "type": "number", "min": 0.1, "default": 1.5},
+                 {"name": "caida_max_circuito", "label": "Caída máx. por circuito (%)", "type": "number", "min": 0.1, "default": 3},
+                 {"name": "caida_max_total_alumbrado", "label": "Caída máx. total alumbrado (%)", "type": "number", "min": 0.1, "default": 4.5},
+                 {"name": "caida_max_total_otros", "label": "Caída máx. total otros usos (%)", "type": "number", "min": 0.1, "default": 6.5},
              ]},
+            {"id": "cuadro", "type": "rebt_cuadro", "title": "Cargas y esquema del cuadro",
+             "description": "Define las cargas, agrúpalas por diferenciales y crea subcuadros. Se calcula el cuadro de potencias y todas las líneas."},
         ],
     }

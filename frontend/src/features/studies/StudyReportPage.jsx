@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Printer, History, Loader2, AlertTriangle, FileText, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError, downloadFile } from "@/lib/api";
+import { EsquemaUnifilar } from "@/features/studies/components/EsquemaUnifilar";
 import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -562,6 +563,51 @@ function Section({ s }) {
                   <td /><td className="px-2.5 py-2 text-right">{s.data?.total_ocupacion}</td>
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        )}
+
+        {s.type === "rebt_potencias" && (
+          <div className="overflow-x-auto border border-border" data-testid="report-rebt-potencias">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-border bg-secondary/60 text-left uppercase text-muted-foreground">
+                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Circuito</th><th className="px-2.5">Tipo</th><th className="px-2.5 text-right">P inst. (W)</th><th className="px-2.5 text-right">F.u.</th><th className="px-2.5 text-right">P cálc. (W)</th>
+              </tr></thead>
+              <tbody className="font-mono">
+                {(s.items || []).map((r, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-2.5 py-1.5 font-sans">{r.cuadro}</td><td className="px-2.5 font-sans">{r.circuito}</td><td className="px-2.5 font-sans">{r.tipo}</td>
+                    <td className="px-2.5 text-right">{num(r.potencia, 0)}</td><td className="px-2.5 text-right">{r.factor_uso}</td><td className="px-2.5 text-right">{num(r.potencia_calculo, 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr className="border-t-2 border-border bg-secondary/40 font-mono font-bold">
+                <td className="px-2.5 py-2 font-sans" colSpan={3}>TOTAL</td><td className="px-2.5 text-right">{num(s.total_instalada, 0)}</td><td /><td className="px-2.5 text-right">{num(s.total_calculo, 0)}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        )}
+
+        {s.type === "rebt_esquema" && (
+          <div data-testid="report-rebt-esquema"><EsquemaUnifilar arbol={s.arbol} /></div>
+        )}
+
+        {s.type === "rebt_lineas" && (
+          <div className="overflow-x-auto border border-border" data-testid="report-rebt-lineas">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-border bg-secondary/60 text-left uppercase text-muted-foreground">
+                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Ib</th><th className="px-2.5 text-right">Sección</th><th className="px-2.5 text-right">Caída ac.</th><th className="px-2.5">Protec.</th><th className="px-2.5">Difer.</th><th className="px-2.5 text-right">Tierra</th><th className="px-2.5">Estado</th>
+              </tr></thead>
+              <tbody className="font-mono">
+                {(s.items || []).map((l, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-2.5 py-1.5 font-sans">{l.cuadro}</td><td className="px-2.5 font-sans">{l.circuito}</td>
+                    <td className="px-2.5 text-right">{l.Ib}</td><td className="px-2.5 text-right">{l.seccion_txt}</td><td className="px-2.5 text-right">{l.caida_acum_pct}%</td>
+                    <td className="px-2.5 font-sans">{l.proteccion}</td><td className="px-2.5 font-sans">{l.diferencial}</td><td className="px-2.5 text-right">{l.tierra}</td>
+                    <td className={`px-2.5 font-sans ${l.estado === "no_cumple" ? "font-semibold text-red-700" : l.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>{l.estado === "no_cumple" ? "No cumple" : l.estado === "observaciones" ? "Revisar" : "Cumple"}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         )}
