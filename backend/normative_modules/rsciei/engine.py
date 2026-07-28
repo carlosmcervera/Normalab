@@ -11,6 +11,7 @@ condiciones de evacuación (Tabla 2.3.1).
 import math
 
 from normative_modules.rsciei.requirements import build_requirements
+from normative_modules.cte_dbsi import tablas_oficiales as T_dbsi
 
 MCAL_PER_MJ = 1 / 4.184
 
@@ -568,9 +569,27 @@ def _compute_sector(sec, deps, establecimiento):
     observaciones = []
     observaciones.append({"tipo": "info", "texto": f"Sector «{sec.get('nombre','?')}»: nivel de riesgo intrínseco {nivel} ({categoria}), Tabla 1.3.1."})
     if ambito == "cte":
-        sector = {**sector, "estado": "no_aplica", "max_admisible": None,
-                  "mensaje": ("Sector de ámbito CTE: no aplica la Tabla 2.1.1 del RSCIEI; la "
-                              "compartimentación y las superficies se evalúan según el CTE DB-SI.")}
+        # Sector de ámbito CTE: estabilidad (SI 6), delimitadores (SI 1, Tabla 1.2) y
+        # superficie máxima (SI 1, Tabla 1.1) se toman del CTE DB-SI, NO de la Tabla 2.5.1/2.1.1 del RSCIEI.
+        uso_cte = sec.get("uso_cte") or "Administrativo"
+        altura_cte = float(sec.get("altura_evacuacion") or 0)
+        br_cte = situacion == "bajo_rasante"
+        r_cte = T_dbsi.si6_estructura(uso_cte, altura_cte, br_cte)
+        ei_cte = T_dbsi.si1_delimitador_ei(altura_cte, br_cte)
+        maxs = T_dbsi.SI1_SECTOR_MAX.get(uso_cte, 2500)
+        requisitos = {**requisitos,
+                      "estabilidad": {"valor": r_cte, "referencia": "CTE DB-SI · SI 6, Tabla 3.1"},
+                      "delimitadores": {"valor": ei_cte, "referencia": "CTE DB-SI · SI 1, Tabla 1.2"}}
+        if maxs is None:
+            sup_ok, max_txt, base_val, max_adm = True, "Un sector por planta", None, None
+        else:
+            sup_ok, max_txt, base_val, max_adm = (A_const <= maxs), f"{maxs:.0f} m²", maxs, float(maxs)
+        sector = {**sector, "estado": "cumple" if sup_ok else "no_cumple",
+                  "max_admisible": max_adm, "max_admisible_base": base_val,
+                  "mensaje": (f"Sector de ámbito CTE (uso {uso_cte}): superficie {A_const:.0f} m² "
+                              f"{'≤' if sup_ok else 'SUPERA el'} máx. {max_txt} (CTE DB-SI · SI 1, Tabla 1.1). "
+                              f"Estructura {r_cte} (SI 6) y delimitadores {ei_cte} (SI 1, Tabla 1.2). "
+                              f"No aplica la Tabla 2.1.1 del RSCIEI.")}
     if rmin_req and ra < rmin_req - 1e-6:
         observaciones.append({"tipo": "warning", "texto": (
             f"El coeficiente de activación Ra={ra:.1f} del sector es inferior al mínimo normativo "

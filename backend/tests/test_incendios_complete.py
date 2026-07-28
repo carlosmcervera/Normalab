@@ -384,7 +384,7 @@ def test_dbsi_validation():
 def test_registry_only_incendios_operativo():
     reg = bootstrap_modules()
     ops = [m.code for m in reg.all() if m.status == "operativo"]
-    assert ops == ["INCENDIOS"]
+    assert set(ops) == {"INCENDIOS", "REBT", "RITE"}
     assert reg.get("RSCIEI") is None and reg.get("CTE") is None
 
 

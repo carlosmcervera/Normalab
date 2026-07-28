@@ -98,6 +98,11 @@ admin@normalab.com / Admin1234! (rol admin). Ver /app/memory/test_credentials.md
 2. Segundo módulo operativo (CTE DB-SI) para validar la extensibilidad del registry.
 
 ## Changelog
+- 2026-07-28: **Bug FIX real (ruta CTE): estabilidad R y superficie máx. del sector CTE no coincidían con las tablas SI 6/SI 1**
+  - Causa raíz: los sectores de ámbito CTE tomaban la estabilidad (R), los delimitadores (EI) y la superficie máxima de la **Tabla 2.5.1/2.1.1 del RSCIEI** (config-based → R 90) en vez del **CTE DB-SI** (SI 6 Tabla 3.1 → R 60 para Administrativo h≤15; SI 1 Tabla 1.1 → 2.500 m²). Por eso la tabla resaltaba R 60/2.500 pero el resumen mostraba R 90/4.000.
+  - Fix en `rsciei/engine.py`: para `ambito=="cte"` se sobrescriben `requisitos.estabilidad`, `requisitos.delimitadores` y la superficie máx. del sector con `tablas_oficiales.si6_estructura` / `si1_delimitador_ei` / `SI1_SECTOR_MAX`. El sector CTE pasa a evaluar SI 1 (cumple/no_cumple) en vez de "no_aplica".
+  - Verificado: caso PDF «PR26099 - Ejemplo ADEC» (OFICINES Administrativo h=7 → R 60/2.500). 0 divergencias tabla↔resumen en toda la matriz CTE (usos × alturas × rasante). 101/101 tests. Expediente sembrado en preview para revisión.
+  - **Deploy despliegue**: `/health` (probe K8s) y CORS corregidos previamente; este fix requiere REDESPLEGAR a producción y RECALCULAR el estudio para regenerar el informe.
 - 2026-07-27: **Módulos REBT y RITE operativos + Cuadro de superficies/ocupación COMPARTIDO por expediente (validado iter 26, 100%)**
   - **Cuadro compartido**: `project.estancias` (fuente única del expediente) con endpoints `GET/PUT /api/projects/{id}/estancias`. Editable desde una tarjeta desplegable en la página del expediente (`SharedSurfacesStep`) y como primer paso de los asistentes REBT/RITE. El backend inyecta `project.estancias` en `data` antes de `compute`/`version`. INCENDIOS (opción a, sin refactor) añade botones «Importar del cuadro» y «Actualizar cuadro» en su paso de superficies. Helper `normative_modules/shared_estancias.py`.
   - **REBT** (`normative_modules/rebt/`): dimensionado de línea BT — corriente Ib, sección por caída de tensión y por calentamiento (ITC-BT-19), magnetotérmico (Ib≤In≤Iz), diferencial, puesta a tierra (ITC-BT-18), grado de electrificación (ITC-BT-25). Extractos REBT.

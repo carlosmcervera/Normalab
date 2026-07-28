@@ -152,11 +152,13 @@ def test_1b_sector_cte_config_dash_and_no_aplica(sess, project_id):
         by_name = {f["nombre"]: f for f in resumen}
         assert by_name["S-CTE"]["config"] == "—", by_name["S-CTE"]
         assert by_name["S-Industrial"]["config"] != "—"
-        # sectorizacion CTE no aplica
+        # sectorización CTE: ahora se evalúa por SI 1 (superficie máx. según uso), no por Tabla 2.1.1 RSCIEI
         sec_cte = next(s for s in res["sectores"] if s["ambito"] == "cte")
-        assert sec_cte["sectorizacion"]["estado"] == "no_aplica"
+        assert sec_cte["sectorizacion"]["estado"] in ("cumple", "no_cumple")
+        # la estabilidad del sector CTE proviene del CTE DB-SI (SI 6), no de la Tabla 2.5.1 RSCIEI
+        assert sec_cte["requisitos"]["estabilidad"]["referencia"].startswith("CTE DB-SI")
         msg = (sec_cte["sectorizacion"].get("mensaje") or "").lower()
-        assert "2.1.1" in msg or "no aplica" in msg, msg
+        assert "si 1" in msg or "no aplica la tabla 2.1.1" in msg, msg
     finally:
         sess.delete(f"{BASE_URL}/studies/{sid}")
 
