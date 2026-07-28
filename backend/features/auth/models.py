@@ -11,6 +11,7 @@ class User(BaseDocument):
     password_hash: str
     name: str
     role: Role = "tecnico"
+    active: bool = True
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -31,4 +32,22 @@ class UserPublic(BaseModel):
     email: str
     name: str
     role: Role
+    active: bool = True
     created_at: Optional[str] = None
+
+
+class AdminCreateUser(BaseModel):
+    email: EmailStr
+    name: str = Field(min_length=1)
+    password: str = Field(min_length=6)
+    role: Role = "tecnico"
+
+
+class AdminUpdateUser(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+    role: Optional[Role] = None
+    active: Optional[bool] = None
+
+
+class AdminResetPassword(BaseModel):
+    password: str = Field(min_length=6)

@@ -8,6 +8,7 @@ import DashboardPage from "@/features/dashboard/DashboardPage";
 import ProjectsPage from "@/features/projects/ProjectsPage";
 import ProjectDetailPage from "@/features/projects/ProjectDetailPage";
 import ModulesPage from "@/features/modules/ModulesPage";
+import UsersPage from "@/features/users/UsersPage";
 import StudyWizardPage from "@/features/studies/StudyWizardPage";
 import StudyReportPage from "@/features/studies/StudyReportPage";
 
@@ -28,6 +29,7 @@ function App() {
             <Route path="/expedientes" element={<ProjectsPage />} />
             <Route path="/expedientes/:projectId" element={<ProjectDetailPage />} />
             <Route path="/modulos" element={<ModulesPage />} />
+            <Route path="/equipo" element={<UsersPage />} />
             <Route path="/estudios/:studyId" element={<StudyWizardPage />} />
             <Route path="/estudios/:studyId/informe" element={<StudyReportPage />} />
           </Route>

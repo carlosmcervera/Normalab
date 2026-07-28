@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, Boxes, LogOut, ChevronRight } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Boxes, Users, LogOut, ChevronRight } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,9 @@ const NAV = [
 export function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const nav = user?.role === "admin"
+    ? [...NAV, { to: "/equipo", label: "Equipo", icon: Users, testid: "nav-users" }]
+    : NAV;
 
   const handleLogout = async () => {
     await logout();
@@ -32,7 +35,7 @@ export function AppShell() {
           </Link>
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -23,6 +23,8 @@ async def get_current_user(request: Request) -> dict:
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
         user["_id"] = str(user["_id"])
         user.pop("password_hash", None)
+        if user.get("active") is False:
+            raise HTTPException(status_code=403, detail="Cuenta desactivada. Contacta con un administrador.")
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")

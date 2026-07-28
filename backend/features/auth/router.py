@@ -13,7 +13,9 @@ from core.security import (
     hash_password,
     verify_password,
 )
-from features.auth.models import LoginRequest, RegisterRequest, User
+from features.auth.models import (
+    AdminCreateUser, AdminResetPassword, AdminUpdateUser, LoginRequest, RegisterRequest, User,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,8 +38,22 @@ def _public(user: dict) -> dict:
         "email": user["email"],
         "name": user["name"],
         "role": user.get("role", "tecnico"),
+        "active": user.get("active", True),
         "created_at": user.get("created_at"),
     }
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Requiere rol administrador")
+    return user
+
+
+async def _count_active_admins(exclude_id: str | None = None) -> int:
+    q = {"role": "admin", "active": {"$ne": False}}
+    if exclude_id:
+        q["_id"] = {"$ne": ObjectId(exclude_id)}
+    return await db.users.count_documents(q)
 
 
 @router.post("/register")
@@ -78,6 +94,8 @@ async def login(payload: LoginRequest, request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     await db.login_attempts.delete_one({"identifier": identifier})
+    if user.get("active") is False:
+        raise HTTPException(status_code=403, detail="Cuenta desactivada. Contacta con un administrador.")
     _set_auth_cookies(response, str(user["_id"]), email)
     return _public(user)
 
@@ -115,8 +133,82 @@ async def refresh(request: Request, response: Response):
 
 
 @router.get("/users")
-async def list_users(user: dict = Depends(get_current_user)):
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Requiere rol administrador")
-    users = await db.users.find().to_list(500)
+async def list_users(admin: dict = Depends(require_admin)):
+    users = await db.users.find().sort("created_at", 1).to_list(500)
     return [_public(u) for u in users]
+
+
+@router.post("/users", status_code=201)
+async def create_user(payload: AdminCreateUser, admin: dict = Depends(require_admin)):
+    email = payload.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
+    user = User(email=email, password_hash=hash_password(payload.password),
+                name=payload.name, role=payload.role, active=True)
+    result = await db.users.insert_one(user.to_mongo())
+    created = await db.users.find_one({"_id": result.inserted_id})
+    return _public(created)
+
+
+@router.patch("/users/{user_id}")
+async def update_user(user_id: str, payload: AdminUpdateUser, admin: dict = Depends(require_admin)):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    target = await db.users.find_one({"_id": oid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    is_self = str(target["_id"]) == str(admin["_id"])
+    updates: dict = {}
+    if payload.name is not None:
+        updates["name"] = payload.name
+
+    demoting = payload.role is not None and payload.role != "admin" and target.get("role") == "admin"
+    deactivating = payload.active is False and target.get("active", True)
+
+    if is_self and (demoting or deactivating):
+        raise HTTPException(status_code=400, detail="No puedes cambiar tu propio rol de administrador ni desactivar tu cuenta.")
+    if (demoting or deactivating) and await _count_active_admins(exclude_id=user_id) == 0:
+        raise HTTPException(status_code=400, detail="Debe quedar al menos un administrador activo.")
+
+    if payload.role is not None:
+        updates["role"] = payload.role
+    if payload.active is not None:
+        updates["active"] = payload.active
+
+    if updates:
+        await db.users.update_one({"_id": oid}, {"$set": updates})
+    updated = await db.users.find_one({"_id": oid})
+    return _public(updated)
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(user_id: str, payload: AdminResetPassword, admin: dict = Depends(require_admin)):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    target = await db.users.find_one({"_id": oid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    await db.users.update_one({"_id": oid}, {"$set": {"password_hash": hash_password(payload.password)}})
+    return {"ok": True}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    target = await db.users.find_one({"_id": oid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if str(target["_id"]) == str(admin["_id"]):
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta.")
+    if target.get("role") == "admin" and target.get("active", True) and await _count_active_admins(exclude_id=user_id) == 0:
+        raise HTTPException(status_code=400, detail="Debe quedar al menos un administrador activo.")
+    await db.users.delete_one({"_id": oid})
+    return {"ok": True}
