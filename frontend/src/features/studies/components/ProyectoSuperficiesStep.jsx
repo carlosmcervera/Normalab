@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Layers, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
@@ -9,17 +10,78 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { num } from "@/lib/format";
+import { SharedTableAlert } from "@/features/studies/components/SharedTableAlert";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 const SIN = "__sin__";
 
+const baseFrom = (d) => ({
+  id: d.id, nombre: d.nombre || "", planta: d.planta || "",
+  sup_util: d.sup_util ?? "", sup_construida: d.sup_construida ?? "", altura: d.altura ?? "",
+  uso_ocupacion: d.uso_ocupacion || "", densidad: d.densidad ?? "",
+  sin_ocupacion: !!d.sin_ocupacion, ocupacion_custom: !!d.ocupacion_custom, ocupacion_manual: d.ocupacion_manual ?? "",
+});
+
 // Paso 1 · Cuadro de superficies agrupado por planta (plantas como entidad gestionable).
+// El cuadro base (superficies/ocupación) es COMPARTIDO por el expediente: se importa
+// automáticamente de project.estancias al abrir y se reenvía (debounce) al editarlo.
 export function ProyectoSuperficiesStep({ data, setData, study }) {
   const deps = data.dependencias || [];
   const plantas = data.plantas || [];
   const [nuevaPlanta, setNuevaPlanta] = useState("");
   const [syncing, setSyncing] = useState(false);
   const projectId = study?.project_id;
+  const queryClient = useQueryClient();
+
+  const { data: shared } = useQuery({
+    queryKey: ["estancias", projectId],
+    queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
+    enabled: !!projectId,
+  });
+
+  // Fusión inicial (una vez): trae del cuadro compartido las estancias que falten y
+  // actualiza los campos base de las existentes, preservando los campos propios de Incendios.
+  const mergedRef = useRef(false);
+  useEffect(() => {
+    if (!shared || mergedRef.current) return;
+    mergedRef.current = true;
+    setData((d) => {
+      const byId = new Map((d.dependencias || []).map((x) => [x.id, x]));
+      let plantasNext = d.plantas || [];
+      const pn = new Set(plantasNext.map((p) => p.nombre));
+      (shared || []).forEach((e) => {
+        const prev = byId.get(e.id) || { id: e.id, modo: "produccion", ci: 1.44 };
+        byId.set(e.id, {
+          ...prev,
+          nombre: e.nombre ?? prev.nombre ?? "", planta: e.planta ?? prev.planta ?? "",
+          sup_util: e.sup_util ?? prev.sup_util ?? "", sup_construida: e.sup_construida ?? prev.sup_construida ?? "",
+          altura: e.altura ?? prev.altura, densidad: e.densidad ?? prev.densidad,
+          uso_ocupacion: e.uso_ocupacion ?? prev.uso_ocupacion, sin_ocupacion: e.sin_ocupacion ?? prev.sin_ocupacion,
+        });
+        if (e.planta && !pn.has(e.planta)) { pn.add(e.planta); plantasNext = [...plantasNext, { id: genId(), nombre: e.planta }]; }
+      });
+      return { ...d, dependencias: Array.from(byId.values()), plantas: plantasNext };
+    });
+  }, [shared]); // eslint-disable-line
+
+  // Autoguardado del cuadro base al compartido (debounce), sin re-fusionar (evita bucles).
+  const pushTimer = useRef(null);
+  const lastPushSig = useRef(null);
+  useEffect(() => {
+    if (!projectId || !mergedRef.current) return;
+    const base = (data.dependencias || []).map(baseFrom);
+    const sig = JSON.stringify(base);
+    if (sig === lastPushSig.current) return;
+    clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(async () => {
+      try {
+        lastPushSig.current = sig;
+        await api.put(`/projects/${projectId}/estancias`, { estancias: base });
+        queryClient.invalidateQueries({ queryKey: ["estancias", projectId] });
+      } catch (e) { /* silencioso: reintenta en el próximo cambio */ }
+    }, 800);
+    return () => clearTimeout(pushTimer.current);
+  }, [data.dependencias, projectId]); // eslint-disable-line
 
   const importarCuadro = async () => {
     setSyncing(true);
@@ -110,6 +172,7 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
 
   return (
     <div className="space-y-5" data-testid="superficies-proyecto-step">
+      <SharedTableAlert projectId={projectId} currentStudyId={study?.id} />
       <div className="border border-border bg-secondary/20 p-4" data-testid="plantas-manager">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers className="h-4 w-4" /> Plantas del proyecto</div>
         <div className="flex flex-wrap items-center gap-2">

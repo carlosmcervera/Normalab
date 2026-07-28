@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/NumberInput";
 import { num } from "@/lib/format";
+import { SharedTableAlert } from "@/features/studies/components/SharedTableAlert";
 
 const genId = () => (crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 10));
 
@@ -20,7 +21,7 @@ const ocupacionDe = (e) => {
 
 // Cuadro de superficies + ocupación COMPARTIDO por el expediente (project.estancias).
 // Editable desde cualquier módulo (REBT/RITE). Autosave con debounce.
-export function SharedSurfacesStep({ projectId }) {
+export function SharedSurfacesStep({ projectId, studyId }) {
   const { data, isLoading } = useQuery({
     queryKey: ["estancias", projectId],
     queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
@@ -57,6 +58,7 @@ export function SharedSurfacesStep({ projectId }) {
 
   return (
     <div className="space-y-4" data-testid="shared-surfaces-step">
+      <SharedTableAlert projectId={projectId} currentStudyId={studyId} />
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Layers className="h-4 w-4" /> Cuadro compartido del expediente. Los cambios se guardan automáticamente y los comparten todos los módulos.
