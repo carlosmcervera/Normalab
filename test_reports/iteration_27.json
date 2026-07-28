@@ -1,0 +1,25 @@
+{
+  "summary": "REBT v2 (multi-circuit unifilar with sub-panels) verified E2E backend+frontend. Backend pytest 4/4 PASS (/app/backend/tests/test_rebt_v2_e2e.py): login->create project->create REBT study->save data (root board with motor 5000W/20m + nested sub-panel with pump 3000W/15m)->POST /compute returns 4 lineas (2 alimentacion + 2 circuitos), tree with es_raiz=True, 1 sub, cascading correct (sub_feed>root_feed and sub_circ>sub_feed), 4-metric resumen, persistence verified via GET; empty-board compute rejected 422; DOCX and XLSX exports return 200 with valid PK zip binary (>2KB/>1.5KB). Frontend Playwright E2E: login as admin@normalab.com -> API seed project/study -> navigate /estudios/{sid} -> wizard-stepper renders 4 steps (superficies, generales, cuadro, resultados) with NO Babel crash -> step 2 renders rebt-cuadro-step -> filled root carga (Motor 5000W/20m), clicked board-{id}-add-sub creating second board (verified 2 boards), added carga in sub (Bomba 3000W/15m) -> wizard-next triggers compute -> rebt-results-panel rendered with 4 metric cards (8000W/8000W/12.8A/10A), global-state badge='No cumple' (correct: default empty carga in sub has P=0 -> no_cumple), Cuadro de potencias table with TOTAL row (8000/8000), Esquema unifilar visible (data-testid=esquema-unifilar present, showing Cuadro general with IGA 10 A / ID 300 mA / caída 0.6%), 5 líneas rows with cascading caida_acum verified: root feed 0.6% -> root Motor circuito 1.34% ; sub feeder 0.71% -> sub Bomba circuito 1.04% -> monotonic cascading confirmed. Report page (/estudios/{sid}/informe) loads with export-docx and export-xlsx testids present.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rebt_v2_e2e.py",
+    "/app/test_reports/pytest/rebt_v2_iter27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine._compute_board correctly propagates caida_base_pct into recursive sub-panel calls (line 188) so sub feeder accumulates root busbar drop; sub circuits then add sub feeder drop. Verified live: 0.0->0.6% (root DI) -> 0.71% (sub puente cumulative) -> 1.04% (Bomba cumulative).",
+    "RebtCuadroStep.jsx: recursive JSX flattened via collect() + updateAt()/removeAt() JS helpers. No stack overflow; boards render with marginLeft: depth*16. All data-testid present and functional (board-{id}, board-{id}-add-carga/dif/sub, carga-{id}-*, rm-sub-{id}).",
+    "RebtResultsPanel + EsquemaUnifilar render correctly with real compute results; testids rebt-results-panel, esquema-unifilar, global-state, total-instalada, total-calculo, potencia-row-*, linea-row-* all populated.",
+    "features/studies/router.py compute_study correctly inyects project.estancias into data before mod.compute (line 94-95) so REBT step 'superficies' works with shared project estancias.",
+    "Nit (not a bug): newBoard(false) creates a subcuadro with one default empty carga (potencia=''). When the user adds a sub-panel and then also clicks 'add-carga' without deleting the default, a P=0 circuit is calculated -> No cumple. Consider either (a) creating subcuadros with cargas:[] and requiring user to click add-carga, or (b) validating potencia>0 with client-side warning. Current behavior is consistent with root board initial state so probably intentional."
+  ],
+  "updated_files": ["/app/backend/tests/test_rebt_v2_e2e.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (login + wizard 3 steps + compute + results + report + exports verified live)"},
+  "test_credentials": "admin@normalab.com / Admin1234!",
+  "seed_data_creation": "Ephemeral projects TEST-REBTV2-* and TEST-UI-27b-* + REBT studies created via API in both tests, cleaned up on teardown (pytest fixtures + Playwright cleanup evaluate).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "REBT v2 fully operational. Backend engine cascading verified: caida_base_pct threaded through _compute_board recursion. Frontend Babel crash resolved (RebtCuadroStep uses flat JS array + JSX map, no recursive JSX). Test file /app/backend/tests/test_rebt_v2_e2e.py has 4 tests covering compute, cascading, exports; can be run standalone with `cd /app/backend && pytest tests/test_rebt_v2_e2e.py -v`. Note: board data-testid uses full UUIDs (with internal hyphens) so use suffix-exclusion filter, not `^board-[^-]+$` regex.",
+  "rca of the issue": "N/A — previous Babel crash fix (flattened recursive JSX) confirmed effective. Full REBT v2 flow (wizard -> board editor -> compute -> results -> report -> exports) works end-to-end with correct cascading voltage drop per ITC-BT-19."
+}
