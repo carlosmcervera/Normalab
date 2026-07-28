@@ -159,7 +159,7 @@ function SectorReport({ s }) {
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{l.nombre} · riesgo {l.riesgo?.toLowerCase?.()}</span>
                   <span className="font-mono text-muted-foreground">
-                    {l.volumen != null ? `${num(l.volumen, 1)} m³ · ` : (l.potencia != null ? `${num(l.potencia, 1)} · ` : "")}
+                    {l.qs != null ? `Qs ${num(l.qs, 0)} MJ/m² · ` : (l.volumen != null ? `${num(l.volumen, 1)} m³ · ` : (l.potencia != null ? `${num(l.potencia, 1)} · ` : ""))}
                     {num(l.superficie)} m² · {l.resistencia}
                   </span>
                 </div>

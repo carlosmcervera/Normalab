@@ -29,7 +29,7 @@ export function LreUseDialog({ open, onOpenChange, current, onSelect }) {
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle className="font-heading text-base">Tabla 2.1 · Locales y zonas de riesgo especial (CTE DB-SI)</DialogTitle>
           <DialogDescription className="text-xs">
-            Selecciona el uso del local. El riesgo (bajo/medio/alto) se determinará por el volumen (superficie × altura), la superficie o la potencia según el criterio.
+            Selecciona el uso del local. El riesgo (bajo/medio/alto) se determina por el volumen (superficie × altura), la superficie, la potencia o la carga de fuego Qs según el criterio de la Tabla 2.1.
           </DialogDescription>
         </DialogHeader>
         <div className="border-b border-border p-3">

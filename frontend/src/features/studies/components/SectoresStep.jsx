@@ -66,6 +66,26 @@ const CLASE_META = {
   escalera: { label: "Escalera", cls: "border-blue-300 bg-blue-100 text-blue-800" },
 };
 
+const LRE_QS_METODOS = [
+  { value: "actividad", label: "Por actividad (Tabla 1.3.5)" },
+  { value: "combustible", label: "Por combustible (PCI × densidad × volumen)" },
+  { value: "manual", label: "Qs manual (MJ/m²)" },
+];
+
+// Carga de fuego Qs (MJ/m²) de un LRE clasificado por carga de fuego (Tabla 2.1 · fila QS).
+function computeLreQs(d) {
+  const metodo = d.lre_qs_metodo || "actividad";
+  const ci = Number(d.lre_ci) || 1;
+  if (metodo === "manual") return Number(d.lre_qs_manual) || 0;
+  if (metodo === "combustible") {
+    const sup = Number(d.sup_construida) || Number(d.sup_util) || 0;
+    if (sup <= 0) return 0;
+    return ((Number(d.lre_pci) || 0) * (Number(d.lre_dens_comb) || 0) * (Number(d.lre_volumen) || 0) * ci) / sup;
+  }
+  if (d.lre_act_modo === "almacenamiento") return (Number(d.lre_act_qvi) || 0) * (Number(d.lre_altura) || 0) * ci;
+  return (Number(d.lre_act_qsi) || 0) * ci;
+}
+
 const draftLRE = (x) => {
   const use = findLreUse(x.lre_uso);
   const r = x.lre_riesgo || "bajo";
@@ -76,6 +96,8 @@ const draftLRE = (x) => {
     partes.push(`con un volumen construido de ${num(sup * Number(x.lre_altura), 1)} m³ (superficie ${num(sup)} m² × altura ${x.lre_altura} m)`);
   } else if (use && use.metric === "P" && x.lre_potencia) {
     partes.push(`con una potencia de ${x.lre_potencia} ${use.unit}`);
+  } else if (use && use.metric === "QS") {
+    partes.push(`con una carga de fuego ponderada Qs de ${num(computeLreQs(x), 0)} MJ/m² (calculada ${x.lre_qs_metodo === "combustible" ? "a partir del combustible almacenado (PCI × densidad × volumen)" : x.lre_qs_metodo === "manual" ? "de forma manual" : "por el tipo de actividad, Tabla 1.3.5"})`);
   } else if (use && use.metric === "S") {
     partes.push(`con una superficie construida de ${num(sup)} m²`);
   }
@@ -373,17 +395,19 @@ export function SectoresStep({ data, setData, schema = {} }) {
 
 function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sectores, catalog, toggle, updateDep, setClase }) {
   const [lreDlg, setLreDlg] = useState(false);
+  const [qsActDlg, setQsActDlg] = useState(false);
   const lreUse = findLreUse(x.lre_uso);
   const escCalc = isEscalera ? escaleraCalc(x) : null;
   const { riesgo: lreRiesgo } = classifyLre(lreUse, {
-    superficie: x.sup_construida, altura: x.lre_altura, potencia: x.lre_potencia,
+    superficie: x.sup_construida, altura: x.lre_altura, potencia: x.lre_potencia, qs: computeLreQs(x),
   });
   // Aplica un cambio a un LRE y recalcula el riesgo (bajo/medio/alto) según la Tabla 2.1.
   const applyLre = (patch) => {
     const merged = { ...x, ...patch };
     const use = findLreUse(merged.lre_uso);
+    const qs = computeLreQs(merged);
     const { riesgo, valor } = classifyLre(use, {
-      superficie: merged.sup_construida, altura: merged.lre_altura, potencia: merged.lre_potencia,
+      superficie: merged.sup_construida, altura: merged.lre_altura, potencia: merged.lre_potencia, qs,
     });
     const eff = riesgo && riesgo !== "ninguno" ? riesgo : (merged.lre_riesgo || "bajo");
     updateDep(x.id, {
@@ -391,6 +415,7 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
       lre_metric: use?.metric || null,
       lre_criterio: use?.crit || null,
       lre_valor: valor,
+      lre_qs: use?.metric === "QS" ? Math.round(qs * 100) / 100 : x.lre_qs,
       lre_riesgo: eff,
       lre_r: RIESGO_R[eff] || merged.lre_r || RIESGO_R.bajo,
     });
@@ -464,6 +489,45 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                   )}
                   {lreUse && lreUse.metric === "P" && (
                     <div><Label className={fieldLabel}>Potencia ({lreUse.unit})</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_potencia ?? ""} onChange={(v) => applyLre({ lre_potencia: v })} data-testid={`estancia-${i}-lre-potencia`} /></div>
+                  )}
+                  {lreUse && lreUse.metric === "QS" && (
+                    <div className="col-span-2 space-y-2 rounded-sm border border-orange-200 bg-orange-50/70 p-2 sm:col-span-4" data-testid={`estancia-${i}-lre-qs-block`}>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-[240px] flex-1">
+                          <Label className={fieldLabel}>Cálculo de la carga de fuego Qs</Label>
+                          <Select value={x.lre_qs_metodo || "actividad"} onValueChange={(v) => applyLre({ lre_qs_metodo: v })}>
+                            <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`estancia-${i}-lre-qs-metodo`}><SelectValue /></SelectTrigger>
+                            <SelectContent>{LRE_QS_METODOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-20"><Label className={fieldLabel}>Ci</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_ci ?? ""} onChange={(v) => applyLre({ lre_ci: v })} data-testid={`estancia-${i}-lre-ci`} /></div>
+                      </div>
+                      {(x.lre_qs_metodo || "actividad") === "actividad" && (
+                        <div className="space-y-2">
+                          <Button type="button" variant="outline" className="h-8 w-full justify-between rounded-sm px-2 text-xs font-normal" onClick={() => setQsActDlg(true)} data-testid={`estancia-${i}-lre-act`}>
+                            <span className="truncate">{x.lre_act_name || "Seleccionar actividad (Tabla 1.3.5)…"}</span>
+                            <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-60" />
+                          </Button>
+                          <ActivityCatalogDialog open={qsActDlg} onOpenChange={setQsActDlg} catalog={catalog}
+                            current={x.lre_act_name ? { category: x.lre_act_cat, name: x.lre_act_name } : null}
+                            onSelect={(cat, s) => applyLre({ lre_act_cat: cat, lre_act_name: s.name, lre_act_qsi: s.qsi, lre_act_qvi: s.qvi, lre_act_modo: s.modo, lre_ci: x.lre_ci ?? s.ci })} />
+                          {x.lre_act_modo === "almacenamiento" && (
+                            <div className="w-40"><Label className={fieldLabel}>Altura almac. (m)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_altura ?? ""} onChange={(v) => applyLre({ lre_altura: v })} data-testid={`estancia-${i}-lre-qs-altura`} /></div>
+                          )}
+                        </div>
+                      )}
+                      {x.lre_qs_metodo === "combustible" && (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div><Label className={fieldLabel}>PCI (MJ/kg)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_pci ?? ""} onChange={(v) => applyLre({ lre_pci: v })} data-testid={`estancia-${i}-lre-pci`} /></div>
+                          <div><Label className={fieldLabel}>Densidad (kg/m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_dens_comb ?? ""} onChange={(v) => applyLre({ lre_dens_comb: v })} data-testid={`estancia-${i}-lre-dens`} /></div>
+                          <div><Label className={fieldLabel}>Volumen (m³)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_volumen ?? ""} onChange={(v) => applyLre({ lre_volumen: v })} data-testid={`estancia-${i}-lre-vol`} /></div>
+                        </div>
+                      )}
+                      {x.lre_qs_metodo === "manual" && (
+                        <div className="w-40"><Label className={fieldLabel}>Qs (MJ/m²)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_qs_manual ?? ""} onChange={(v) => applyLre({ lre_qs_manual: v })} data-testid={`estancia-${i}-lre-qs-manual`} /></div>
+                      )}
+                      <p className="font-mono text-[11px] font-semibold text-orange-800" data-testid={`estancia-${i}-lre-qs-valor`}>Qs = {num(computeLreQs(x), 0)} MJ/m²</p>
+                    </div>
                   )}
                   <div className="col-span-2 sm:col-span-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px]">
                     <span className="text-muted-foreground">Superficie constr. <b className="text-foreground font-mono">{num(x.sup_construida || 0)}</b> m²</span>

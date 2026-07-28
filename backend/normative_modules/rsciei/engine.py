@@ -515,6 +515,8 @@ def _compute_sector(sec, deps, establecimiento):
             "volumen": volumen,
             "potencia": d.get("lre_potencia") if metric == "P" else None,
             "metric": metric or "",
+            "qs": d.get("lre_qs"),
+            "qs_metodo": d.get("lre_qs_metodo"),
             "criterio": d.get("lre_criterio") or "",
             "justificacion": d.get("lre_justificacion") or "",
         })
