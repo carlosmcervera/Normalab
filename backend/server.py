@@ -44,6 +44,11 @@ api_router.include_router(studies_router)
 api_router.include_router(modules_router)
 app.include_router(api_router)
 
+
+@app.get("/health")
+async def k8s_health():
+    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
