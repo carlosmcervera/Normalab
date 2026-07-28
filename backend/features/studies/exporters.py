@@ -396,18 +396,36 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
             _generic_table(doc, ["Cuadro", "Línea", "Ib", "Sección", "Caída ac.", "Protec.", "Difer.", "Tierra", "Estado"], rows)
         elif stype == "rebt_esquema":
             def _board_docx(b, nivel):
+                spd = b.get("spd") or {}
+                head = f"■ {b.get('nombre')} · IGA {b.get('iga')} A · ID {b.get('diferencial_general_ma')} mA"
+                if spd.get("presente"):
+                    head += f" · SPD {spd.get('tipo')}"
+                head += f" · P cálc. {b.get('potencia_demandada')} W · {(b.get('alimentacion') or {}).get('seccion_txt')} mm²"
                 p = doc.add_paragraph()
-                pr = p.add_run(("    " * nivel) + f"■ {b.get('nombre')} · IGA {b.get('iga')} A · ID {b.get('diferencial_general_ma')} mA · "
-                               f"P cálc. {b.get('potencia_demandada')} W · {(b.get('alimentacion') or {}).get('seccion_txt')} mm²")
+                pr = p.add_run(("    " * nivel) + head)
                 pr.bold = True
                 pr.font.size = Pt(9)
-                for c in b.get("cargas", []):
-                    cp = doc.add_paragraph(style="List Bullet")
-                    cp.add_run(("    " * nivel) + f"{c.get('nombre')} · {c.get('magneto')} A · {c.get('seccion_txt')} mm² · "
-                               f"{c.get('potencia')} W · caída {c.get('caida_acum_pct')}% (máx {c.get('limite_total')}%) · "
-                               f"{'CUMPLE' if c.get('estado') == 'cumple' else 'NO CUMPLE' if c.get('estado') == 'no_cumple' else 'revisar'}").font.size = Pt(8.5)
-                for sc in b.get("subcuadros", []):
-                    _board_docx(sc, nivel + 1)
+                for n in b.get("nodos", []):
+                    k = n.get("kind")
+                    if k == "linea":
+                        cp = doc.add_paragraph(style="List Bullet")
+                        cp.add_run(("    " * nivel) + f"{n.get('nombre')} · {n.get('magneto')} A · {n.get('sensibilidad')} mA · "
+                                   f"{n.get('seccion_txt')} mm² · {n.get('potencia')} W · caída {n.get('caida_acum_pct')}% "
+                                   f"(máx {n.get('limite_total')}%) · "
+                                   f"{'CUMPLE' if n.get('estado') == 'cumple' else 'NO CUMPLE' if n.get('estado') == 'no_cumple' else 'revisar'}").font.size = Pt(8.5)
+                    elif k == "puente":
+                        pp = doc.add_paragraph()
+                        ppr = pp.add_run(("    " * nivel) + f"↳ {n.get('nombre')} (línea puente) · {n.get('magneto')} A · "
+                                         f"{n.get('sensibilidad')} mA · {n.get('seccion_txt')} mm² · caída {n.get('caida_acum_pct')}%")
+                        ppr.italic = True
+                        ppr.font.size = Pt(8.5)
+                        for sub in n.get("sublineas", []):
+                            sp = doc.add_paragraph(style="List Bullet")
+                            sp.add_run(("    " * (nivel + 1)) + f"{sub.get('nombre')} · {sub.get('magneto')} A · "
+                                       f"{sub.get('seccion_txt')} mm² · {sub.get('potencia')} W · caída {sub.get('caida_acum_pct')}% "
+                                       f"(máx {sub.get('limite_total')}%)").font.size = Pt(8)
+                    elif k == "subcuadro":
+                        _board_docx(n.get("board") or {}, nivel + 1)
             if s.get("arbol"):
                 _board_docx(s["arbol"], 0)
         elif stype == "observaciones":

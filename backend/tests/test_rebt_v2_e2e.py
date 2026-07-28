@@ -61,6 +61,7 @@ REBT_DATA = {
     "suministro": "trifasica",
     "material": "Cu",
     "tipo_instalacion": "industrial",
+    "caida_max_lga": 0.5,
     "caida_max_di": 1.5,
     "caida_max_circuito": 3,
     "caida_max_total_alumbrado": 4.5,
@@ -68,28 +69,31 @@ REBT_DATA = {
     "cuadro": {
         "id": "root",
         "nombre": "Cuadro general",
-        "longitud": 15,
+        "alim": {"longitud": 15, "caida_max": 1.5, "cosphi": 0.9},
         "simultaneidad": 1,
-        "cosphi": 0.9,
-        "sensibilidad_general": 300,
-        "diferenciales": [{"id": "d1", "nombre": "Dif 1", "sensibilidad": 30}],
-        "cargas": [
-            {"id": "c1", "nombre": "Motor principal", "tipo": "motor", "potencia": 5000,
+        "diferencial_general": {"sensibilidad": 300},
+        "spd": {"presente": True, "tipo": "T2"},
+        "lga": {"presente": True, "longitud": 8, "caida_max": 0.5},
+        "nodos": [
+            {"id": "l1", "kind": "linea", "nombre": "Motor principal", "tipo": "motor", "potencia": 5000,
              "cosphi": 0.85, "factor_uso": 1, "longitud": 20, "estancia": "Sala máquinas",
-             "diferencial_id": "d1"},
-        ],
-        "subcuadros": [
-            {
-                "id": "sub1", "nombre": "Subcuadro planta 1", "longitud": 25,
-                "simultaneidad": 1, "cosphi": 0.9, "sensibilidad_general": 300,
-                "diferenciales": [{"id": "sd1", "nombre": "Dif sub", "sensibilidad": 30}],
-                "cargas": [
-                    {"id": "sc1", "nombre": "Bomba", "tipo": "motor", "potencia": 3000,
+             "dif_propio": True, "sensibilidad": 300},
+            {"id": "p1", "kind": "puente", "nombre": "Puente tomas", "longitud": 12, "cosphi": 0.9,
+             "simultaneidad": 0.8, "sensibilidad": 30, "sublineas": [
+                 {"id": "s1", "nombre": "Tomas 1", "tipo": "tomas", "potencia": 2000, "cosphi": 0.9, "factor_uso": 1, "longitud": 10},
+                 {"id": "s2", "nombre": "Tomas 2", "tipo": "tomas", "potencia": 2000, "cosphi": 0.9, "factor_uso": 1, "longitud": 12},
+             ]},
+            {"id": "sub1", "kind": "subcuadro", "board": {
+                "id": "b2", "nombre": "Subcuadro planta 1",
+                "alim": {"longitud": 25, "caida_max": 1, "cosphi": 0.9}, "simultaneidad": 1,
+                "diferencial_general": {"sensibilidad": 300}, "spd": {"presente": False, "tipo": "T2"},
+                "lga": {"presente": False},
+                "nodos": [
+                    {"id": "sc1", "kind": "linea", "nombre": "Bomba", "tipo": "motor", "potencia": 3000,
                      "cosphi": 0.85, "factor_uso": 1, "longitud": 15, "estancia": "",
-                     "diferencial_id": "sd1"},
+                     "dif_propio": True, "sensibilidad": 300},
                 ],
-                "subcuadros": [],
-            }
+            }},
         ],
     },
 }
@@ -104,48 +108,53 @@ class TestRebtV2E2E:
         payload = r.json()
         results = payload["results"]
         assert results["estado_global"] in ("cumple", "observaciones", "no_cumple")
-        assert results.get("arbol") is not None
-        arbol = results["arbol"]
-        assert arbol["es_raiz"] is True
-        assert len(arbol["cargas"]) == 1
-        assert len(arbol["subcuadros"]) == 1
-        sub = arbol["subcuadros"][0]
-        assert len(sub["cargas"]) == 1
+        arbol = results.get("arbol")
+        assert arbol is not None and arbol["es_raiz"] is True
+        # New model: 3 nodos (linea, puente, subcuadro), SPD + LGA present
+        assert len(arbol["nodos"]) == 3
+        kinds = [n["kind"] for n in arbol["nodos"]]
+        assert kinds == ["linea", "puente", "subcuadro"]
+        assert arbol["spd"]["presente"] is True
+        assert arbol["lga"] is not None
+        puente = arbol["nodos"][1]
+        assert len(puente["sublineas"]) == 2
+        sub = arbol["nodos"][2]["board"]
+        assert len(sub["nodos"]) == 1
 
-        # Cascading caida acum: sub feeder > root feeder; sub circuit > sub feeder
+        # Cascading caida acum: LGA < DI; puente feeder > DI; sublines > puente; sub board feed > DI; sub circ > sub feed
+        lga_acc = arbol["lga"]["caida_acum_pct"]
         root_feed = arbol["alimentacion"]["caida_acum_pct"]
+        assert root_feed > lga_acc
+        assert puente["caida_acum_pct"] > root_feed
+        assert puente["sublineas"][0]["caida_acum_pct"] > puente["caida_acum_pct"]
         sub_feed = sub["alimentacion"]["caida_acum_pct"]
-        assert sub_feed > root_feed, (root_feed, sub_feed)
-        root_circ_acc = arbol["cargas"][0]["caida_acum_pct"]
-        sub_circ_acc = sub["cargas"][0]["caida_acum_pct"]
-        assert root_circ_acc >= root_feed
-        assert sub_circ_acc > sub_feed, (sub_feed, sub_circ_acc)
+        assert sub_feed > root_feed
+        assert sub["nodos"][0]["caida_acum_pct"] > sub_feed
 
-        # cuadro_potencias present + line count = 2 alimentacion + 2 circuitos
-        assert len(results["cuadro_potencias"]) == 2
+        # cuadro_potencias: motor + 2 sublines + bomba = 4
+        assert len(results["cuadro_potencias"]) == 4
         lineas = results["lineas"]
-        assert len(lineas) == 4
         tipos = [l["tipo"] for l in lineas]
-        assert tipos.count("alimentacion") == 2 and tipos.count("circuito") == 2
+        assert tipos.count("alimentacion") == 3  # LGA + DI + subcuadro feed
+        assert tipos.count("puente") == 1
+        assert tipos.count("circuito") == 4       # motor + 2 sublines + bomba
+        assert len(lineas) == 8
 
-        # Resumen has 4 metrics
         assert len(results["resumen"]) == 4
         labels = [m["label"] for m in results["resumen"]]
         assert any("Potencia instalada" in l for l in labels)
         assert any("IGA" in l for l in labels)
 
-        # Persistence: GET returns results
         rr = client.get(f"{API}/studies/{study}", timeout=15)
         assert rr.status_code == 200
         assert rr.json().get("results") is not None
 
     def test_02_compute_rejects_empty_board(self, client, project):
-        # A separate study with no loads should return 422
         r = client.post(f"{API}/studies", json={
             "project_id": project["id"], "module_code": "REBT", "name": "REBT empty"
         }, timeout=15)
         sid = r.json().get("id") or r.json().get("_id")
-        client.put(f"{API}/studies/{sid}", json={"data": {"suministro": "trifasica", "cuadro": {"id": "r", "cargas": [], "subcuadros": []}}}, timeout=15)
+        client.put(f"{API}/studies/{sid}", json={"data": {"suministro": "trifasica", "cuadro": {"id": "r", "nodos": []}}}, timeout=15)
         r = client.post(f"{API}/studies/{sid}/compute", timeout=15)
         assert r.status_code == 422
         client.delete(f"{API}/studies/{sid}", timeout=15)

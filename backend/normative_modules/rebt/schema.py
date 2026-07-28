@@ -16,6 +16,7 @@ def get_schema() -> dict:
                  {"name": "material", "label": "Material del conductor", "type": "select", "options": MATERIALES, "default": "Cu"},
                  {"name": "tipo_instalacion", "label": "Tipo de instalación / local", "type": "select",
                   "options": TIPOS_INSTALACION, "default": "otro"},
+                 {"name": "caida_max_lga", "label": "Caída máx. LGA (%)", "type": "number", "min": 0.1},
                  {"name": "caida_max_di", "label": "Caída máx. derivación individual (%)", "type": "number", "min": 0.1},
                  {"name": "caida_max_circuito", "label": "Caída máx. por circuito (%)", "type": "number", "min": 0.1},
                  {"name": "caida_max_total_alumbrado", "label": "Caída máx. total alumbrado (%)", "type": "number", "min": 0.1},
