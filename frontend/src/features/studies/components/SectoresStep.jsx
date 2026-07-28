@@ -80,10 +80,16 @@ function computeLreQs(d) {
   if (metodo === "combustible") {
     const sup = Number(d.sup_construida) || Number(d.sup_util) || 0;
     if (sup <= 0) return 0;
-    return ((Number(d.lre_pci) || 0) * (Number(d.lre_dens_comb) || 0) * (Number(d.lre_volumen) || 0) * ci) / sup;
+    return computeLreCargaTotal(d) / sup;
   }
   if (d.lre_act_modo === "almacenamiento") return (Number(d.lre_act_qvi) || 0) * (Number(d.lre_altura) || 0) * ci;
   return (Number(d.lre_act_qsi) || 0) * ci;
+}
+
+// Carga de fuego TOTAL Q (MJ) de un LRE por combustible: PCI × densidad × volumen × Ci.
+function computeLreCargaTotal(d) {
+  const ci = Number(d.lre_ci) || 1;
+  return (Number(d.lre_pci) || 0) * (Number(d.lre_dens_comb) || 0) * (Number(d.lre_volumen) || 0) * ci;
 }
 
 const draftLRE = (x) => {
@@ -97,7 +103,11 @@ const draftLRE = (x) => {
   } else if (use && use.metric === "P" && x.lre_potencia) {
     partes.push(`con una potencia de ${x.lre_potencia} ${use.unit}`);
   } else if (use && use.metric === "QS") {
-    partes.push(`con una carga de fuego ponderada Qs de ${num(computeLreQs(x), 0)} MJ/m² (calculada ${x.lre_qs_metodo === "combustible" ? "a partir del combustible almacenado (PCI × densidad × volumen)" : x.lre_qs_metodo === "manual" ? "de forma manual" : "por el tipo de actividad, Tabla 1.3.5"})`);
+    if (x.lre_qs_metodo === "combustible") {
+      partes.push(`con una carga de fuego total Q de ${num(computeLreCargaTotal(x), 0)} MJ (PCI × densidad × volumen × Ci del combustible almacenado) y una densidad de carga de fuego ponderada y corregida Qs de ${num(computeLreQs(x), 0)} MJ/m²`);
+    } else {
+      partes.push(`con una carga de fuego ponderada Qs de ${num(computeLreQs(x), 0)} MJ/m² (calculada ${x.lre_qs_metodo === "manual" ? "de forma manual" : "por el tipo de actividad, Tabla 1.3.5"})`);
+    }
   } else if (use && use.metric === "S") {
     partes.push(`con una superficie construida de ${num(sup)} m²`);
   }
@@ -526,7 +536,21 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                       {x.lre_qs_metodo === "manual" && (
                         <div className="w-40"><Label className={fieldLabel}>Qs (MJ/m²)</Label><NumberInput min={0} className="mt-1 h-8 rounded-sm font-mono text-xs" value={x.lre_qs_manual ?? ""} onChange={(v) => applyLre({ lre_qs_manual: v })} data-testid={`estancia-${i}-lre-qs-manual`} /></div>
                       )}
-                      <p className="font-mono text-[11px] font-semibold text-orange-800" data-testid={`estancia-${i}-lre-qs-valor`}>Qs = {num(computeLreQs(x), 0)} MJ/m²</p>
+                      {x.lre_qs_metodo === "combustible" ? (() => {
+                        const qTotal = computeLreCargaTotal(x);
+                        const sup = Number(x.sup_construida) || Number(x.sup_util) || 0;
+                        return (
+                          <div className="space-y-0.5" data-testid={`estancia-${i}-lre-qs-valor`}>
+                            <p className="font-mono text-[11px] font-semibold text-orange-800">Carga de fuego total Q = {num(qTotal, 0)} MJ <span className="font-normal text-muted-foreground">(PCI × densidad × volumen × Ci)</span></p>
+                            <p className="font-mono text-[11px] font-semibold text-orange-800">Qs = Q / superficie = {num(computeLreQs(x), 0)} MJ/m² <span className="font-normal text-muted-foreground">(densidad — clasifica la Tabla 2.1{sup > 0 ? `, sup. ${num(sup)} m²` : ""})</span></p>
+                            {sup <= 0 && <p className="text-[11px] font-semibold text-red-700">Aviso — define la superficie del recinto para obtener la densidad Qs.</p>}
+                            {qTotal >= 3000000 && <p className="text-[11px] font-semibold text-red-700">Aviso — Q ≥ 3×10⁶ MJ: el recinto puede considerarse uso «Almacén» sujeto al RSCIEI.</p>}
+                            {qTotal >= 10000 && qTotal < 3000000 && <p className="text-[11px] font-semibold text-amber-700">Aviso — Q ≥ 10.000 MJ: revisar la obligatoriedad de clasificarlo como local de riesgo especial.</p>}
+                          </div>
+                        );
+                      })() : (
+                        <p className="font-mono text-[11px] font-semibold text-orange-800" data-testid={`estancia-${i}-lre-qs-valor`}>Qs = {num(computeLreQs(x), 0)} MJ/m²</p>
+                      )}
                     </div>
                   )}
                   <div className="col-span-2 sm:col-span-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px]">
