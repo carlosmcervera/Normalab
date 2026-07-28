@@ -49,13 +49,21 @@ app.include_router(api_router)
 async def k8s_health():
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+_cors = os.environ.get("CORS_ORIGINS", "*")
+_frontend = os.environ.get("FRONTEND_URL")
+_origins = [o.strip() for o in _cors.split(",") if o.strip()]
+if _frontend and _frontend not in _origins:
+    _origins.append(_frontend)
+
+_cors_kwargs = {"allow_credentials": True, "allow_methods": ["*"], "allow_headers": ["*"]}
+if "*" in _origins:
+    # Reflect any origin (compatible con credenciales/cookies; el wildcard puro no lo es).
+    _cors_kwargs["allow_origin_regex"] = ".*"
+else:
+    _cors_kwargs["allow_origins"] = _origins
+
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 
 async def seed_admin():

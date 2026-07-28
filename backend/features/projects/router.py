@@ -27,14 +27,17 @@ def _serialize(doc: dict) -> dict:
 
 @router.get("")
 async def list_projects(user: dict = Depends(get_current_user)):
-    docs = await db.projects.find().sort("created_at", -1).to_list(1000)
-    result = []
-    for d in docs:
-        count = await db.studies.count_documents({"project_id": str(d["_id"])})
-        item = _serialize(d)
-        item["studies_count"] = count
-        result.append(item)
-    return result
+    pipeline = [
+        {"$sort": {"created_at": -1}},
+        {"$limit": 1000},
+        {"$addFields": {"_idstr": {"$toString": "$_id"}}},
+        {"$lookup": {"from": "studies", "localField": "_idstr",
+                     "foreignField": "project_id", "as": "_studies"}},
+        {"$addFields": {"studies_count": {"$size": "$_studies"}}},
+        {"$project": {"_studies": 0, "_idstr": 0, "estancias": 0}},
+    ]
+    docs = await db.projects.aggregate(pipeline).to_list(1000)
+    return [_serialize(d) for d in docs]
 
 
 @router.post("")
