@@ -433,9 +433,15 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
         elif stype == "rebt_lineas":
             lbl = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}
             rows = [[l.get("cuadro"), l.get("circuito"), _fmt(l.get("Ib"), 2), l.get("seccion_txt"),
-                     f"{l.get('caida_acum_pct')}%", l.get("proteccion"), l.get("diferencial"), l.get("tierra"),
+                     _fmt(l.get("iz"), 0), l.get("proteccion"),
+                     ("Sí" if l.get("protege_cable") else "Revisar") if l.get("coordinacion") else "—",
+                     f"{l.get('caida_acum_pct')}%", l.get("diferencial"), l.get("tierra"),
                      lbl.get(l.get("estado"), "Info")] for l in s.get("items", [])]
-            _generic_table(doc, ["Cuadro", "Línea", "Ib", "Sección", "Caída ac.", "Protec.", "Difer.", "Tierra", "Estado"], rows)
+            _generic_table(doc, ["Cuadro", "Línea", "Ib", "Sección", "Iz", "Protec.", "Protege cable", "Caída ac.", "Difer.", "Tierra", "Estado"], rows)
+            nota = doc.add_paragraph().add_run("Coordinación protección↔cable (ITC-BT-22): Ib ≤ In ≤ Iz e I2 ≤ 1,45·Iz.")
+            nota.italic = True
+            nota.font.size = Pt(8)
+            nota.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
         elif stype == "rebt_esquema":
             def _board_docx(b, nivel):
                 spd = b.get("spd") or {}

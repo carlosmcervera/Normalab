@@ -670,19 +670,23 @@ function Section({ s }) {
           <div className="overflow-x-auto border border-border" data-testid="report-rebt-lineas">
             <table className="w-full text-xs">
               <thead><tr className="border-b border-border bg-secondary/60 text-left uppercase text-muted-foreground">
-                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Ib</th><th className="px-2.5 text-right">Sección</th><th className="px-2.5 text-right">Caída ac.</th><th className="px-2.5">Protec.</th><th className="px-2.5">Difer.</th><th className="px-2.5 text-right">Tierra</th><th className="px-2.5">Estado</th>
+                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Ib</th><th className="px-2.5 text-right">Sección</th><th className="px-2.5 text-right">Iz</th><th className="px-2.5">Protec.</th><th className="px-2.5">Protege cable</th><th className="px-2.5 text-right">Caída ac.</th><th className="px-2.5">Difer.</th><th className="px-2.5 text-right">Tierra</th><th className="px-2.5">Estado</th>
               </tr></thead>
               <tbody className="font-mono">
                 {(s.items || []).map((l, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
                     <td className="px-2.5 py-1.5 font-sans">{l.cuadro}</td><td className="px-2.5 font-sans">{l.circuito}</td>
-                    <td className="px-2.5 text-right">{l.Ib}</td><td className="px-2.5 text-right">{l.seccion_txt}</td><td className="px-2.5 text-right">{l.caida_acum_pct}%</td>
-                    <td className="px-2.5 font-sans">{l.proteccion}</td><td className="px-2.5 font-sans">{l.diferencial}</td><td className="px-2.5 text-right">{l.tierra}</td>
+                    <td className="px-2.5 text-right">{l.Ib}</td><td className="px-2.5 text-right">{l.seccion_txt}</td><td className="px-2.5 text-right">{l.iz}</td>
+                    <td className="px-2.5 font-sans">{l.proteccion}</td>
+                    <td className="px-2.5 font-sans">{l.coordinacion ? (l.protege_cable ? "Sí ✓" : "Revisar") : "—"}</td>
+                    <td className="px-2.5 text-right">{l.caida_acum_pct}%</td>
+                    <td className="px-2.5 font-sans">{l.diferencial}</td><td className="px-2.5 text-right">{l.tierra}</td>
                     <td className={`px-2.5 font-sans ${l.estado === "no_cumple" ? "font-semibold text-red-700" : l.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>{l.estado === "no_cumple" ? "No cumple" : l.estado === "observaciones" ? "Revisar" : "Cumple"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <p className="border-t border-border px-2.5 py-2 text-[11px] text-muted-foreground">Coordinación protección↔cable (ITC-BT-22): Ib ≤ In ≤ Iz e I2 ≤ 1,45·Iz.</p>
           </div>
         )}
 

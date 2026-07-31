@@ -22,6 +22,18 @@ from normative_modules.rebt.catalog import (
 SQRT3 = math.sqrt(3)
 _TIPO_OTROS = ("tomas", "fuerza", "motor", "clima", "otros")
 
+# Sección mínima del conductor de fase por tipo de circuito final (ITC-BT-25, viviendas;
+# criterio general de buena práctica para el resto): alumbrado 1,5 mm², tomas/fuerza 2,5 mm².
+_SECCION_MIN = {"alumbrado": 1.5}
+_SECCION_MIN_OTROS = 2.5
+
+# Poder de corte mínimo recomendado del magnetotérmico (kA) según emplazamiento (ITC-BT-22,
+# orientativo: contrastar con la Icc real en el punto de instalación).
+_PODER_CORTE = {
+    "vivienda_basica": 6, "vivienda_elevada": 6, "local_comercial": 6,
+    "garaje": 6, "industrial": 10, "publica_concurrencia": 10, "otro": 6,
+}
+
 
 def _num(v, d=0.0):
     try:
@@ -38,40 +50,103 @@ def _ib(suministro, P, V, cosphi):
     return P / (V * cosphi)
 
 
-def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material):
-    """Devuelve (seccion, Iz, caida_pct_real) para un tramo."""
+def _seccion_min_tipo(tipo):
+    return _SECCION_MIN.get(tipo, _SECCION_MIN_OTROS)
+
+
+def _caida_real(suministro, L, P, gamma, V, s):
+    if L <= 0 or P <= 0 or s <= 0 or V <= 0:
+        return 0.0
+    if suministro == "trifasica":
+        e = (L * P) / (gamma * s * V)
+    else:
+        e = (2 * L * P) / (gamma * s * V)
+    return e / V * 100.0
+
+
+def _seccion_cdt_teorica(suministro, L, P, gamma, V, caida_max_pct):
     e_max = caida_max_pct / 100.0 * V if caida_max_pct > 0 else 0
     if L <= 0 or P <= 0 or e_max <= 0:
-        s_cdt = 0.0
-    elif suministro == "trifasica":
-        s_cdt = (L * P) / (gamma * e_max * V)
-    else:
-        s_cdt = (2 * L * P) / (gamma * e_max * V)
-    s_el = None
-    for s in SECCIONES:
-        if s >= s_cdt - 1e-9 and ampacidad(s, material) >= Ib:
-            s_el = s
-            break
-    if s_el is None:
-        s_el = SECCIONES[-1]
-    iz = ampacidad(s_el, material)
-    if L <= 0 or P <= 0:
-        e_real = 0.0
-    elif suministro == "trifasica":
-        e_real = (L * P) / (gamma * s_el * V)
-    else:
-        e_real = (2 * L * P) / (gamma * s_el * V)
-    return s_el, iz, (e_real / V * 100.0 if V else 0.0)
+        return 0.0
+    if suministro == "trifasica":
+        return (L * P) / (gamma * e_max * V)
+    return (2 * L * P) / (gamma * e_max * V)
+
+
+def _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min):
+    """Índice de la menor sección que cumple caída de tensión, calentamiento (Iz≥Ib) y sección mínima."""
+    s_cdt = _seccion_cdt_teorica(suministro, L, P, gamma, V, caida_max_pct)
+    for i, s in enumerate(SECCIONES):
+        if s >= s_min - 1e-9 and s >= s_cdt - 1e-9 and ampacidad(s, material) >= Ib - 1e-9:
+            return i
+    return len(SECCIONES) - 1
+
+
+def _breaker_fit(Ib, iz):
+    """Menor calibre normalizado In tal que Ib ≤ In ≤ Iz (o None si no existe)."""
+    for b in MAGNETOS:
+        if b >= Ib - 1e-9 and b <= iz + 1e-9:
+            return b
+    return None
+
+
+def _proteccion_dict(Ib, In, iz):
+    """Coordinación magnetotérmico↔cable frente a sobrecargas (REBT ITC-BT-22 / IEC 60364-4-43).
+
+    C1: Ib ≤ In ≤ Iz    C2: I2 ≤ 1,45·Iz, con I2 = 1,45·In (corriente convencional de disparo).
+    """
+    if In is None:
+        return {"Ib": round(Ib, 2), "In": None, "Iz": round(iz, 1), "I2": None,
+                "I2_max": round(1.45 * iz, 1), "cond_ib_in_iz": False, "cond_i2": False,
+                "protege": False}
+    i2 = 1.45 * In
+    c1 = (Ib - 1e-9) <= In <= (iz + 1e-9)
+    c2 = i2 <= 1.45 * iz + 1e-9
+    return {"Ib": round(Ib, 2), "In": In, "Iz": round(iz, 1), "I2": round(i2, 1),
+            "I2_max": round(1.45 * iz, 1), "cond_ib_in_iz": c1, "cond_i2": c2,
+            "protege": bool(c1 and c2)}
+
+
+def _coordinar(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, con_proteccion=True):
+    """Dimensiona el cable y (si procede) su magnetotérmico garantizando que la protección
+    protege al cable. Si con la sección mínima por caída/Ib no existe un calibre que cumpla
+    Ib≤In≤Iz, aumenta automáticamente la sección hasta lograrlo.
+
+    Devuelve: (seccion, Iz, caida_pct, In, proteccion, ajustada).
+    """
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min)
+    if not con_proteccion:
+        s = SECCIONES[i0]
+        return s, ampacidad(s, material), _caida_real(suministro, L, P, gamma, V, s), None, None, False
+    for i in range(i0, len(SECCIONES)):
+        s = SECCIONES[i]
+        iz = ampacidad(s, material)
+        In = _breaker_fit(Ib, iz)
+        if In is not None:
+            prot = _proteccion_dict(Ib, In, iz)
+            return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, prot, i > i0
+    # Ningún calibre encaja ni ampliando: usar la mayor sección y el calibre más próximo.
+    s = SECCIONES[-1]
+    iz = ampacidad(s, material)
+    In, _ = _breaker(Ib, iz)
+    return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, _proteccion_dict(Ib, In, iz), True
+
+
+def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material):
+    """Compat.: (seccion, Iz, caida_pct) sin coordinación de protección (usado por LGA)."""
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, 0)
+    s = SECCIONES[i0]
+    return s, ampacidad(s, material), _caida_real(suministro, L, P, gamma, V, s)
 
 
 def _breaker(Ib, Iz):
-    for b in MAGNETOS:
-        if b >= Ib - 1e-9 and b <= Iz + 1e-9:
-            return b, True
-    cands = [b for b in MAGNETOS if b <= Iz + 1e-9]
+    b = _breaker_fit(Ib, Iz)
+    if b is not None:
+        return b, True
+    cands = [x for x in MAGNETOS if x <= Iz + 1e-9]
     if cands:
         return cands[-1], False
-    return next((b for b in MAGNETOS if b >= Ib), MAGNETOS[-1]), False
+    return next((x for x in MAGNETOS if x >= Ib), MAGNETOS[-1]), False
 
 
 def _limite_total(general, tipo):
@@ -160,9 +235,11 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
     tipo = carga.get("tipo") or "otros"
     caida_max_c = _num(carga.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
     Ib = _ib(suministro, P, V, cosphi)
-    s_el, iz, caida_c = _seccion_caida(suministro, L, P, gamma, V, caida_max_c, Ib, material)
+    s_min = _seccion_min_tipo(tipo)
+    s_el, iz, caida_c, breaker, prot, ajustada = _coordinar(
+        suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
     caida_total = caida_base + caida_c
-    breaker, br_ok = _breaker(Ib, iz)
+    br_ok = bool(prot and prot["protege"])
     tierra = seccion_tierra(s_el)
     limite = _limite_total(general, tipo)
     cdt_ok = caida_total <= limite + 1e-6
@@ -179,13 +256,14 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
         "caida_pct": round(caida_c, 2), "caida_acum_pct": round(caida_total, 2), "limite_total": limite,
         "magneto": breaker, "sensibilidad": int(dif_sens), "tierra": _fmt_s(tierra),
         "estado": estado, "factor_uso": _num(carga.get("factor_uso"), 1) or 1,
+        "proteccion": prot, "seccion_ajustada": ajustada, "seccion_min": s_min,
     }
     lineas.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": "circuito",
         "potencia": round(P, 1), "Ib": round(Ib, 2), "seccion": s_el, "seccion_txt": _fmt_s(s_el),
         "iz": round(iz, 1), "caida_pct": round(caida_c, 2), "caida_acum_pct": round(caida_total, 2),
         "proteccion": f"{breaker} A", "diferencial": f"{int(dif_sens)} mA", "tierra": _fmt_s(tierra),
-        "estado": estado, "longitud": L,
+        "estado": estado, "longitud": L, "protege_cable": br_ok, "coordinacion": prot,
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -196,6 +274,13 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
         obs.append({"tipo": "error", "texto": f"«{cuadro_nombre} · {nombre}»: caída de tensión acumulada "
                     f"{caida_total:.2f} % supera el límite del {limite:g} % "
                     f"({'alumbrado' if tipo == 'alumbrado' else 'otros usos'}). Aumente la sección."})
+    elif P > 0 and not br_ok:
+        obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: no existe un calibre normalizado que "
+                    f"proteja el cable (Ib {Ib:.1f} A, Iz {iz:.0f} A). Revise sección/protección."})
+    elif ajustada and P > 0:
+        obs.append({"tipo": "info", "texto": f"«{cuadro_nombre} · {nombre}»: se ha aumentado la sección a "
+                    f"{_fmt_s(s_el)} mm² para que el magnetotérmico de {breaker} A proteja el cable "
+                    f"(Ib≤In≤Iz e I2≤1,45·Iz, ITC-BT-22)."})
     return out
 
 
@@ -235,13 +320,16 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
     cosphi_gen = _num(alim.get("cosphi"), 0.9) or 0.9
     caida_feed_max = _num(alim.get("caida_max"), general.get("caida_max_di", 1.5) if es_raiz else 1.5) or 1.5
     Ib_board = _ib(suministro, p_dem, V, cosphi_gen)
-    s_feed, iz_feed, caida_feed = _seccion_caida(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material)
+    s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = _coordinar(
+        suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
     iga_manual = board.get("iga_manual")
     if iga_manual:
         iga = int(_num(iga_manual))
-        iga_ok = (Ib_board <= iga + 1e-9) and (iga <= iz_feed + 1e-9)
+        prot_feed = _proteccion_dict(Ib_board, iga, iz_feed)
+        iga_ok = prot_feed["protege"]
     else:
-        iga, iga_ok = _breaker(Ib_board, iz_feed)
+        iga = In_feed if In_feed is not None else _breaker(Ib_board, iz_feed)[0]
+        iga_ok = bool(prot_feed and prot_feed["protege"])
     tierra_feed = seccion_tierra(s_feed)
     caida_busbar += caida_feed
     sens_gen = int(_num((board.get("diferencial_general") or {}).get("sensibilidad"), 300) or 300)
@@ -255,11 +343,15 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
         "iz": round(iz_feed, 1), "caida_pct": round(caida_feed, 2), "caida_acum_pct": round(caida_busbar, 2),
         "proteccion": f"IGA {iga} A", "diferencial": f"{sens_gen} mA (general)",
         "tierra": _fmt_s(tierra_feed), "estado": "cumple" if iga_ok else "observaciones",
-        "longitud": L_feed,
+        "longitud": L_feed, "protege_cable": iga_ok, "coordinacion": prot_feed,
     })
     if not iga_ok:
-        obs.append({"tipo": "warning", "texto": f"«{nombre}»: no hay calibre de IGA que cumpla Ib≤In≤Iz "
-                    f"(Ib {Ib_board:.1f} A, Iz {iz_feed:.0f} A). Revise la sección de la línea de alimentación."})
+        obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA no protege el cable de alimentación "
+                    f"(no se cumple Ib≤In≤Iz / I2≤1,45·Iz; Ib {Ib_board:.1f} A, Iz {iz_feed:.0f} A). "
+                    f"Revise la sección o el calibre."})
+    elif ajustada_feed and not iga_manual:
+        obs.append({"tipo": "info", "texto": f"«{nombre}»: sección de la línea de alimentación aumentada a "
+                    f"{_fmt_s(s_feed)} mm² para que el IGA de {iga} A proteja el cable (ITC-BT-22)."})
     if es_raiz and not spd_out["presente"]:
         obs.append({"tipo": "info", "texto": "No se ha previsto protector contra sobretensiones (SPD). Valore su "
                     "instalación conforme a la ITC-BT-23 según la categoría de sobretensión y el riesgo."})
@@ -282,9 +374,11 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
                           for s in node.get("sublineas", [])) * simult_p
             caida_max_p = _num(node.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
-            s_p, iz_p, caida_p = _seccion_caida(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material)
+            s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = _coordinar(
+                suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            magneto_p = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
+            ok_p = bool(prot_p and prot_p["protege"])
             caida_busbar_p = caida_busbar + caida_p
-            magneto_p, ok_p = _breaker(Ib_p, iz_p)
             sens_p = int(_num(node.get("sensibilidad"), 30) or 30)
             tierra_p = seccion_tierra(s_p)
             lineas.append({
@@ -293,10 +387,14 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
                 "iz": round(iz_p, 1), "caida_pct": round(caida_p, 2), "caida_acum_pct": round(caida_busbar_p, 2),
                 "proteccion": f"{magneto_p} A", "diferencial": f"{sens_p} mA", "tierra": _fmt_s(tierra_p),
                 "estado": "cumple" if ok_p else "observaciones", "longitud": L_p,
+                "protege_cable": ok_p, "coordinacion": prot_p,
             })
             if not ok_p:
                 obs.append({"tipo": "warning", "texto": f"«{nombre} · {pnombre}»: el magnetotérmico de la línea "
-                            f"puente no cumple Ib≤In≤Iz (Ib {Ib_p:.1f} A, Iz {iz_p:.0f} A)."})
+                            f"puente no protege el cable (Ib≤In≤Iz / I2≤1,45·Iz; Ib {Ib_p:.1f} A, Iz {iz_p:.0f} A)."})
+            elif ajustada_p:
+                obs.append({"tipo": "info", "texto": f"«{nombre} · {pnombre}»: sección de la línea puente aumentada a "
+                            f"{_fmt_s(s_p)} mm² para que el magnetotérmico de {magneto_p} A proteja el cable (ITC-BT-22)."})
             sub_out = []
             for sub in node.get("sublineas", []):
                 o = _final_line(sub, general, caida_busbar_p, nombre, sens_p, obs, lineas, cuadro_pot)
@@ -307,6 +405,7 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
                 "iz": round(iz_p, 1), "caida_pct": round(caida_p, 2), "caida_acum_pct": round(caida_busbar_p, 2),
                 "magneto": magneto_p, "sensibilidad": sens_p, "tierra": _fmt_s(tierra_p),
                 "estado": "cumple" if ok_p else "observaciones", "sublineas": sub_out,
+                "proteccion": prot_p, "protege_cable": ok_p,
             })
         elif k == "subcuadro":
             sub_arbol = _compute_board(node.get("board") or {}, general, caida_busbar, False, obs, lineas, cuadro_pot)
@@ -351,6 +450,11 @@ def compute(data: dict) -> dict:
     obs, lineas, cuadro_pot = [], [], []
     arbol = _compute_board(root, general, 0.0, True, obs, lineas, cuadro_pot)
 
+    poder_corte = _PODER_CORTE.get(general["tipo_instalacion"], 6)
+    obs.append({"tipo": "info", "texto": f"Poder de corte mínimo recomendado de los interruptores automáticos: "
+                f"{poder_corte} kA (ITC-BT-22, orientativo). Contrastar con la corriente de cortocircuito (Icc) "
+                f"prevista en el punto de instalación."})
+
     estados = [l["estado"] for l in lineas]
     if "no_cumple" in estados:
         estado_global = "no_cumple"
@@ -380,6 +484,6 @@ def compute(data: dict) -> dict:
             "suministro": suministro, "tension": V, "material": general["material"],
             "potencia_instalada": total_inst, "potencia_demandada": total_dem,
             "iga": arbol["iga"], "Ib": arbol["Ib"], "num_lineas": len(lineas),
-            "spd": arbol["spd"],
+            "spd": arbol["spd"], "poder_corte_ka": poder_corte,
         },
     }

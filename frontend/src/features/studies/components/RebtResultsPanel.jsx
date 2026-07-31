@@ -66,19 +66,38 @@ export function RebtResultsPanel({ results }) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Protección</th><th className="px-3">Difer.</th><th className="px-3 text-right">Tierra</th><th className="px-3">Estado</th>
+              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th><th className="px-3">Protección</th><th className="px-3">Protege cable</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Difer.</th><th className="px-3 text-right">Tierra</th><th className="px-3">Estado</th>
             </tr></thead>
             <tbody className="font-mono">
-              {lineas.map((l, i) => (
+              {lineas.map((l, i) => {
+                const co = l.coordinacion;
+                const protege = l.protege_cable;
+                return (
                 <tr key={i} className="border-b border-border last:border-0" data-testid={`linea-row-${i}`}>
                   <td className="px-3 py-1.5 font-sans">{l.cuadro}</td><td className="px-3 font-sans">{l.circuito}</td>
                   <td className="px-3 text-right">{l.Ib}</td><td className="px-3 text-right">{l.seccion_txt} mm²</td><td className="px-3 text-right">{l.iz}</td>
-                  <td className="px-3 text-right">{l.caida_acum_pct}%</td><td className="px-3 font-sans">{l.proteccion}</td><td className="px-3 font-sans">{l.diferencial}</td><td className="px-3 text-right">{l.tierra}</td>
+                  <td className="px-3 font-sans">{l.proteccion}</td>
+                  <td className="px-3 font-sans">
+                    {co ? (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium ${protege ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}
+                        title={`Ib ${co.Ib} A ≤ In ${co.In ?? "—"} A ≤ Iz ${co.Iz} A · I2 ${co.I2 ?? "—"} A ≤ 1,45·Iz ${co.I2_max} A`}
+                        data-testid={`linea-${i}-protege`}
+                      >
+                        {protege ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                        {protege ? "Sí" : "Revisar"}
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-3 text-right">{l.caida_acum_pct}%</td><td className="px-3 font-sans">{l.diferencial}</td><td className="px-3 text-right">{l.tierra}</td>
                   <td className={`px-3 font-sans ${estCls(l.estado)}`}>{estLbl(l.estado)}</td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <b>Coordinación protección↔cable (ITC-BT-22):</b> Ib ≤ In ≤ Iz e I2 ≤ 1,45·Iz (I2 = 1,45·In). Poder de corte mínimo recomendado: <b className="text-foreground">{results.datos?.poder_corte_ka ?? 6} kA</b>.
         </div>
       </div>
 
