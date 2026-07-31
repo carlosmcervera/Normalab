@@ -31,7 +31,7 @@ def get_schema() -> dict:
             {"id": "sectores", "type": "sectores_incendio", "title": "Sectores de incendio",
              "description": "Crea los sectores, asigna cada estancia a un sector, marca los locales de riesgo especial y define la carga de fuego. Los sectores CTE también calculan la carga de fuego."},
             {"id": "construccion", "type": "construccion", "title": "Construcción y propagación",
-             "description": "Reacción al fuego de revestimientos (Tabla 2.1.4), medianerías/separaciones con otros establecimientos (Tabla 2.2.1) y propagación exterior por fachada (Tabla 2.2.2), por sector."},
+             "description": "Propagación interior y exterior por sector, según su ámbito: RSCIEI Anexo II (reacción Tabla 2.1.4, delimitadores Tabla 2.2, medianeras Tabla 2.2.1, fachadas Tabla 2.2.2) o CTE DB-SI SI 1/SI 2 (delimitadores Tabla 1.2, reacción Tabla 4.1, medianería EI 120, separación de huecos Tabla 1.1, cubiertas)."},
             {"id": "evacuacion", "type": "evacuacion", "title": "Evacuación",
              "description": "Recorridos reales de evacuación por sector (RSCIEI, Tabla 2.3.1)."},
         ],

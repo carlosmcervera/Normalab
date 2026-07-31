@@ -238,9 +238,13 @@ def _sector_docx(doc, s):
     c = s.get("construccion")
     if c:
         p = doc.add_paragraph()
-        pr = p.add_run("Reacción al fuego y propagación exterior (Anexo II · Tablas 2.1.4/2.2.1/2.2.2)")
+        pr = p.add_run(f"Construcción y propagación — {c.get('normativa', 'RSCIEI Anexo II')}")
         pr.bold = True
         pr.font.size = Pt(9.5)
+        ip = doc.add_paragraph()
+        ipr = ip.add_run(f"Propagación interior · {(c.get('interior') or {}).get('referencia', '')}")
+        ipr.italic = True
+        ipr.font.size = Pt(9)
         tbl = doc.add_table(rows=1, cols=3)
         tbl.style = "Table Grid"
         for i, h in enumerate(["Situación del elemento", "Techos y paredes", "Suelos"]):
@@ -254,18 +258,35 @@ def _sector_docx(doc, s):
         rp = doc.add_paragraph(style="List Bullet")
         rp.add_run("Reacción al fuego de revestimientos: "
                    + ("el proyecto cumple las clases exigidas." if c["reaccion"]["cumple"] else "pendiente de verificar/justificar.")).font.size = Pt(9)
+        delim = (c.get("interior") or {}).get("delimitadores")
+        if delim:
+            dp = doc.add_paragraph(style="List Bullet")
+            dp.add_run(f"Elementos delimitadores del sector: exigido {delim.get('requerido', '—')} ({delim.get('detalle', '')}).").font.size = Pt(9)
+        ep = doc.add_paragraph()
+        epr = ep.add_run(f"Propagación exterior · {(c.get('exterior') or {}).get('referencia', '')}")
+        epr.italic = True
+        epr.font.size = Pt(9)
         if c.get("medianeras"):
             m = c["medianeras"]
             mp = doc.add_paragraph(style="List Bullet")
-            mp.add_run(f"Medianería/separación con otro establecimiento: exigido {m['requerido']}, "
+            mp.add_run(f"Medianería/separación con otro establecimiento/edificio: exigido {m['requerido']}, "
                        f"proyectado {m['proyectado'] or '—'} ({m['estado']}).").font.size = Pt(9)
         if c.get("fachadas"):
             f = c["fachadas"]
             fp = doc.add_paragraph(style="List Bullet")
-            fp.add_run(f"Fachada en encuentro de sector: α {f['angulo']}°, d ≥ {f['distancia_d']} m, "
+            d_txt = f"d ≥ {f['distancia_d']} m, " if f.get("distancia_d") is not None else ""
+            fp.add_run(f"Fachada en encuentro de sector: α {f['angulo']}°, {d_txt}"
                        f"exigido {f['requerido']}, proyectado {f['proyectado'] or '—'} ({f['estado']}).").font.size = Pt(9)
+            h = f.get("huecos")
+            if h:
+                hp = doc.add_paragraph(style="List Bullet 2")
+                proy = f"proyectada {h['proyectado_m']:.2f} m, " if h.get("proyectado_m") is not None else ""
+                hp.add_run(f"Separación entre huecos (SI 2, Fig. 1.1): ángulo {h['angulo']:.0f}°, "
+                           f"mínima {h['efectivo_m']:.2f} m, {proy}({h['estado']}).").font.size = Pt(9)
+        cub = c["cubierta"]
         cp = doc.add_paragraph(style="List Bullet")
-        cp.add_run("Cubierta " + ("ligera." if c["cubierta"]["ligera"] else "no ligera.")).font.size = Pt(9)
+        cub_req = f" Exigencia: {cub['requerido']}." if cub.get("requerido") else ""
+        cp.add_run("Cubierta " + ("ligera." if cub["ligera"] else "no ligera.") + cub_req).font.size = Pt(9)
 
 
     dbsi = s.get("dbsi")

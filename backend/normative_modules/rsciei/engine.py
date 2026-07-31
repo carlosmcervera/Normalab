@@ -256,6 +256,14 @@ MEDIANERA_EI = {"BAJO": "EI 120", "MEDIO": "EI 180", "ALTO": "EI 240"}
 # Tabla 2.2.2 · distancia «d» (m) de la franja de fachada según el ángulo α.
 FACHADA_D = {"90": 2.0, "135": 1.5, "180": 1.0}
 
+# CTE DB-SI · SI 1 · Tabla 4.1 · reacción al fuego de revestimientos.
+REACCION_CTE_SI1 = [
+    {"situacion": "Zonas ocupables y recorridos de evacuación", "techos_paredes": "C-s2,d0", "suelos": "EFL"},
+    {"situacion": "Pasillos y escaleras protegidos", "techos_paredes": "B-s1,d0", "suelos": "CFL-s1"},
+    {"situacion": "Aparcamientos y recintos de riesgo especial", "techos_paredes": "B-s1,d0", "suelos": "BFL-s1"},
+    {"situacion": "Espacios ocultos: patinillos, falsos techos, suelos elevados", "techos_paredes": "B-s3,d0", "suelos": "BFL-s2"},
+]
+
 # CTE DB-SI SI-3 · Tabla 5.1 · protección de escaleras para evacuación DESCENDENTE.
 # (no_protegida_max, protegida_max) en m de altura de evacuación.
 PROT_ESC_DESC = {
@@ -360,40 +368,131 @@ def _ei_ok(proyectado, requerido):
     return "cumple" if p >= r else "no_cumple"
 
 
-def _construccion(sec, categoria, delim_valor, ambito="industrial"):
-    """Reacción al fuego (Tabla 2.1.4), medianeras (Tabla 2.2.1) y fachadas (Tabla 2.2.2)."""
-    out = {
-        "ambito": ambito,
+def _huecos_calc(sec, colindante):
+    """Separación mínima entre huecos de sectores/edificios distintos (CTE DB-SI SI 2, Tabla/Fig. 1.1)."""
+    if not sec.get("fachada_huecos"):
+        return None
+    try:
+        ang = float(str(sec.get("fachada_angulo") or "180"))
+    except (TypeError, ValueError):
+        ang = 180.0
+    req = T_dbsi.si2_distancia_huecos(ang)
+    efectivo = round(req / 2.0, 2) if colindante else round(req, 2)
+    huecos_ei60 = bool(sec.get("fachada_huecos_ei60"))
+    try:
+        proy = float(sec.get("fachada_huecos_dist")) if sec.get("fachada_huecos_dist") not in (None, "") else None
+    except (TypeError, ValueError):
+        proy = None
+    if huecos_ei60:
+        estado, nota = "cumple", "Huecos con EI 60: no se exige separación mínima entre ellos (SI 2, Tabla 1.1)."
+    elif proy is None:
+        estado, nota = "pendiente", "Introduzca la distancia proyectada entre huecos o marque huecos EI 60."
+    elif proy + 1e-6 >= efectivo:
+        estado, nota = "cumple", f"Separación proyectada {proy:.2f} m ≥ mínima {efectivo:.2f} m."
+    else:
+        estado, nota = "no_cumple", f"Separación proyectada {proy:.2f} m < mínima {efectivo:.2f} m: dote a los huecos de EI 60 o aumente la separación."
+    return {"aplica": True, "angulo": round(ang, 0), "requerido_m": round(req, 2),
+            "efectivo_m": efectivo, "colindante": colindante, "huecos_ei60": huecos_ei60,
+            "proyectado_m": proy, "estado": estado, "nota": nota}
+
+
+def _construccion(sec, categoria, delim_valor, altura=0.0, bajo_rasante=False, ambito="industrial"):
+    """Propagación interior + exterior, según el ámbito del sector.
+
+    · Industrial (RSCIEI, Anexo II): reacción Tabla 2.1.4, delimitadores del sector
+      (Tabla 2.2), medianeras (Tabla 2.2.1) y fachadas/cubierta (Tabla 2.2.2).
+    · CTE (DB-SI): reacción SI 1 Tabla 4.1, delimitadores SI 1 Tabla 1.2, y propagación
+      exterior SI 2 (medianería EI 120, separación de huecos Tabla 1.1, cubiertas REI 60).
+    """
+    es_cte = ambito == "cte"
+    colindante = bool(sec.get("edificio_colindante"))
+
+    if es_cte:
+        reaccion_tabla = REACCION_CTE_SI1
+        ref_interior = "CTE DB-SI · SI 1 (Tablas 1.2 y 4.1)"
+        ref_exterior = "CTE DB-SI · SI 2 (Tabla 1.1)"
+        normativa = "CTE DB-SI (SI 1 / SI 2)"
+        delim_req = T_dbsi.si1_delimitador_ei(altura, bajo_rasante)
+        delim_det = "Resistencia al fuego de los elementos delimitadores del sector (CTE DB-SI · SI 1, Tabla 1.2)."
+        med_req = T_dbsi.SI2_MEDIANERIA
+        med_nota = "Medianerías y muros colindantes con otro edificio: EI 120 (CTE DB-SI · SI 2)."
+        cub_req = T_dbsi.SI2_CUBIERTA
+        fach_franja_req = "EI 60 (franja ≥ 1 m)"
+        fach_nota = ("Franja EI 60 de al menos 1 m de altura entre sectores/edificios distintos y "
+                     "separación entre huecos según el ángulo entre planos de fachada (SI 2, Tabla 1.1).")
+    else:
+        reaccion_tabla = REACCION_2_1_4
+        ref_interior = "RSCIEI · Anexo II (Tablas 2.1.4 y 2.2)"
+        ref_exterior = "RSCIEI · Anexo II (Tablas 2.2.1 y 2.2.2)"
+        normativa = "RSCIEI (Anexo II)"
+        delim_req = delim_valor or DELIMITADORES.get(categoria, "EI 120")
+        delim_det = "Paredes y techos delimitadores del sector de incendio (RSCIEI · Anexo II, Tabla 2.2)."
+        med_req = MEDIANERA_EI.get(categoria, "EI 120")
+        med_nota = ("Reducible a EI 120 en config. tipo B con muros a ≤ 3 m (nota 4, Tabla 2.2.1); "
+                    "sin exigencia si la separación es > 3 m libre de carga.")
+        cub_req = None
+        fach_franja_req = None
+        fach_nota = ("La fachada donde acomete un elemento compartimentador debe ser ≥ 50% de su EI en "
+                     "una franja; puntos por debajo, separados ≥ d en proyección horizontal (d = 3 − α/90).")
+
+    interior = {
+        "titulo": "Propagación interior",
+        "referencia": ref_interior,
         "reaccion": {
-            "tabla": REACCION_2_1_4,
+            "tabla": reaccion_tabla,
             "nri_alto": categoria == "ALTO",
             "cumple": bool(sec.get("reaccion_cumple")),
             "observaciones": sec.get("reaccion_obs") or "",
+            "referencia": "CTE DB-SI · SI 1, Tabla 4.1" if es_cte else "RSCIEI · Anexo II, Tabla 2.1.4",
         },
-        "medianeras": None,
-        "fachadas": None,
-        "cubierta": {"ligera": bool(sec.get("cubierta_ligera")), "observaciones": sec.get("cubierta_obs") or ""},
+        "delimitadores": {"requerido": delim_req, "detalle": delim_det},
     }
+
+    medianeras = None
     if sec.get("medianera_otro"):
-        req = MEDIANERA_EI.get(categoria, "EI 120")
         proy = sec.get("medianera_ei") or ""
-        out["medianeras"] = {"aplica": True, "requerido": req, "proyectado": proy,
-                             "estado": _ei_ok(proy, req),
-                             "nota": ("Reducible a EI 120 en config. tipo B con muros a ≤ 3 m (nota 4, "
-                                      "Tabla 2.2.1); sin exigencia si la separación es > 3 m libre de carga.")}
+        medianeras = {"aplica": True, "requerido": med_req, "proyectado": proy,
+                      "estado": _ei_ok(proy, med_req), "nota": med_nota}
+
+    fachadas = None
     if sec.get("fachada_encuentro"):
-        ang = str(sec.get("fachada_angulo") or "180")
-        d = FACHADA_D.get(ang, 1.0)
-        delim = _parse_ei(delim_valor)
-        req_min = max(15, delim // 2) if delim else None
-        req_txt = f"EI {req_min}" if req_min else "—"
         proy = sec.get("fachada_ei") or ""
-        out["fachadas"] = {"aplica": True, "angulo": ang, "distancia_d": d,
-                           "requerido": req_txt, "proyectado": proy, "estado": _ei_ok(proy, req_txt),
-                           "nota": ("La fachada donde acomete un elemento compartimentador debe ser ≥ 50% "
-                                    "de su EI en una franja; puntos por debajo, separados ≥ d en proyección "
-                                    "horizontal (d = 3 − α/90).")}
-    return out
+        if es_cte:
+            req_txt = fach_franja_req
+            fachadas = {"aplica": True, "angulo": str(sec.get("fachada_angulo") or "180"),
+                        "distancia_d": None, "requerido": req_txt, "proyectado": proy,
+                        "estado": _ei_ok(proy, "EI 60"), "nota": fach_nota,
+                        "huecos": _huecos_calc(sec, colindante)}
+        else:
+            ang = str(sec.get("fachada_angulo") or "180")
+            d = FACHADA_D.get(ang, 1.0)
+            delim = _parse_ei(delim_valor)
+            req_min = max(15, delim // 2) if delim else None
+            req_txt = f"EI {req_min}" if req_min else "—"
+            fachadas = {"aplica": True, "angulo": ang, "distancia_d": d,
+                        "requerido": req_txt, "proyectado": proy, "estado": _ei_ok(proy, req_txt),
+                        "nota": fach_nota, "huecos": _huecos_calc(sec, colindante)}
+
+    exterior = {
+        "titulo": "Propagación exterior",
+        "referencia": ref_exterior,
+        "medianeras": medianeras,
+        "fachadas": fachadas,
+        "cubierta": {"ligera": bool(sec.get("cubierta_ligera")),
+                     "observaciones": sec.get("cubierta_obs") or "", "requerido": cub_req},
+    }
+
+    return {
+        "ambito": ambito,
+        "normativa": normativa,
+        "interior": interior,
+        "exterior": exterior,
+        # Claves planas (compatibilidad con lectores existentes)
+        "reaccion": interior["reaccion"],
+        "medianeras": medianeras,
+        "fachadas": fachadas,
+        "cubierta": exterior["cubierta"],
+    }
 
 
 
@@ -498,7 +597,10 @@ def _compute_sector(sec, deps, establecimiento):
     evacuacion = _evacuacion(sec, categoria, nivel, ocupacion_sector)
 
     delim_valor = (requisitos.get("delimitadores") or {}).get("valor")
-    construccion = _construccion(sec, categoria, delim_valor, ambito=sec.get("ambito") or "industrial")
+    construccion = _construccion(sec, categoria, delim_valor,
+                                 altura=float(sec.get("altura_evacuacion") or 0),
+                                 bajo_rasante=(situacion == "bajo_rasante"),
+                                 ambito=sec.get("ambito") or "industrial")
 
     # Locales de riesgo especial (LRE): NO computan carga de fuego (excluidos del Qs);
     # se clasifican y evalúan conforme al CTE DB-SI (Tabla 2.1) con su resistencia (R).
@@ -561,6 +663,10 @@ def _compute_sector(sec, deps, establecimiento):
                 "sentido_evacuacion": sec.get("sentido_evacuacion"),
                 "ancho_salidas_proyectado": sec.get("ancho_salidas_proyectado"),
                 "distancia_colindantes": sec.get("distancia_colindantes"),
+                "angulo_fachadas": sec.get("fachada_angulo") if sec.get("fachada_huecos") else None,
+                "distancia_huecos": sec.get("fachada_huecos_dist"),
+                "huecos_ei60": bool(sec.get("fachada_huecos_ei60")),
+                "edificio_colindante": bool(sec.get("edificio_colindante")),
                 "bajo_rasante": situacion == "bajo_rasante",
                 "dependencias": [{"nombre": d.get("nombre"),
                                   "superficie": float(d.get("sup_util") or d.get("sup_construida") or 0),
@@ -650,17 +756,25 @@ def _compute_sector(sec, deps, establecimiento):
             f"Sector «{sec.get('nombre','?')}»: la medianería/separación proyectada ({med['proyectado'] or '—'}) es inferior a la exigida ({med['requerido']}) por la Tabla 2.2.1 del RSCIEI.")})
     fach = construccion.get("fachadas")
     if fach and fach.get("estado") == "no_cumple":
+        det_d = f", franja con d = {fach['distancia_d']} m" if fach.get("distancia_d") is not None else ""
         observaciones.append({"tipo": "error", "texto": (
-            f"Sector «{sec.get('nombre','?')}»: la fachada en el encuentro del elemento compartimentador ({fach['proyectado'] or '—'}) no alcanza el mínimo exigido ({fach['requerido']}, franja con d = {fach['distancia_d']} m).")})
+            f"Sector «{sec.get('nombre','?')}»: la fachada en el encuentro del elemento compartimentador ({fach['proyectado'] or '—'}) no alcanza el mínimo exigido ({fach['requerido']}{det_d}).")})
+    huecos = (fach or {}).get("huecos")
+    if huecos and huecos.get("estado") == "no_cumple":
+        observaciones.append({"tipo": "error", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: {huecos['nota']} (separación entre huecos de fachada, "
+            f"ángulo {huecos['angulo']:.0f}°).")})
     if not construccion["reaccion"].get("cumple"):
+        tabla_ref = "SI 1, Tabla 4.1" if ambito == "cte" else "Tabla 2.1.4"
         observaciones.append({"tipo": "advertencia", "texto": (
-            f"Sector «{sec.get('nombre','?')}»: verificar/justificar las clases de reacción al fuego de los revestimientos (Tabla 2.1.4).")})
+            f"Sector «{sec.get('nombre','?')}»: verificar/justificar las clases de reacción al fuego de los revestimientos ({tabla_ref}).")})
 
     estado = "cumple"
     med_nc = bool(med and med.get("estado") == "no_cumple")
     fach_nc = bool(fach and fach.get("estado") == "no_cumple")
+    huecos_nc = bool(huecos and huecos.get("estado") == "no_cumple")
     esc_nc = any((e.get("calculo") or {}).get("estado") == "no_cumple" for e in escaleras)
-    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or med_nc or fach_nc or esc_nc or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
+    if sector.get("estado") in ("no_cumple", "no_admitido") or not evacuacion["salidas_suficientes"] or not evacuacion["recorridos_cumplen"] or med_nc or fach_nc or huecos_nc or esc_nc or (dbsi_res and dbsi_res.get("estado_global") == "no_cumple"):
         estado = "no_cumple"
     elif any(o["tipo"] == "warning" for o in observaciones):
         estado = "observaciones"

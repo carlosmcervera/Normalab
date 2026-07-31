@@ -218,8 +218,15 @@ function SectorReport({ s }) {
       )}
       {s.construccion && (
         <div className="border-t border-border p-4" data-testid={`report-sector-${s.id}-construccion`}>
-          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Reacción al fuego y propagación exterior (RSCIEI Anexo II · Tablas 2.1.4 / 2.2.1 / 2.2.2)</p>
-          <div className="overflow-x-auto border border-border">
+          <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+            Construcción y propagación — {s.construccion.normativa || "RSCIEI Anexo II"}
+          </p>
+
+          {/* Propagación interior */}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+            Propagación interior · {s.construccion.interior?.referencia}
+          </p>
+          <div className="mt-1 overflow-x-auto border border-border">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-secondary/60 text-left uppercase tracking-wide text-muted-foreground">
@@ -249,20 +256,33 @@ function SectorReport({ s }) {
             </span>
             {s.construccion.reaccion.observaciones ? ` · ${s.construccion.reaccion.observaciones}` : ""}
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm">
+          {s.construccion.interior?.delimitadores && (
+            <p className="mt-1 text-xs text-slate-700">
+              Elementos delimitadores del sector: exigido <b className="font-mono">{s.construccion.interior.delimitadores.requerido}</b>
+              <span className="text-muted-foreground"> · {s.construccion.interior.delimitadores.detalle}</span>
+            </p>
+          )}
+
+          {/* Propagación exterior */}
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+            Propagación exterior · {s.construccion.exterior?.referencia}
+          </p>
+          <div className="mt-1.5 grid gap-2 sm:grid-cols-3 text-sm">
             <div className="rounded-sm border border-border p-2">
-              <p className="text-xs uppercase text-muted-foreground">Medianeras (Tabla 2.2.1)</p>
+              <p className="text-xs uppercase text-muted-foreground">Medianería</p>
               {s.construccion.medianeras ? (
                 <p className="mt-0.5">Exigido <b className="font-mono">{s.construccion.medianeras.requerido}</b> · proyectado <b className="font-mono">{s.construccion.medianeras.proyectado || "—"}</b>{" "}
                   <span className={s.construccion.medianeras.estado === "no_cumple" ? "text-red-700 font-semibold" : s.construccion.medianeras.estado === "cumple" ? "text-emerald-700 font-semibold" : "text-slate-500"}>
                     ({s.construccion.medianeras.estado === "no_cumple" ? "No cumple" : s.construccion.medianeras.estado === "cumple" ? "Cumple" : "Pendiente"})</span>
                 </p>
-              ) : <p className="mt-0.5 text-muted-foreground">No linda con otro establecimiento.</p>}
+              ) : <p className="mt-0.5 text-muted-foreground">No linda con otro establecimiento/edificio.</p>}
             </div>
             <div className="rounded-sm border border-border p-2">
-              <p className="text-xs uppercase text-muted-foreground">Fachadas (Tabla 2.2.2)</p>
+              <p className="text-xs uppercase text-muted-foreground">Fachada</p>
               {s.construccion.fachadas ? (
-                <p className="mt-0.5">α {s.construccion.fachadas.angulo}° · d ≥ <b className="font-mono">{num(s.construccion.fachadas.distancia_d, 1)} m</b> · exigido <b className="font-mono">{s.construccion.fachadas.requerido}</b> / proyectado <b className="font-mono">{s.construccion.fachadas.proyectado || "—"}</b>{" "}
+                <p className="mt-0.5">
+                  {s.construccion.fachadas.distancia_d != null ? <>α {s.construccion.fachadas.angulo}° · d ≥ <b className="font-mono">{num(s.construccion.fachadas.distancia_d, 1)} m</b> · </> : null}
+                  exigido <b className="font-mono">{s.construccion.fachadas.requerido}</b> / proyectado <b className="font-mono">{s.construccion.fachadas.proyectado || "—"}</b>{" "}
                   <span className={s.construccion.fachadas.estado === "no_cumple" ? "text-red-700 font-semibold" : s.construccion.fachadas.estado === "cumple" ? "text-emerald-700 font-semibold" : "text-slate-500"}>
                     ({s.construccion.fachadas.estado === "no_cumple" ? "No cumple" : s.construccion.fachadas.estado === "cumple" ? "Cumple" : "Pendiente"})</span>
                 </p>
@@ -270,9 +290,23 @@ function SectorReport({ s }) {
             </div>
             <div className="rounded-sm border border-border p-2">
               <p className="text-xs uppercase text-muted-foreground">Cubierta</p>
-              <p className="mt-0.5">{s.construccion.cubierta.ligera ? "Cubierta ligera" : "Cubierta no ligera"}{s.construccion.cubierta.observaciones ? ` · ${s.construccion.cubierta.observaciones}` : ""}</p>
+              <p className="mt-0.5">{s.construccion.cubierta.ligera ? "Cubierta ligera" : "Cubierta no ligera"}
+                {s.construccion.cubierta.requerido ? <span className="text-muted-foreground"> · {s.construccion.cubierta.requerido}</span> : null}
+                {s.construccion.cubierta.observaciones ? ` · ${s.construccion.cubierta.observaciones}` : ""}</p>
             </div>
           </div>
+          {s.construccion.fachadas?.huecos && (
+            <div className="mt-2 rounded-sm border border-border p-2 text-xs" data-testid={`report-sector-${s.id}-huecos`}>
+              <p className="uppercase text-muted-foreground">Separación entre huecos (SI 2, Fig. 1.1)</p>
+              <p className="mt-0.5">
+                Ángulo {num(s.construccion.fachadas.huecos.angulo, 0)}° · mínima exigida <b className="font-mono">{num(s.construccion.fachadas.huecos.efectivo_m, 2)} m</b>
+                {s.construccion.fachadas.huecos.proyectado_m != null ? <> · proyectada <b className="font-mono">{num(s.construccion.fachadas.huecos.proyectado_m, 2)} m</b></> : null}{" "}
+                <span className={s.construccion.fachadas.huecos.estado === "no_cumple" ? "text-red-700 font-semibold" : s.construccion.fachadas.huecos.estado === "cumple" ? "text-emerald-700 font-semibold" : "text-slate-500"}>
+                  ({s.construccion.fachadas.huecos.estado === "no_cumple" ? "No cumple" : s.construccion.fachadas.huecos.estado === "cumple" ? "Cumple" : "Pendiente"})</span>
+                <span className="text-muted-foreground"> · {s.construccion.fachadas.huecos.nota}</span>
+              </p>
+            </div>
+          )}
         </div>
       )}
 

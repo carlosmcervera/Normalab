@@ -1,0 +1,37 @@
+{
+  "summary": "Fase 4 (Construcción y propagación ámbito-aware) verificada end-to-end. Backend: 6/6 pytests nuevos pasan + 55 tests de regresión pasan sin fallos. Frontend: paso 'Construcción y propagación' renderiza correctamente 3 tarjetas de sector con badges 'RSCIEI · Anexo II' y 'CTE DB-SI · SI 1 / SI 2', switches (medianera/fachada/cubierta) presentes y funcionales, y al activar fachada+huecos aparecen los inputs de ángulo/distancia/EI60/colindante. El informe HTML muestra los 3 bloques de construcción y las cadenas 'Propagación interior', 'Propagación exterior', 'CTE DB-SI (SI 1 / SI 2)' y 'RSCIEI (Anexo II)'. La exportación DOCX contiene los rótulos exigidos.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "engine._construccion (rsciei)", "issue": "Referencia a DELIMITADORES no importada en engine.py (l.428). No se dispara hoy porque delim_valor viene siempre de build_requirements(), pero si esa clave llegara vacía se lanzaría NameError. Añadir `from normative_modules.rsciei.requirements import DELIMITADORES` o duplicar la constante localmente."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase4_construccion_e2e.py",
+    "/app/test_reports/pytest/phase4_construccion_iter28.xml"
+  ],
+  "action_items": [
+    "(Menor) Importar DELIMITADORES en /app/backend/normative_modules/rsciei/engine.py para eliminar la NameError latente."
+  ],
+  "critical_code_review_comments": [
+    "engine.py: NameError latente por DELIMITADORES no importada (ver 'minor').",
+    "engine.py > 800 LoC — sigue creciendo (fase por fase). Aún manejable, pero convendría plantear una división en submódulos por sección (construccion, escaleras, evacuacion, lre) antes de próximas fases.",
+    "Cobertura correcta: tests validan (a) no regresiones, (b) estructura ámbito-aware, (c) SI2 huecos con toggles (no_cumple → EI60 cumple, colindante halvea, monotonía por ángulo), (d) DOCX contiene rótulos.",
+    "Pytest ini fuerza -n 2 --dist loadscope: hay un test_incendios_complete.py con ImportError de colección preexistente (no relacionado con Fase 4) — recomendable arreglar el sys.path o eliminarlo si está obsoleto."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase4_construccion_e2e.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@normalab.com / Admin1234! (según /app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se reutilizaron los dos estudios existentes indicados (6a6846ef73ca337c4f097a3f y 6a67710c3fd29edfa3820217). En el test de huecos SI2 se editó temporalmente y se restauró data original del sector CTE.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fase 4 (construcción y propagación por ámbito) verificada. El bloque construccion.exterior expone medianeras/fachadas/cubierta y fachadas.huecos calcula la separación (SI2, Fig 1.1) con soporte de huecos_ei60 y edificio_colindante (÷2). El informe HTML incluye data-testid report-sector-{id}-construccion. DOCX contiene 'Construcción y propagación — <normativa>', 'Propagación interior', 'Propagación exterior' y 'Elementos delimitadores del sector'. Bug latente reportado: DELIMITADORES sin importar en engine.py (ver action_items).",
+  "rca of the issue": "N/A — Fase 4 sin issues bloqueantes."
+}
