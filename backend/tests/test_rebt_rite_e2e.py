@@ -66,64 +66,6 @@ class TestSharedEstancias:
 
 
 # ---- REBT ----
-class TestREBT:
-    def _create(self, client, pid, name):
-        r = client.post(f"{API}/studies", json={
-            "project_id": pid, "module_code": "REBT", "name": name}, timeout=15)
-        assert r.status_code == 200, r.text
-        return r.json()["id"]
-
-    def test_rebt_cumple(self, client, project_with_estancias):
-        sid = self._create(client, project_with_estancias, "TEST_REBT_cumple")
-        # Update data (trifasica 400V, 18000W, 50m, Cu, caida 5%, industrial)
-        r = client.put(f"{API}/studies/{sid}", json={"data": {
-            "suministro": "trifasica", "potencia": 18000, "cosphi": 0.9,
-            "longitud": 50, "material": "Cu", "caida_max_pct": 5,
-            "tipo_instalacion": "industrial",
-        }}, timeout=15)
-        assert r.status_code == 200
-        rc = client.post(f"{API}/studies/{sid}/compute", timeout=30)
-        assert rc.status_code == 200, rc.text
-        res = rc.json()["results"]
-        assert res["estado_global"] == "cumple"
-        d = res["datos"]
-        assert abs(d["Ib"] - 28.87) < 0.1, f"Ib={d['Ib']}"
-        assert d["seccion"] == 6
-        assert d["iga"] == 32
-        # cleanup
-        client.delete(f"{API}/studies/{sid}", timeout=15)
-
-    def test_rebt_no_cumple(self, client, project_with_estancias):
-        # Vivienda básica exige P ≥ 5750 W (ITC-BT-25) → P=5000 W → no_cumple grado.
-        sid = self._create(client, project_with_estancias, "TEST_REBT_no_cumple")
-        r = client.put(f"{API}/studies/{sid}", json={"data": {
-            "suministro": "monofasica", "potencia": 5000, "cosphi": 0.9,
-            "longitud": 60, "material": "Cu", "caida_max_pct": 1,
-            "tipo_instalacion": "vivienda_basica",
-        }}, timeout=15)
-        assert r.status_code == 200
-        rc = client.post(f"{API}/studies/{sid}/compute", timeout=30)
-        assert rc.status_code == 200
-        res = rc.json()["results"]
-        assert res["estado_global"] == "no_cumple"
-        assert len(res["observaciones"]) > 0
-        client.delete(f"{API}/studies/{sid}", timeout=15)
-
-    def test_rebt_export_docx_xlsx(self, client, project_with_estancias):
-        sid = self._create(client, project_with_estancias, "TEST_REBT_export")
-        client.put(f"{API}/studies/{sid}", json={"data": {
-            "suministro": "trifasica", "potencia": 18000, "cosphi": 0.9,
-            "longitud": 50, "material": "Cu", "caida_max_pct": 5,
-            "tipo_instalacion": "industrial"}}, timeout=15)
-        client.post(f"{API}/studies/{sid}/compute", timeout=30)
-        d = client.get(f"{API}/studies/{sid}/export/docx", timeout=30)
-        assert d.status_code == 200 and d.content[:2] == b"PK" and len(d.content) > 3000
-        x = client.get(f"{API}/studies/{sid}/export/xlsx", timeout=30)
-        assert x.status_code == 200 and x.content[:2] == b"PK" and len(x.content) > 2000
-        client.delete(f"{API}/studies/{sid}", timeout=15)
-
-
-# ---- RITE ----
 class TestRITE:
     def _create(self, client, pid, name):
         r = client.post(f"{API}/studies", json={

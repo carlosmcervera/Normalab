@@ -8,6 +8,7 @@ import { formatDate, STATE_META } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { ModuleIcon } from "@/components/ModuleIcon";
 import { SharedSurfacesStep } from "@/features/studies/components/SharedSurfacesStep";
+import { isSurfacesOutdated, SurfacesOutdatedBanner } from "@/features/studies/components/SurfacesAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,12 @@ export default function ProjectDetailPage() {
   const deleteStudy = useMutation({
     mutationFn: (id) => api.delete(`/studies/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["studies", projectId] }); toast.success("Estudio eliminado"); },
+    onError: (e) => toast.error(apiError(e)),
+  });
+
+  const recomputeStudy = useMutation({
+    mutationFn: (id) => api.post(`/studies/${id}/compute`).then((r) => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["studies", projectId] }); toast.success("Informe recalculado"); },
     onError: (e) => toast.error(apiError(e)),
   });
 
@@ -136,8 +143,10 @@ export default function ProjectDetailPage() {
           {studies.map((s, i) => {
             const state = STATE_META[s.results?.estado_global];
             const mod = modules.find((m) => m.code === s.module_code);
+            const outdated = isSurfacesOutdated(s, project);
             return (
-              <div key={s.id} data-testid={`study-row-${s.id}`} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${i > 0 ? "border-t border-border" : ""}`}>
+              <div key={s.id} data-testid={`study-row-${s.id}`} className={`flex flex-col gap-3 p-5 ${i > 0 ? "border-t border-border" : ""}`}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <ModuleIcon icon={mod?.icon} accent={mod?.accent} />
                 <div className="flex-1 cursor-pointer" onClick={() => navigate(`/estudios/${s.id}`)}>
                   <div className="flex flex-wrap items-center gap-2">
@@ -145,6 +154,7 @@ export default function ProjectDetailPage() {
                     <Badge variant="outline" className="rounded-sm font-mono text-xs">{s.module_name}</Badge>
                     {s.current_version > 0 && <Badge variant="secondary" className="rounded-sm text-xs">v{s.current_version}</Badge>}
                     {state && <span className={`rounded-sm border px-2 py-0.5 text-xs font-medium ${state.cls}`}>{state.label}</span>}
+                    {outdated && <Badge variant="outline" className="rounded-sm border-amber-400 text-xs text-amber-700" data-testid={`study-${s.id}-outdated-badge`}>Cuadro actualizado</Badge>}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">Actualizado {formatDate(s.updated_at)}</p>
                 </div>
@@ -157,6 +167,10 @@ export default function ProjectDetailPage() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+                </div>
+                {outdated && (
+                  <SurfacesOutdatedBanner compact pending={recomputeStudy.isPending && recomputeStudy.variables === s.id} onRecompute={() => recomputeStudy.mutate(s.id)} />
+                )}
               </div>
             );
           })}

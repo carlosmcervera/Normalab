@@ -65,6 +65,7 @@ export function RebtCuadroStep({ data, setData, study }) {
     queryKey: ["estancias", projectId],
     queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
     enabled: !!projectId,
+    staleTime: 0,
   });
 
   useEffect(() => {

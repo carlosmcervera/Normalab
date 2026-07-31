@@ -1,10 +1,11 @@
 import { Fragment, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Printer, History, Loader2, AlertTriangle, FileText, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError, downloadFile } from "@/lib/api";
 import { EsquemaUnifilar } from "@/features/studies/components/EsquemaUnifilar";
+import { isSurfacesOutdated, SurfacesOutdatedBanner } from "@/features/studies/components/SurfacesAlert";
 import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -665,6 +666,13 @@ export default function StudyReportPage() {
 
   const { data: study, isLoading } = useQuery({ queryKey: ["study", studyId], queryFn: () => api.get(`/studies/${studyId}`).then((r) => r.data) });
   const { data: versions = [] } = useQuery({ queryKey: ["versions", studyId], queryFn: () => api.get(`/studies/${studyId}/versions`).then((r) => r.data) });
+  const { data: project } = useQuery({ queryKey: ["project", study?.project_id], enabled: !!study?.project_id, queryFn: () => api.get(`/projects/${study.project_id}`).then((r) => r.data) });
+  const qc = useQueryClient();
+  const recomputeMut = useMutation({
+    mutationFn: () => api.post(`/studies/${studyId}/compute`).then((r) => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["study", studyId] }); setActiveReport(null); toast.success("Informe recalculado"); },
+    onError: (e) => toast.error(apiError(e)),
+  });
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
@@ -702,6 +710,10 @@ export default function StudyReportPage() {
           </Button>
         </div>
       </div>
+
+      {isSurfacesOutdated(study, project) && (
+        <div className="mb-4 no-print"><SurfacesOutdatedBanner pending={recomputeMut.isPending} onRecompute={() => recomputeMut.mutate()} /></div>
+      )}
 
       {showVersions && (
         <div className="mb-4 border border-border bg-background no-print" data-testid="versions-panel">

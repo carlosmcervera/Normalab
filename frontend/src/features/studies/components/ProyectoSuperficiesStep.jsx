@@ -37,6 +37,7 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
     queryKey: ["estancias", projectId],
     queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
     enabled: !!projectId,
+    staleTime: 0,
   });
 
   // Fusión inicial (una vez): trae del cuadro compartido las estancias que falten y
@@ -78,6 +79,8 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
         lastPushSig.current = sig;
         await api.put(`/projects/${projectId}/estancias`, { estancias: base });
         queryClient.invalidateQueries({ queryKey: ["estancias", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["studies", projectId] });
       } catch (e) { /* silencioso: reintenta en el próximo cambio */ }
     }, 800);
     return () => clearTimeout(pushTimer.current);

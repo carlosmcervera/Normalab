@@ -102,6 +102,7 @@ async def compute_study(study_id: str, user: dict = Depends(get_current_user)):
     await db.studies.update_one(
         {"_id": ObjectId(study_id)},
         {"$set": {"results": results, "report": report, "status": "calculado",
+                  "estancias_version": project.get("estancias_updated_at") if project else None,
                   "updated_at": utcnow_iso()}},
     )
     return {"results": results, "report": report}
@@ -136,7 +137,9 @@ async def create_version(study_id: str, payload: VersionNote,
     await db.studies.update_one(
         {"_id": ObjectId(study_id)},
         {"$set": {"results": results, "report": report, "status": "calculado",
-                  "current_version": new_version, "updated_at": utcnow_iso()}},
+                  "current_version": new_version,
+                  "estancias_version": project.get("estancias_updated_at") if project else None,
+                  "updated_at": utcnow_iso()}},
     )
     return {"version": new_version, "results": results, "report": report}
 

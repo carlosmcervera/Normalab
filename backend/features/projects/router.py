@@ -19,6 +19,28 @@ class EstanciasPayload(BaseModel):
     estancias: list = []
 
 
+_BASE_STR = ("id", "nombre", "planta", "uso_ocupacion")
+_BASE_NUM = ("sup_util", "sup_construida", "altura", "densidad", "ocupacion_manual")
+_BASE_BOOL = ("sin_ocupacion", "ocupacion_custom")
+
+
+def _f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _norm_estancia(e: dict) -> dict:
+    e = e or {}
+    out = {k: ((e.get(k) or "").strip() if isinstance(e.get(k), str) else (e.get(k) or "")) for k in _BASE_STR}
+    for k in _BASE_NUM:
+        out[k] = _f(e.get(k))
+    for k in _BASE_BOOL:
+        out[k] = bool(e.get(k))
+    return out
+
+
 def _serialize(doc: dict) -> dict:
     doc = dict(doc)
     doc["id"] = str(doc.pop("_id"))
@@ -79,13 +101,20 @@ async def get_estancias(project_id: str, user: dict = Depends(get_current_user))
 @router.put("/{project_id}/estancias")
 async def put_estancias(project_id: str, payload: EstanciasPayload,
                         user: dict = Depends(get_current_user)):
-    result = await db.projects.update_one(
-        {"_id": ObjectId(project_id)},
-        {"$set": {"estancias": payload.estancias, "updated_at": utcnow_iso()}},
-    )
-    if result.matched_count == 0:
+    existing = await db.projects.find_one({"_id": ObjectId(project_id)},
+                                          {"estancias": 1, "estancias_updated_at": 1})
+    if not existing:
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
-    return {"estancias": payload.estancias}
+    normalized = [_norm_estancia(e) for e in payload.estancias]
+    prev = [_norm_estancia(e) for e in (existing.get("estancias") or [])]
+    now = utcnow_iso()
+    changed = normalized != prev
+    updates = {"estancias": normalized, "updated_at": now}
+    if changed:
+        updates["estancias_updated_at"] = now
+    await db.projects.update_one({"_id": ObjectId(project_id)}, {"$set": updates})
+    version = now if changed else existing.get("estancias_updated_at")
+    return {"estancias": normalized, "estancias_updated_at": version, "changed": changed}
 
 
 @router.post("/bulk-delete")

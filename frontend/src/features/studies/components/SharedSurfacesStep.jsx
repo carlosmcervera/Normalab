@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Layers, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -20,19 +20,31 @@ const ocupacionDe = (e) => {
 };
 
 // Cuadro de superficies + ocupación COMPARTIDO por el expediente (project.estancias).
-// Editable desde cualquier módulo (REBT/RITE). Autosave con debounce.
+// Fuente única, editable desde cualquier módulo o desde el expediente. Autosave con debounce
+// + invalidación para que los cambios se reflejen en el resto de módulos al instante.
 export function SharedSurfacesStep({ projectId, studyId }) {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["estancias", projectId],
     queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
     enabled: !!projectId,
+    staleTime: 0,
   });
   const [estancias, setEstancias] = useState(null);
   const [saved, setSaved] = useState(false);
   const timer = useRef(null);
   const dirty = useRef(false);
+  const appliedSig = useRef(null);
 
-  useEffect(() => { if (data && estancias === null) setEstancias(data); }, [data, estancias]);
+  // Adopta los datos del servidor al montar y cuando cambian externamente (si no hay edición pendiente).
+  useEffect(() => {
+    if (!data) return;
+    const sig = JSON.stringify(data);
+    if (estancias === null || (!dirty.current && sig !== appliedSig.current)) {
+      setEstancias(data);
+      appliedSig.current = sig;
+    }
+  }, [data, estancias]);
 
   useEffect(() => {
     if (!dirty.current || estancias === null) return;
@@ -40,10 +52,15 @@ export function SharedSurfacesStep({ projectId, studyId }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       await api.put(`/projects/${projectId}/estancias`, { estancias });
+      dirty.current = false;
+      appliedSig.current = JSON.stringify(estancias);
       setSaved(true);
+      qc.invalidateQueries({ queryKey: ["estancias", projectId] });
+      qc.invalidateQueries({ queryKey: ["project", projectId] });
+      qc.invalidateQueries({ queryKey: ["studies", projectId] });
     }, 700);
     return () => clearTimeout(timer.current);
-  }, [estancias, projectId]);
+  }, [estancias, projectId]); // eslint-disable-line
 
   const mutate = (fn) => { dirty.current = true; setEstancias((e) => fn(e || [])); };
   const add = () => mutate((e) => [...e, { id: genId(), nombre: "", planta: "", sup_util: "", sup_construida: "", altura: "", uso_ocupacion: "", densidad: "" }]);

@@ -7,6 +7,7 @@ import { api, apiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StepBody } from "@/features/studies/components/StepBody";
+import { isSurfacesOutdated, SurfacesOutdatedBanner } from "@/features/studies/components/SurfacesAlert";
 import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosResultsPanel";
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 import { GenericResultsPanel } from "@/features/studies/components/GenericResultsPanel";
@@ -49,6 +50,7 @@ export default function StudyWizardPage() {
   const [results, setResults] = useState(null);
 
   const { data: study } = useQuery({ queryKey: ["study", studyId], queryFn: () => api.get(`/studies/${studyId}`).then((r) => r.data) });
+  const { data: project } = useQuery({ queryKey: ["project", study?.project_id], enabled: !!study?.project_id, queryFn: () => api.get(`/projects/${study.project_id}`).then((r) => r.data) });
   const schemaQ = useQuery({
     queryKey: ["schema", study?.module_code],
     enabled: !!study?.module_code,
@@ -128,6 +130,10 @@ export default function StudyWizardPage() {
         <h1 className="font-heading text-2xl tracking-tight">{study.name}</h1>
         <Badge variant="outline" className="rounded-sm font-mono text-xs">{study.module_code}</Badge>
       </div>
+
+      {isSurfacesOutdated(study, project) && (
+        <div className="mb-4"><SurfacesOutdatedBanner pending={computeMut.isPending} onRecompute={() => computeMut.mutate()} /></div>
+      )}
 
       <div className="mb-8 flex items-center gap-2 overflow-x-auto" data-testid="wizard-stepper">
         {steps.map((s, i) => (
