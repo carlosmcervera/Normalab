@@ -62,6 +62,34 @@ ROCIADORES = {
 HUMOS = {"produccion": {"MEDIO": 2000, "ALTO": 1000},
          "almacenamiento": {"MEDIO": 1000, "ALTO": 800}}
 
+# Anexo III · 8.4 · Sistemas de evacuación (control) de humos: superficie aerodinámica
+# de evacuación de humos = 0,5 m² por cada N m² de superficie construida del sector,
+# según el modo de la actividad y la situación de la planta (sobre/bajo rasante).
+# Fabricación/producción: 0,5 / 200 m² (sobre) · 0,5 / 150 m² (bajo).
+# Almacenamiento:         0,5 / 150 m² (sobre) · 0,5 / 100 m² (bajo).
+HUMOS_AERODINAMICO = {
+    "produccion": {"sobre": 200.0, "bajo": 150.0},
+    "almacenamiento": {"sobre": 150.0, "bajo": 100.0},
+}
+
+
+def _superficie_aerodinamica_humos(modo_pred: str, sit_key: str, A: float) -> dict:
+    modo = "almacenamiento" if modo_pred == "almacenamiento" else "produccion"
+    denom = HUMOS_AERODINAMICO[modo]["bajo" if sit_key == "bajo" else "sobre"]
+    superficie = round(0.5 * (A / denom), 2) if A > 0 else 0.0
+    sit_txt = "planta bajo rasante" if sit_key == "bajo" else "planta sobre rasante"
+    modo_txt = "almacenamiento" if modo == "almacenamiento" else "fabricación/producción"
+    return {
+        "modo": modo,
+        "situacion": "bajo_rasante" if sit_key == "bajo" else "sobre_rasante",
+        "ratio_m2": denom,
+        "superficie_construida": round(A, 2),
+        "superficie_aerodinamica": superficie,
+        "detalle": (f"Superficie aerodinámica de evacuación de humos ≥ {superficie:.2f} m² "
+                    f"= 0,5 m² × ({A:.0f} m² / {denom:.0f} m²), para actividad de {modo_txt} en "
+                    f"{sit_txt} (RSCIEI, Anexo III, punto 8.4)."),
+    }
+
 # Tabla 3.3.1 · Hidrantes exteriores (RSCIEI, Anexo III). Obligatorios si la superficie
 # del sector/área de incendio ≥ umbral (m²), en función de la configuración y del nivel
 # de riesgo intrínseco. La exigencia es más estricta (umbral menor) a mayor riesgo.
@@ -155,11 +183,16 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
                           "No exigibles por superficie para esta configuración/nivel (riesgo bajo)."))
 
     humo_thr = HUMOS[modo_pred].get(categoria) if categoria in ("MEDIO", "ALTO") else None
+    aero = _superficie_aerodinamica_humos(modo_pred, sit_key, A)
     if humo_thr is not None:
-        inst.append(_inst("Control de humos y calor", A >= humo_thr,
-                          f"Actividad de {modo_label}, riesgo {categoria}: obligatorio si superficie ≥ {humo_thr:.0f} m² (sector: {A:.0f} m²)."))
+        humo_inst = _inst("Control de humos y calor", A >= humo_thr,
+                          f"Actividad de {modo_label}, riesgo {categoria}: obligatorio si superficie ≥ {humo_thr:.0f} m² "
+                          f"(sector: {A:.0f} m²). {aero['detalle']}")
     else:
-        inst.append(_inst("Control de humos y calor", False, "No exigible en riesgo bajo (valorar huecos de ventilación)."))
+        humo_inst = _inst("Control de humos y calor", False,
+                          f"No exigible con carácter general en riesgo bajo (valorar huecos de ventilación). {aero['detalle']}")
+    humo_inst["superficie_aerodinamica"] = aero
+    inst.append(humo_inst)
 
     hid_thr = _threshold(HIDRANTES, config, categoria, nivel)
     if hid_thr is not None:

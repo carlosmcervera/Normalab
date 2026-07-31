@@ -195,6 +195,15 @@ def _sector_docx(doc, s):
         p = doc.add_paragraph(style="List Bullet")
         r = p.add_run(f"{it.get('nombre')} — {'Obligatorio' if it.get('obligatorio') else 'No exigible'}")
         r.font.size = Pt(9)
+        aero = it.get("superficie_aerodinamica")
+        if aero:
+            sub = doc.add_paragraph(style="List Bullet 2")
+            sr = sub.add_run(f"Superficie aerodinámica de evacuación de humos (Anexo III, 8.4): "
+                             f"≥ {_fmt(aero.get('superficie_aerodinamica'), 2)} m² "
+                             f"(0,5 m² / {_fmt(aero.get('ratio_m2'), 0)} m², "
+                             f"{'bajo rasante' if aero.get('situacion') == 'bajo_rasante' else 'sobre rasante'}).")
+            sr.font.size = Pt(9)
+            sr.italic = True
 
     for l in s.get("locales_riesgo_especial", []):
         p = doc.add_paragraph(style="List Bullet")
