@@ -472,6 +472,34 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
         elif stype == "observaciones":
             for o in s.get("items", []):
                 doc.add_paragraph(o.get("texto", ""), style="List Bullet")
+        elif stype == "anexo_propagacion":
+            for b in s.get("items", []):
+                hp = doc.add_paragraph()
+                hr = hp.add_run(f"{b.get('sector', 'Sector')} — {b.get('normativa', '')}")
+                hr.bold = True
+                hr.font.size = Pt(10)
+                for titulo, key in (("Propagación interior", "interior"), ("Propagación exterior", "exterior")):
+                    sp = doc.add_paragraph()
+                    spr = sp.add_run(titulo)
+                    spr.italic = True
+                    spr.bold = True
+                    spr.font.size = Pt(9)
+                    for f in b.get(key, []):
+                        tp = doc.add_paragraph()
+                        tp.add_run(f.get("tema", "")).bold = True
+                        tp.runs[0].font.size = Pt(9)
+                        cp = doc.add_paragraph()
+                        cr = cp.add_run(f.get("cita", ""))
+                        cr.italic = True
+                        cr.font.size = Pt(8.5)
+                        rp = doc.add_paragraph()
+                        rr = rp.add_run(f"— {f.get('referencia', '')}")
+                        rr.font.size = Pt(8)
+                        rr.font.color.rgb = GREY
+                        if f.get("valor"):
+                            vp = doc.add_paragraph(style="List Bullet")
+                            vp.add_run(f.get("valor")).font.size = Pt(8.5)
+                doc.add_paragraph()
         elif stype == "fundamentos":
             for fnd in s.get("items", []):
                 p = doc.add_paragraph()

@@ -142,6 +142,21 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
         sit_txt = "planta bajo rasante" if sit_key == "bajo" else "planta sobre rasante"
         estabilidad = {"valor": val,
                        "detalle": f"Estructura portante · {sit_txt} · riesgo {categoria.lower()} · Anexo II, Tabla 2.5.1."}
+        # Reducción por instalación fija de extinción automática (rociadores) que cubre todo el
+        # sector (RSCIEI RD 164/2025, Anexo II, Sección 5): la estabilidad exigida se reduce un grado.
+        if rociadores_previstos and val in _ESCALA_R:
+            idx = _ESCALA_R.index(val)
+            if idx > 0:
+                val_red = _ESCALA_R[idx - 1]
+                estabilidad = {
+                    "valor": val_red,
+                    "valor_base": val,
+                    "reduccion_rociadores": True,
+                    "detalle": (f"Estructura portante · {sit_txt} · riesgo {categoria.lower()} · Anexo II, "
+                                f"Tabla 2.5.1: valor base {val}. Reducido un grado a {val_red} por disponer de "
+                                f"instalación fija automática de extinción (rociadores) que protege todo el "
+                                f"sector (Anexo II, Sección 5, RD 164/2025)."),
+                }
     cubierta = {"valor": "R 15", "aplica": cubierta_ligera,
                 "detalle": "Cubierta ligera no prevista para evacuación y con carga permanente < 100 kg/m²."} if cubierta_ligera else None
 
@@ -184,6 +199,14 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
 
     humo_thr = HUMOS[modo_pred].get(categoria) if categoria in ("MEDIO", "ALTO") else None
     aero = _superficie_aerodinamica_humos(modo_pred, sit_key, A)
+    # Superficie de ventilación proyectada por el técnico (m²) → aviso si no alcanza la aerodinámica exigida (8.4).
+    try:
+        proy_vent = float(sec.get("humos_ventilacion_proyectada")) if sec.get("humos_ventilacion_proyectada") not in (None, "") else None
+    except (TypeError, ValueError):
+        proy_vent = None
+    if proy_vent is not None:
+        aero["proyectada"] = round(proy_vent, 2)
+        aero["cumple"] = proy_vent + 1e-6 >= aero["superficie_aerodinamica"]
     if humo_thr is not None:
         humo_inst = _inst("Control de humos y calor", A >= humo_thr,
                           f"Actividad de {modo_label}, riesgo {categoria}: obligatorio si superficie ≥ {humo_thr:.0f} m² "
@@ -191,6 +214,13 @@ def build_requirements(sec: dict, nivel: int, categoria: str, modo_pred: str,
     else:
         humo_inst = _inst("Control de humos y calor", False,
                           f"No exigible con carácter general en riesgo bajo (valorar huecos de ventilación). {aero['detalle']}")
+    if aero.get("proyectada") is not None:
+        if aero.get("cumple"):
+            humo_inst["detalle"] += (f" Ventilación proyectada {aero['proyectada']:.2f} m² ≥ exigida "
+                                     f"{aero['superficie_aerodinamica']:.2f} m²: suficiente.")
+        else:
+            humo_inst["detalle"] += (f" AVISO: ventilación proyectada {aero['proyectada']:.2f} m² < exigida "
+                                     f"{aero['superficie_aerodinamica']:.2f} m²: insuficiente para la evacuación de humos (8.4).")
     humo_inst["superficie_aerodinamica"] = aero
     inst.append(humo_inst)
 

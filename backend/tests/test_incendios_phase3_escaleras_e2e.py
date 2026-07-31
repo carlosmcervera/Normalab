@@ -156,7 +156,7 @@ def test_report_fundamentos_section(sess, project_id):
     sections = report.get("sections", [])
     fund_sec = next((s for s in sections if s.get("type") == "fundamentos"), None)
     assert fund_sec is not None, "sección 'fundamentos' ausente"
-    assert "9. Fundamentos normativos" in fund_sec["title"]
+    assert "Fundamentos normativos" in fund_sec["title"]
     items = fund_sec.get("items", [])
     assert len(items) == 9, f"esperados 9 items (base+escaleras), got {len(items)}"
     for it in items:

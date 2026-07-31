@@ -106,7 +106,10 @@ function SectorReport({ s }) {
       <CargaFuegoTable calculo={s.calculo} categoria={s.nivel_riesgo.categoria} />
       <p className="border-t border-border px-4 py-2 text-sm text-slate-700">{sec.mensaje}</p>
       <div className="grid grid-cols-3 gap-3 border-t border-border p-4 text-sm">
-        <div><span className="text-xs uppercase text-muted-foreground">Estabilidad</span><p className="font-mono font-semibold">{s.requisitos.estabilidad?.valor}</p></div>
+        <div><span className="text-xs uppercase text-muted-foreground">Estabilidad</span><p className="font-mono font-semibold">{s.requisitos.estabilidad?.valor}
+          {s.requisitos.estabilidad?.reduccion_rociadores && (
+            <span className="ml-1 text-[11px] font-normal text-emerald-700" title={s.requisitos.estabilidad?.detalle}>(base {s.requisitos.estabilidad.valor_base}, −1 grado por rociadores)</span>
+          )}</p></div>
         <div><span className="text-xs uppercase text-muted-foreground">Delimitadores</span><p className="font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
         <div><span className="text-xs uppercase text-muted-foreground">Evacuación</span><p className="font-mono font-semibold">{s.evacuacion?.distancia_maxima} m · {s.evacuacion?.num_salidas} sal.</p></div>
       </div>
@@ -553,6 +556,37 @@ function Section({ s }) {
                 <p className="text-sm font-semibold">{f.tema}</p>
                 <blockquote className="mt-1 text-sm italic leading-relaxed text-slate-700">{f.cita}</blockquote>
                 <p className="mt-1 text-xs text-muted-foreground">— {f.referencia}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {s.type === "anexo_propagacion" && (
+          <div className="space-y-6" data-testid="report-anexo-propagacion">
+            {(s.items || []).length === 0 && <p className="text-sm text-muted-foreground">No hay sectores.</p>}
+            {(s.items || []).map((b, bi) => (
+              <div key={bi} className="rounded-md border border-border" data-testid={`report-anexo-sector-${bi}`}>
+                <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2">
+                  <span className="font-heading text-sm font-semibold">{b.sector}</span>
+                  <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${b.ambito === "CTE DB-SI" ? "bg-cyan-50 text-cyan-700" : "bg-orange-50 text-orange-700"}`}>{b.normativa}</span>
+                </div>
+                <div className="grid gap-0 md:grid-cols-2">
+                  {[["Propagación interior", b.interior], ["Propagación exterior", b.exterior]].map(([titulo, items], ci) => (
+                    <div key={ci} className={`p-4 ${ci === 0 ? "md:border-r border-border" : ""}`}>
+                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{titulo}</p>
+                      <div className="space-y-3">
+                        {(items || []).map((f, i) => (
+                          <div key={i} className="border-l-2 border-slate-300 pl-3">
+                            <p className="text-xs font-semibold">{f.tema}</p>
+                            <blockquote className="mt-0.5 text-xs italic leading-relaxed text-slate-700">{f.cita}</blockquote>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">— {f.referencia}</p>
+                            {f.valor && <p className="mt-1 rounded-sm bg-secondary/60 px-2 py-1 text-[11px] font-medium text-slate-800">{f.valor}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

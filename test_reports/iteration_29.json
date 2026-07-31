@@ -1,0 +1,27 @@
+{
+  "summary": "Fase 5 (Anexo justificativo de propagación · Reducción R por rociadores · Aviso ventilación 8.4) verificada end-to-end. Backend: 4/4 nuevos pytest passing + 108 regresión passing = 112/112 (JUnit /app/test_reports/pytest/full_iter29.xml). Frontend: informe muestra bloque 'report-anexo-propagacion' con 3 sector blocks (RSCIEI + CTE DB-SI), textos 'Propagación interior/exterior' y 'Anexo justificativo de propagación'. Paso Construcción y propagación muestra el bloque azul 'Evacuación de humos y calor · superficie de ventilación (RSCIEI Anexo III, 8.4)' con el input data-testid construccion-taller-humos-vent SOLO en el sector RSCIEI (persistencia OK, valor 7.75). DOCX contiene 'Anexo justificativo de propagación', 'Propagación interior' y 'Propagación exterior'. Reducción R por rociadores aplica sólo a sectores RSCIEI: base R 90 → R 60 con valor_base, reduccion_rociadores=true y cita 'Anexo II, Sección 5'; sectores CTE nunca se reducen. Aviso 8.4 activa observación 'warning' + 'AVISO: ventilación proyectada … insuficiente' cuando proyectada<exigida, y desaparece cuando proyectada>=exigida.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_incendios_phase5_anexo_rociadores_humos_e2e.py",
+    "/app/test_reports/pytest/full_iter29.xml",
+    "/app/test_reports/pytest/phase5_iter29.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine.py (rsciei) mantiene el bug latente ya reportado en iter28: DELIMITADORES se usa como fallback en _construccion pero se importa correctamente en L13, verificado OK — issue anterior resuelto.",
+    "requirements.py: la escala _ESCALA_R está duplicada implícitamente en el test; conviene exponerla como constante pública si más motores la necesitan.",
+    "engine.py aproxima ya las 960 LoC; sigue creciendo (Fase por fase). Recomendable división en submódulos por sección (construccion/escaleras/evacuacion/lre/humos) antes de la próxima fase.",
+    "Test isolation: los estudios seed 6a68... y 6a67... son mutados por múltiples suites; conviene disponer de un fixture central 'restore_study' (implementado localmente en phase5) o un endpoint /studies/{id}/reset para evitar races bajo xdist."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_incendios_phase5_anexo_rociadores_humos_e2e.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@normalab.com / Admin1234! (/app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se usan los estudios existentes 6a6846ef73ca337c4f097a3f (STUDY_MIXED, para el informe/DOCX/anexo) y 6a67710c3fd29edfa3820217 (STUDY_ALT, para las pruebas mutantes de rociadores y ventilación). Datos originales restaurados por el fixture 'restore_study'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Endpoint clave: NO existe /studies/{id}/recompute — se debe hacer PUT /api/studies/{id} con {data} y luego POST /api/studies/{id}/compute (devuelve {results, report}). Study.report se persiste en la BD y GET /api/studies/{id} devuelve doc.report. El anexo aparece como sección type='anexo_propagacion' con items=[{sector, ambito, normativa, interior[], exterior[]}]. La reducción de R por rociadores se detecta en s.requisitos.estabilidad.{reduccion_rociadores, valor_base}. El aviso 8.4 aparece como instalación 'Control de humos y calor' con superficie_aerodinamica.{proyectada, cumple} y una observación tipo warning en s.observaciones. En frontend el input humos-vent (construccion-{id}-humos-vent) solo se renderiza en sectores RSCIEI; en sectores CTE está oculto (verificado: 1 input en un estudio con 1 RSCIEI + 2 CTE).",
+  "rca of the issue": "N/A — Fase 5 sin issues bloqueantes."
+}

@@ -769,6 +769,15 @@ def _compute_sector(sec, deps, establecimiento):
         observaciones.append({"tipo": "advertencia", "texto": (
             f"Sector «{sec.get('nombre','?')}»: verificar/justificar las clases de reacción al fuego de los revestimientos ({tabla_ref}).")})
 
+    # Aviso de ventilación de humos (RSCIEI Anexo III, 8.4): superficie proyectada < aerodinámica exigida.
+    _humo_inst = next((i for i in (requisitos.get("instalaciones") or []) if i.get("superficie_aerodinamica")), None)
+    _aero = _humo_inst.get("superficie_aerodinamica") if _humo_inst else None
+    if _aero and _aero.get("proyectada") is not None and _aero.get("cumple") is False:
+        observaciones.append({"tipo": "warning", "texto": (
+            f"Sector «{sec.get('nombre','?')}»: la superficie de ventilación proyectada ({_aero['proyectada']:.2f} m²) es "
+            f"INFERIOR a la superficie aerodinámica de evacuación de humos exigida ({_aero['superficie_aerodinamica']:.2f} m², "
+            f"RSCIEI Anexo III, 8.4). Debe aumentar los huecos de ventilación o justificar una solución equivalente.")})
+
     estado = "cumple"
     med_nc = bool(med and med.get("estado") == "no_cumple")
     fach_nc = bool(fach and fach.get("estado") == "no_cumple")

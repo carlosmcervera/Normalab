@@ -1,6 +1,6 @@
 """Non-binding report template for the RSCIEI module (RD 164/2025, multi-sector)."""
 from core.models import utcnow_iso
-from normative_modules.rsciei.norm_texts import build_fundamentos
+from normative_modules.rsciei.norm_texts import build_fundamentos, build_anexo_propagacion
 
 
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
@@ -88,8 +88,14 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
             "items": results.get("observaciones", []),
         },
         {
+            "id": "anexo_propagacion",
+            "title": "9. Anexo justificativo de propagación (interior y exterior)",
+            "type": "anexo_propagacion",
+            "items": build_anexo_propagacion(results),
+        },
+        {
             "id": "fundamentos",
-            "title": "9. Fundamentos normativos (extractos de la norma)",
+            "title": "10. Fundamentos normativos (extractos de la norma)",
             "type": "fundamentos",
             "items": build_fundamentos(results),
         },

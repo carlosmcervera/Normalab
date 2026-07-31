@@ -212,6 +212,21 @@ export function ConstruccionStep({ data, setData }) {
                 <Input className="ml-2 h-8 flex-1 rounded-sm text-xs" placeholder="Observaciones de cubierta (opcional)" value={s.cubierta_obs || ""} onChange={(e) => update(s.id, { cubierta_obs: e.target.value })} data-testid={`construccion-${s.id}-cubierta-obs`} />
               </div>
             </div>
+
+            {/* ================= EVACUACIÓN DE HUMOS (8.4) ================= */}
+            {!esCte && (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50/40 p-3" data-testid={`construccion-${s.id}-humos`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Evacuación de humos y calor · superficie de ventilación (RSCIEI Anexo III, 8.4)</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  La superficie aerodinámica exigida (0,5 m² por cada 200/150 m² en producción y 150/100 m² en almacenamiento, según rasante) se calcula automáticamente.
+                  Introduzca la superficie de ventilación proyectada para que el informe avise si es insuficiente.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Label className={fieldLabel}>Superficie de ventilación proyectada (m²)</Label>
+                  <Input className="h-8 w-32 rounded-sm font-mono text-xs" placeholder="m²" value={s.humos_ventilacion_proyectada ?? ""} onChange={(e) => update(s.id, { humos_ventilacion_proyectada: e.target.value })} data-testid={`construccion-${s.id}-humos-vent`} />
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
