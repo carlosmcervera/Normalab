@@ -285,6 +285,13 @@ ESC_RESISTENCIA = {
 }
 ESC_PROT_LABEL = {"no_protegida": "no protegida", "protegida": "protegida", "especialmente": "especialmente protegida"}
 
+# Mapeo del tipo de escalera proyectado (elegido por el técnico) al grado de protección canónico.
+ESC_TIPO_TO_PROT = {
+    "abierta": "no_protegida", "no_protegida": "no_protegida",
+    "protegida": "protegida", "compartimentada": "protegida",
+    "especialmente_protegida": "especialmente", "especialmente": "especialmente",
+}
+
 
 def _proteccion_requerida(uso, sentido, h):
     if sentido == "ascendente":
@@ -310,7 +317,8 @@ def _anchura_min_escalera(P, sentido, h, protegida, S, min_w):
 
 
 def _escalera_calc(d):
-    """Anchura mínima y grado de protección exigidos a la escalera (CTE DB-SI SI-3)."""
+    """Clasifica la escalera PROYECTADA (con su RF) y la valida frente a la protección
+    mínima EXIGIDA por el CTE DB-SI (SI 3, Tabla 5.1), además de la anchura (Tabla 4.1)."""
     tipo = d.get("esc_tipo") or "protegida"
     sentido = "descendente" if tipo == "abierta" else (d.get("esc_sentido") or "descendente")
     P = float(d.get("esc_ocupantes") or 0)
@@ -318,8 +326,11 @@ def _escalera_calc(d):
     uso = d.get("esc_uso") or "Aparcamiento / Industrial"
     S = float(d.get("esc_superficie") or 0)
     min_w = 0.80 if d.get("esc_uso_restringido") else 1.00
+    # Protección PROYECTADA (lo que se construye) y protección mínima EXIGIDA por altura/uso.
+    proteccion_proy = ESC_TIPO_TO_PROT.get(tipo, "protegida")
     proteccion_req = _proteccion_requerida(uso, sentido, h)
-    protegida = proteccion_req in ("protegida", "especialmente")
+    # La anchura y el recinto se calculan según la escalera realmente proyectada.
+    protegida = proteccion_proy in ("protegida", "especialmente")
     a_min = _anchura_min_escalera(P, sentido, h, protegida, S, min_w)
     a_proy = float(d.get("esc_anchura") or 0)
     if a_min == float("inf"):
@@ -329,8 +340,10 @@ def _escalera_calc(d):
         a_min = round(a_min, 2)
         anchura_estado = "pendiente" if a_proy <= 0 else ("cumple" if a_proy >= a_min - 1e-6 else "no_cumple")
         a_min_txt = f"{a_min:.2f} m"
-    proteccion_estado = "cumple" if _ESC_RANK.get(tipo, 0) >= _ESC_RANK.get(proteccion_req, 0) else "no_cumple"
-    resist = ESC_RESISTENCIA.get(proteccion_req, ESC_RESISTENCIA["protegida"])
+    # Cumple si la protección proyectada es igual o superior a la exigida.
+    proteccion_estado = "cumple" if _ESC_RANK.get(proteccion_proy, 0) >= _ESC_RANK.get(proteccion_req, 0) else "no_cumple"
+    resist = ESC_RESISTENCIA.get(proteccion_proy, ESC_RESISTENCIA["protegida"])      # RF del recinto proyectado
+    resist_req = ESC_RESISTENCIA.get(proteccion_req, ESC_RESISTENCIA["no_protegida"])  # RF mínimo exigido
     if anchura_estado == "no_admitido" or "no_cumple" in (anchura_estado, proteccion_estado):
         estado = "no_cumple"
     elif "pendiente" in (anchura_estado, proteccion_estado):
@@ -341,10 +354,13 @@ def _escalera_calc(d):
         "ocupantes": P, "altura_evacuacion": h, "uso": uso, "sentido": sentido,
         "anchura_min": None if a_min == float("inf") else a_min, "anchura_min_texto": a_min_txt,
         "anchura_proyectada": a_proy, "anchura_estado": anchura_estado,
+        "proteccion_proyectada": proteccion_proy,
+        "proteccion_proyectada_label": ESC_PROT_LABEL.get(proteccion_proy, proteccion_proy),
         "proteccion_requerida": proteccion_req,
         "proteccion_requerida_label": ESC_PROT_LABEL.get(proteccion_req, proteccion_req),
         "proteccion_estado": proteccion_estado,
         "resistencia": resist["r"], "resistencia_detalle": resist["detalle"],
+        "resistencia_requerida": resist_req["r"],
         "min_normativo": min_w, "estado": estado,
     }
 
@@ -733,9 +749,11 @@ def _compute_sector(sec, deps, establecimiento):
         if c.get("altura_evacuacion"):
             detalle += f", altura de evacuación {c['altura_evacuacion']:.2f} m"
         detalle += ")."
-        detalle += (f" Según el CTE DB-SI (SI 3, Tabla 5.1) se exige una escalera {c.get('proteccion_requerida_label', 'protegida')}"
-                    f" con recinto {c.get('resistencia', 'EI 120')}; anchura mínima {c.get('anchura_min_texto', '—')}"
-                    f" (Tabla 4.1). No computa carga de fuego (zona de paso).")
+        detalle += (f" Se proyecta una escalera {c.get('proteccion_proyectada_label', tipo_txt)} con recinto "
+                    f"{c.get('resistencia', 'EI 120')}. El CTE DB-SI (SI 3, Tabla 5.1) exige como mínimo una "
+                    f"escalera {c.get('proteccion_requerida_label', 'no protegida')} (recinto "
+                    f"{c.get('resistencia_requerida', '—')}); anchura mínima {c.get('anchura_min_texto', '—')} "
+                    f"(Tabla 4.1). No computa carga de fuego (zona de paso).")
         est = c.get("estado")
         tipo_obs = "error" if est == "no_cumple" else ("warning" if est == "pendiente" else "info")
         if c.get("anchura_estado") == "no_cumple":

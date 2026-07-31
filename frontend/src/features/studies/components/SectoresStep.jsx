@@ -132,7 +132,7 @@ const draftEscalera = (x) => {
   const c = escaleraCalc(x);
   let calc = "";
   if (c.ocupantes || c.altura) {
-    calc = ` Para ${num(c.ocupantes)} ocupantes a evacuar y una altura de evacuación de ${num(c.altura, 2)} m, el CTE DB-SI (SI 3, Tabla 5.1) exige una escalera ${c.proteccionLabel} con recinto ${c.resistencia}, y una anchura mínima de ${c.anchuraMinTexto} (Tabla 4.1).`;
+    calc = ` Para ${num(c.ocupantes)} ocupantes a evacuar y una altura de evacuación de ${num(c.altura, 2)} m, el CTE DB-SI (SI 3, Tabla 5.1) exige como mínimo una escalera ${c.proteccionRequeridaLabel} (recinto ${c.resistenciaRequerida}). Se proyecta una escalera ${c.proteccionProyectadaLabel} con recinto ${c.resistencia} y una anchura mínima de ${c.anchuraMinTexto} (Tabla 4.1).`;
   }
   return `${partes.join(", ")}. Se justifica conforme al CTE DB-SI (SI 3) y DB-SUA: ${prot}, con continuidad hasta la salida de edificio y anchura suficiente para la ocupación evacuada.${calc} Al ser zona de paso, no computa carga de fuego.`;
 };
@@ -639,8 +639,10 @@ function AssignmentRows({ x, i, clase, isEscalera, meta, isOpen, sinSector, sect
                     </label>
                     {/* Resultado en vivo (CTE DB-SI · Tablas 4.1 y 5.1) */}
                     <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] sm:col-span-4" data-testid={`estancia-${i}-esc-calc`}>
-                      <span className="text-muted-foreground">Protección exigida:{" "}
-                        <b className={`${escCalc?.proteccionEstado === "no_cumple" ? "text-red-700" : "text-blue-800"}`} data-testid={`estancia-${i}-esc-proteccion`}>{escCalc?.proteccionLabel || "—"}</b></span>
+                      <span className="text-muted-foreground">Protección proyectada:{" "}
+                        <b className={`${escCalc?.proteccionEstado === "no_cumple" ? "text-red-700" : "text-blue-800"}`} data-testid={`estancia-${i}-esc-proteccion`}>{escCalc?.proteccionProyectadaLabel || "—"}</b></span>
+                      <span className="text-muted-foreground">Exigida mín.:{" "}
+                        <b className="text-foreground" data-testid={`estancia-${i}-esc-proteccion-req`}>{escCalc?.proteccionRequeridaLabel || "—"}</b></span>
                       <span className="text-muted-foreground">RF recinto: <b className="font-mono text-foreground" data-testid={`estancia-${i}-esc-rf`}>{escCalc?.resistencia || "—"}</b></span>
                       <span className="text-muted-foreground">Anchura mín. (Tabla 4.1): <b className="font-mono text-foreground" data-testid={`estancia-${i}-esc-anchura-min`}>{escCalc?.anchuraMinTexto || "—"}</b></span>
                       <span className={`ml-auto rounded-sm px-1.5 py-0.5 font-semibold ${escCalc?.estado === "no_cumple" ? "bg-red-100 text-red-700" : escCalc?.estado === "cumple" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`} data-testid={`estancia-${i}-esc-estado`}>

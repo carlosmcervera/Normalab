@@ -104,8 +104,12 @@ def test_escalera_no_cumple_abierta_comercial(sess, project_id):
     assert calc is not None, "bloque 'calculo' ausente en la escalera"
     # Para 'Comercial/Pública concurrencia' descendente h=20 → protegida
     assert calc["proteccion_requerida"] == "protegida", calc
-    # RF del recinto: EI 120
-    assert calc["resistencia"] == "EI 120"
+    # Proyectada 'abierta' → no protegida (RF proyectado —); RF mínimo exigido EI 120.
+    assert calc["proteccion_proyectada"] == "no_protegida", calc
+    assert calc["resistencia"] == "—"
+    assert calc["resistencia_requerida"] == "EI 120"
+    # La protección proyectada (no protegida) es insuficiente frente a la exigida (protegida)
+    assert calc["proteccion_estado"] == "no_cumple", calc
     # Anchura mín ≥ 1.00 (P/160=0.625, min_w=1.00)
     assert calc["anchura_min"] >= 1.00
     # Anchura proyectada 0.9 < min → no_cumple

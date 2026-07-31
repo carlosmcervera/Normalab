@@ -86,7 +86,12 @@ const PROT_ESC_DESC = {
   "Aparcamiento / Industrial": [14.0, 28.0],
 };
 const PROT_ESC_ASC = [2.80, 6.00];
-const ESC_RANK = { abierta: 0, no_protegida: 0, protegida: 1, compartimentada: 1, especialmente: 2 };
+const ESC_RANK = { no_protegida: 0, protegida: 1, especialmente: 2 };
+const ESC_TIPO_TO_PROT = {
+  abierta: "no_protegida", no_protegida: "no_protegida",
+  protegida: "protegida", compartimentada: "protegida",
+  especialmente_protegida: "especialmente", especialmente: "especialmente",
+};
 const ESC_RES = {
   no_protegida: { r: "—", label: "no protegida" },
   protegida: { r: "EI 120", label: "protegida" },
@@ -108,8 +113,9 @@ export function escaleraCalc(d) {
   const uso = d.esc_uso || "Aparcamiento / Industrial";
   const S = Number(d.esc_superficie) || 0;
   const minW = d.esc_uso_restringido ? 0.80 : 1.00;
+  const protProy = ESC_TIPO_TO_PROT[tipo] || "protegida";
   const protReq = proteccionRequerida(uso, sentido, h);
-  const protegida = protReq === "protegida" || protReq === "especialmente";
+  const protegida = protProy === "protegida" || protProy === "especialmente";
   let aMin;
   let noAdmisible = false;
   if (protegida && S) {
@@ -127,8 +133,9 @@ export function escaleraCalc(d) {
   if (aMin === Infinity) anchuraEstado = "no_admitido";
   else if (aProy <= 0) anchuraEstado = "pendiente";
   else anchuraEstado = aProy >= aMin - 1e-6 ? "cumple" : "no_cumple";
-  const protEstado = (ESC_RANK[tipo] || 0) >= (ESC_RANK[protReq] || 0) ? "cumple" : "no_cumple";
-  const res = ESC_RES[protReq] || ESC_RES.protegida;
+  const protEstado = (ESC_RANK[protProy] || 0) >= (ESC_RANK[protReq] || 0) ? "cumple" : "no_cumple";
+  const res = ESC_RES[protProy] || ESC_RES.protegida;
+  const resReq = ESC_RES[protReq] || ESC_RES.no_protegida;
   let estado = "cumple";
   if (anchuraEstado === "no_admitido" || anchuraEstado === "no_cumple" || protEstado === "no_cumple") estado = "no_cumple";
   else if (anchuraEstado === "pendiente") estado = "pendiente";
@@ -137,8 +144,10 @@ export function escaleraCalc(d) {
     anchuraMin: aMin === Infinity ? null : aMin,
     anchuraMinTexto: aMin === Infinity ? "No admisible sin protección" : `${aMin.toFixed(2)} m`,
     anchuraProy: aProy, anchuraEstado,
-    proteccionRequerida: protReq, proteccionLabel: res.label, proteccionEstado: protEstado,
-    resistencia: res.r, estado,
+    proteccionProyectada: protProy, proteccionProyectadaLabel: res.label,
+    proteccionRequerida: protReq, proteccionRequeridaLabel: resReq.label,
+    proteccionLabel: res.label, proteccionEstado: protEstado,
+    resistencia: res.r, resistenciaRequerida: resReq.r, estado,
   };
 }
 

@@ -227,7 +227,8 @@ def _sector_docx(doc, s):
         calc_txt = ""
         if c:
             calc_txt = (f" · {_fmt(c.get('ocupantes'))} ocupantes · altura {_fmt(c.get('altura_evacuacion'), 2)} m"
-                        f" · exige escalera {c.get('proteccion_requerida_label', 'protegida')} ({c.get('resistencia', 'EI 120')})"
+                        f" · proyectada {c.get('proteccion_proyectada_label', tipo)} (recinto {c.get('resistencia', 'EI 120')})"
+                        f" · exige mín. {c.get('proteccion_requerida_label', 'no protegida')} (recinto {c.get('resistencia_requerida', '—')})"
                         f" · anchura mín. {c.get('anchura_min_texto', '—')}"
                         f" / proyectada {_fmt(c.get('anchura_proyectada'), 2)} m"
                         f" ({'CUMPLE' if c.get('estado') == 'cumple' else 'NO CUMPLE' if c.get('estado') == 'no_cumple' else 'pendiente'})")

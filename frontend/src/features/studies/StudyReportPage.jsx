@@ -195,10 +195,14 @@ function SectorReport({ s }) {
                       P = {num(c.ocupantes)} ocupantes · h = {num(c.altura_evacuacion, 2)} m · uso: {c.uso}
                     </p>
                   )}
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
+                  <div className="mt-2 grid gap-2 sm:grid-cols-4 text-xs">
                     <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
-                      <span className="uppercase text-muted-foreground">Protección exigida (Tabla 5.1)</span>
-                      <p className={`font-semibold ${c.proteccion_estado === "no_cumple" ? "text-red-700" : ""}`}>{c.proteccion_requerida_label || "—"}</p>
+                      <span className="uppercase text-muted-foreground">Protección proyectada</span>
+                      <p className={`font-semibold ${c.proteccion_estado === "no_cumple" ? "text-red-700" : "text-emerald-700"}`}>{c.proteccion_proyectada_label || (ESC_TIPO_LABEL[e.tipo] || "protegida")}</p>
+                    </div>
+                    <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
+                      <span className="uppercase text-muted-foreground">Exigida mín. (Tabla 5.1)</span>
+                      <p className="font-semibold">{c.proteccion_requerida_label || "—"}</p>
                     </div>
                     <div className="rounded-sm bg-secondary/40 px-2 py-1.5">
                       <span className="uppercase text-muted-foreground">RF del recinto</span>
