@@ -416,6 +416,10 @@ def _compute_sector(sec, deps, establecimiento):
     depositos = []
     numerador = 0.0
     rmins, used_ci, ras = [], [], []
+    _acts = [(d.get("actividad_cat") or d.get("actividad") or d.get("uso_ocupacion") or "").strip()
+             for d in calc_deps]
+    _acts = [a for a in _acts if a]
+    actividad_sector = max(set(_acts), key=_acts.count) if _acts else (sec.get("actividad") or "—")
     for d in calc_deps:
         ci = float(d.get("ci") or 0)
         s = float(d.get("sup_util") or d.get("sup_construida") or 0)
@@ -670,6 +674,7 @@ def _compute_sector(sec, deps, establecimiento):
         "config_label": CONFIG_LABELS.get(config, config),
         "situacion": situacion,
         "modo_predominante": modo_pred,
+        "actividad": actividad_sector,
         "ocupacion": ocupacion_sector,
         "rmin_requerido": rmin_req,
         "calculo": {"numerador": round(numerador, 2), "A": round(A_util, 2), "A_construida": round(A_const, 2),

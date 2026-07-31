@@ -159,14 +159,25 @@ def _sector_docx(doc, s):
     rh.font.color.rgb = ORANGE
 
     calc = s.get("calculo", {})
+    actividad = s.get("actividad") or "—"
+    modo_pred = "Almacenamiento" if s.get("modo_predominante") == "almacenamiento" else "Producción"
+    pa = doc.add_paragraph()
+    pa.add_run(f"Actividad: {actividad}  ·  Modo predominante: {modo_pred}").font.size = Pt(9)
     rows = []
     for z in calc.get("zonas", []):
-        modo = {"almacenamiento": "Almac.", "deposito": "Depósito"}.get(z.get("modo"), "Prod.")
-        rows.append([z.get("descripcion", ""), modo, f"Ci {_fmt(z.get('ci'), 2)}",
+        m = z.get("modo")
+        modo = {"almacenamiento": "Almacenamiento", "deposito": "Depósito"}.get(m, "Producción")
+        if m == "almacenamiento":
+            dens, hv = f"{_fmt(z.get('qvi'))} MJ/m³", f"{_fmt(z.get('hi'))} m"
+        elif m == "deposito":
+            dens, hv = f"PCI {_fmt(z.get('pci'))}·ρ {_fmt(z.get('dens_comb'))}", f"{_fmt(z.get('volumen'))} m³"
+        else:
+            dens, hv = f"{_fmt(z.get('qsi'))} MJ/m²", "—"
+        rows.append([z.get("descripcion", ""), modo, _fmt(z.get("ci"), 2), dens, hv,
                      f"{_fmt(z.get('superficie'))} m²", f"{_fmt(z.get('aporte'))} MJ"])
-    totals = [f"A = {_fmt(calc.get('A'))} m² (útil)  ·  Ra = {_fmt(calc.get('ra'), 1)}", "", "", "",
-              f"Qs = {_fmt(calc.get('qs_mj'), 1)} MJ/m²"]
-    _generic_table(doc, ["Zona", "Modo", "Ci", "Superficie", "Aporte"], rows, totals=totals)
+    totals = [f"Σ(qi·Ci·Si) = {_fmt(calc.get('numerador'))} MJ · A = {_fmt(calc.get('A'))} m² · Ra = {_fmt(calc.get('ra'), 2)}",
+              "", "", "", "", "Qs =", f"{_fmt(calc.get('qs_mj'), 1)} MJ/m²"]
+    _generic_table(doc, ["Actividad / zona", "Modo", "Ci", "qsi / qvi", "hi / Vol", "Superficie", "Parcial"], rows, totals=totals)
 
     sec = s.get("sectorizacion", {})
     if sec.get("mensaje"):

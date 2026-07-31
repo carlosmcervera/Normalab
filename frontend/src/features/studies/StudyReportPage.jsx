@@ -5,6 +5,7 @@ import { ArrowLeft, Printer, History, Loader2, AlertTriangle, FileText, FileSpre
 import { toast } from "sonner";
 import { api, apiError, downloadFile } from "@/lib/api";
 import { EsquemaUnifilar } from "@/features/studies/components/EsquemaUnifilar";
+import { CargaFuegoTable } from "@/features/studies/components/CargaFuegoTable";
 import { isSurfacesOutdated, SurfacesOutdatedBanner } from "@/features/studies/components/SurfacesAlert";
 import { formatDate, num, RISK_STYLES, STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -97,21 +98,12 @@ function SectorReport({ s }) {
       </div>
       <table className="w-full text-sm">
         <tbody className="font-mono">
-          {s.calculo.zonas.map((z, i) => (
-            <tr key={i} className="border-b border-border">
-              <td className="px-4 py-1.5 font-sans">{z.descripcion}</td>
-              <td className="px-4 py-1.5 font-sans text-muted-foreground">{z.modo === "deposito" ? "Depósito" : z.modo === "almacenamiento" ? "Almac." : "Prod."}</td>
-              <td className="px-4 py-1.5 text-right">Ci {num(z.ci, 2)}</td>
-              <td className="px-4 py-1.5 text-right">{num(z.superficie)} m²</td>
-              <td className="px-4 py-1.5 text-right">{num(z.aporte)} MJ</td>
-            </tr>
-          ))}
           <tr className="bg-secondary/40">
-            <td className="px-4 py-2 font-sans" colSpan={3}>A = {num(s.calculo.A)} m² (útil) · Ra = {num(s.calculo.ra, 1)}</td>
-            <td className="px-4 py-2 text-right font-bold" colSpan={2}>Qs = {num(s.calculo.qs_mj, 1)} MJ/m²</td>
+            <td className="px-4 py-2 font-sans">Actividad: <b>{s.actividad || "—"}</b> · Modo predominante: <b>{s.modo_predominante === "almacenamiento" ? "Almacenamiento" : "Producción"}</b></td>
           </tr>
         </tbody>
       </table>
+      <CargaFuegoTable calculo={s.calculo} categoria={s.nivel_riesgo.categoria} />
       <p className="border-t border-border px-4 py-2 text-sm text-slate-700">{sec.mensaje}</p>
       <div className="grid grid-cols-3 gap-3 border-t border-border p-4 text-sm">
         <div><span className="text-xs uppercase text-muted-foreground">Estabilidad</span><p className="font-mono font-semibold">{s.requisitos.estabilidad?.valor}</p></div>

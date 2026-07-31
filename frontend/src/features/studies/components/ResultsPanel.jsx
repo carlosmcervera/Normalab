@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle, Building2, Users, Ruler } from "lucide-react";
 import { num, RISK_STYLES, STATE_META } from "@/lib/format";
+import { CargaFuegoTable } from "@/features/studies/components/CargaFuegoTable";
 
 const OBS_CLS = {
   info: "border-slate-200 bg-slate-50 text-slate-700",
@@ -61,6 +62,7 @@ function SectorCard({ s }) {
         <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Ra</p><p className="mt-1 font-mono">{num(s.calculo.ra, 1)}</p></div>
       </div>
       <p className="border-t border-border px-4 py-2 text-sm text-muted-foreground">{sec.mensaje}</p>
+      <CargaFuegoTable calculo={s.calculo} categoria={s.nivel_riesgo.categoria} />
       <div className="grid grid-cols-1 gap-4 border-t border-border p-4 sm:grid-cols-3">
         <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Estabilidad estructura</p><p className="mt-1 font-mono font-semibold">{s.requisitos.estabilidad?.valor}</p></div>
         <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Delimitadores</p><p className="mt-1 font-mono font-semibold">{s.requisitos.delimitadores?.valor}</p></div>
