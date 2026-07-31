@@ -34,6 +34,62 @@ _PODER_CORTE = {
     "garaje": 6, "industrial": 10, "publica_concurrencia": 10, "otro": 6,
 }
 
+# Corriente de cortocircuito presunta en el origen (cabecera) por defecto (A), método
+# simplificado de la Guía Técnica BT-22 (a falta de datos de red). Configurable por estudio.
+_ICC_ORIGEN = {
+    "vivienda_basica": 4500, "vivienda_elevada": 6000, "local_comercial": 6000,
+    "garaje": 6000, "industrial": 10000, "publica_concurrencia": 10000, "otro": 6000,
+}
+
+# Constante térmica k del conductor (A·s^0,5/mm²), UNE 20460-4-43 / ITC-BT-22.
+_K_TERMICO = {("Cu", "PVC"): 115, ("Cu", "XLPE"): 143, ("Al", "PVC"): 76, ("Al", "XLPE"): 94}
+
+# Factor de disparo magnético Im = f·In según la curva del interruptor automático.
+_IM_CURVA = {"B": 5, "C": 10, "D": 20}
+
+# Sobre-resistencia del cable a temperatura de servicio (para la Icc mínima, conductor caliente).
+_TEMP_FACTOR = 1.24
+
+
+def _z_cable(L, gamma, s):
+    """Resistencia por conductor del tramo (Ω). Se desprecia la reactancia (estudio orientativo)."""
+    return (L / (gamma * s)) if (L > 0 and s > 0 and gamma > 0) else 0.0
+
+
+def _icc(icc_origen, z_acum, m, U):
+    """Icc en un punto: 1/Icc = 1/Icc_origen + m·Z_acum/U (impedancias en serie)."""
+    if icc_origen <= 0:
+        return 0.0
+    inv = 1.0 / icc_origen + (m * z_acum / U if U > 0 else 0.0)
+    return 1.0 / inv if inv > 0 else 0.0
+
+
+def _cortocircuito(general, z_up, L, s, In):
+    """Comprobación frente a cortocircuitos (ITC-BT-22): poder de corte, resistencia térmica
+    (k²·S² ≥ I²t) y actuación del disparo magnético (Icc_min ≥ Im)."""
+    m = general["m"]; U = general["U_icc"]; gamma = general["gamma"]
+    icc0 = general["icc_origen"]; k = general["k_term"]; t = general["t_disparo"]
+    pdc = general["poder_corte_ka"] * 1000.0
+    z_line = _z_cable(L, gamma, s)
+    icc_max = _icc(icc0, z_up, m, U)                       # falta al inicio del cable (conductor frío)
+    icc_min = _icc(icc0, (z_up + z_line) * _TEMP_FACTOR, m, U)  # falta al final (conductor caliente)
+    i2t_cable = (k * s) ** 2                                # capacidad térmica del cable
+    i2t_paso = (icc_max ** 2) * t                           # energía pasante estimada
+    t_adm = (k * s / icc_max) ** 2 if icc_max > 0 else float("inf")
+    im = In * general["im_factor"] if In else 0.0
+    pdc_ok = pdc >= icc_max - 1e-6
+    term_ok = i2t_cable >= i2t_paso - 1e-6
+    mag_ok = (icc_min >= im - 1e-6) if In else True
+    return {
+        "icc_max_a": round(icc_max, 0), "icc_min_a": round(icc_min, 0),
+        "im_a": round(im, 0), "curva": general["curva"],
+        "i2t_cable": round(i2t_cable, 0), "i2t_paso": round(i2t_paso, 0),
+        "t_adm_s": round(t_adm, 3) if t_adm != float("inf") else None, "t_disparo_s": t,
+        "poder_corte_ka": general["poder_corte_ka"], "pdc_ok": pdc_ok,
+        "termico_ok": term_ok, "magnetico_ok": mag_ok, "z_line": z_line,
+        "protege_cc": bool(pdc_ok and term_ok and mag_ok),
+    }
+
 
 def _num(v, d=0.0):
     try:
@@ -226,7 +282,7 @@ def _p_dem(board):
 # ---------------------------------------------------------------------------
 # Cálculo de un circuito final (línea directa o sublínea de puente)
 # ---------------------------------------------------------------------------
-def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas, cuadro_pot):
+def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, obs, lineas, cuadro_pot):
     V = general["V"]; suministro = general["suministro"]
     material = general["material"]; gamma = CONDUCTIVIDAD.get(material, 56.0)
     P = _num(carga.get("potencia"))
@@ -240,6 +296,7 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
         suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
     caida_total = caida_base + caida_c
     br_ok = bool(prot and prot["protege"])
+    cc = _cortocircuito(general, z_busbar, L, s_el, breaker)
     tierra = seccion_tierra(s_el)
     limite = _limite_total(general, tipo)
     cdt_ok = caida_total <= limite + 1e-6
@@ -247,6 +304,8 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
     if P <= 0 or not cdt_ok:
         estado = "no_cumple"
     elif not br_ok:
+        estado = "observaciones"
+    elif not cc["protege_cc"]:
         estado = "observaciones"
     nombre = carga.get("nombre") or "Circuito"
     out = {
@@ -256,14 +315,14 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
         "caida_pct": round(caida_c, 2), "caida_acum_pct": round(caida_total, 2), "limite_total": limite,
         "magneto": breaker, "sensibilidad": int(dif_sens), "tierra": _fmt_s(tierra),
         "estado": estado, "factor_uso": _num(carga.get("factor_uso"), 1) or 1,
-        "proteccion": prot, "seccion_ajustada": ajustada, "seccion_min": s_min,
+        "proteccion": prot, "seccion_ajustada": ajustada, "seccion_min": s_min, "cortocircuito": cc,
     }
     lineas.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": "circuito",
         "potencia": round(P, 1), "Ib": round(Ib, 2), "seccion": s_el, "seccion_txt": _fmt_s(s_el),
         "iz": round(iz, 1), "caida_pct": round(caida_c, 2), "caida_acum_pct": round(caida_total, 2),
         "proteccion": f"{breaker} A", "diferencial": f"{int(dif_sens)} mA", "tierra": _fmt_s(tierra),
-        "estado": estado, "longitud": L, "protege_cable": br_ok, "coordinacion": prot,
+        "estado": estado, "longitud": L, "protege_cable": br_ok, "coordinacion": prot, "cortocircuito": cc,
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -281,13 +340,26 @@ def _final_line(carga, general, caida_base, cuadro_nombre, dif_sens, obs, lineas
         obs.append({"tipo": "info", "texto": f"«{cuadro_nombre} · {nombre}»: se ha aumentado la sección a "
                     f"{_fmt_s(s_el)} mm² para que el magnetotérmico de {breaker} A proteja el cable "
                     f"(Ib≤In≤Iz e I2≤1,45·Iz, ITC-BT-22)."})
+    if P > 0 and br_ok and not cc["protege_cc"]:
+        if not cc["pdc_ok"]:
+            obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: poder de corte insuficiente frente "
+                        f"a cortocircuito: se prevé Icc máx ≈ {cc['icc_max_a']:.0f} A > {cc['poder_corte_ka']} kA "
+                        f"del interruptor (ITC-BT-22). Aumente el poder de corte."})
+        if not cc["termico_ok"]:
+            obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: comprobación térmica de cortocircuito "
+                        f"no cumple (k²·S² {cc['i2t_cable']:.0f} < I²t {cc['i2t_paso']:.0f}, ITC-BT-22). "
+                        f"Aumente la sección o use protección más rápida."})
+        if not cc["magnetico_ok"]:
+            obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: la Icc mínima ({cc['icc_min_a']:.0f} A) "
+                        f"no garantiza el disparo magnético (Im curva {cc['curva']} ≈ {cc['im_a']:.0f} A). "
+                        f"Reduzca longitud/aumente sección o use una curva inferior."})
     return out
 
 
 # ---------------------------------------------------------------------------
 # Cálculo de un cuadro (recursivo)
 # ---------------------------------------------------------------------------
-def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_pot):
+def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas, cuadro_pot):
     V = general["V"]; suministro = general["suministro"]
     material = general["material"]; gamma = CONDUCTIVIDAD.get(material, 56.0)
 
@@ -297,6 +369,7 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
     simult = _num(board.get("simultaneidad"), 1) or 1
 
     caida_busbar = caida_base_pct
+    z_busbar = z_base
     lga_out = None
     lga = board.get("lga") or {}
     if es_raiz and lga.get("presente"):
@@ -305,6 +378,7 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
         Ib_l = _ib(suministro, p_dem, V, 0.9)
         s_l, iz_l, caida_l = _seccion_caida(suministro, L, p_dem, gamma, V, cmax, Ib_l, material)
         caida_busbar += caida_l
+        z_busbar += _z_cable(L, gamma, s_l)
         lga_out = {"seccion_txt": _fmt_s(s_l), "longitud": L, "caida_pct": round(caida_l, 2),
                    "caida_acum_pct": round(caida_busbar, 2)}
         lineas.append({
@@ -331,19 +405,22 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
         iga = In_feed if In_feed is not None else _breaker(Ib_board, iz_feed)[0]
         iga_ok = bool(prot_feed and prot_feed["protege"])
     tierra_feed = seccion_tierra(s_feed)
+    cc_feed = _cortocircuito(general, z_busbar, L_feed, s_feed, iga)
     caida_busbar += caida_feed
+    z_busbar += _z_cable(L_feed, gamma, s_feed)
     sens_gen = int(_num((board.get("diferencial_general") or {}).get("sensibilidad"), 300) or 300)
     spd = board.get("spd") or {}
     spd_out = {"presente": bool(spd.get("presente")), "tipo": spd.get("tipo") or "T2"}
 
+    feed_estado = "cumple" if (iga_ok and cc_feed["protege_cc"]) else "observaciones"
     tipo_linea = "Acometida / DI" if es_raiz else "Línea puente (alimentación subcuadro)"
     lineas.append({
         "cuadro": nombre, "circuito": tipo_linea, "tipo": "alimentacion",
         "potencia": round(p_dem, 1), "Ib": round(Ib_board, 2), "seccion": s_feed, "seccion_txt": _fmt_s(s_feed),
         "iz": round(iz_feed, 1), "caida_pct": round(caida_feed, 2), "caida_acum_pct": round(caida_busbar, 2),
         "proteccion": f"IGA {iga} A", "diferencial": f"{sens_gen} mA (general)",
-        "tierra": _fmt_s(tierra_feed), "estado": "cumple" if iga_ok else "observaciones",
-        "longitud": L_feed, "protege_cable": iga_ok, "coordinacion": prot_feed,
+        "tierra": _fmt_s(tierra_feed), "estado": feed_estado,
+        "longitud": L_feed, "protege_cable": iga_ok, "coordinacion": prot_feed, "cortocircuito": cc_feed,
     })
     if not iga_ok:
         obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA no protege el cable de alimentación "
@@ -361,7 +438,7 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
         k = node.get("kind")
         if k == "linea":
             dif_sens = int(_num(node.get("sensibilidad"), 30)) if node.get("dif_propio") else sens_gen
-            out = _final_line(node, general, caida_busbar, nombre, dif_sens, obs, lineas, cuadro_pot)
+            out = _final_line(node, general, caida_busbar, z_busbar, nombre, dif_sens, obs, lineas, cuadro_pot)
             out["kind"] = "linea"
             out["dif_propio"] = bool(node.get("dif_propio"))
             nodos_out.append(out)
@@ -378,16 +455,19 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
                 suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
             magneto_p = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
             ok_p = bool(prot_p and prot_p["protege"])
+            cc_p = _cortocircuito(general, z_busbar, L_p, s_p, magneto_p)
             caida_busbar_p = caida_busbar + caida_p
+            z_busbar_p = z_busbar + _z_cable(L_p, gamma, s_p)
             sens_p = int(_num(node.get("sensibilidad"), 30) or 30)
             tierra_p = seccion_tierra(s_p)
+            estado_p = "cumple" if (ok_p and cc_p["protege_cc"]) else "observaciones"
             lineas.append({
                 "cuadro": nombre, "circuito": f"{pnombre} (puente)", "tipo": "puente",
                 "potencia": round(p_dem_p, 1), "Ib": round(Ib_p, 2), "seccion": s_p, "seccion_txt": _fmt_s(s_p),
                 "iz": round(iz_p, 1), "caida_pct": round(caida_p, 2), "caida_acum_pct": round(caida_busbar_p, 2),
                 "proteccion": f"{magneto_p} A", "diferencial": f"{sens_p} mA", "tierra": _fmt_s(tierra_p),
-                "estado": "cumple" if ok_p else "observaciones", "longitud": L_p,
-                "protege_cable": ok_p, "coordinacion": prot_p,
+                "estado": estado_p, "longitud": L_p,
+                "protege_cable": ok_p, "coordinacion": prot_p, "cortocircuito": cc_p,
             })
             if not ok_p:
                 obs.append({"tipo": "warning", "texto": f"«{nombre} · {pnombre}»: el magnetotérmico de la línea "
@@ -397,18 +477,18 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
                             f"{_fmt_s(s_p)} mm² para que el magnetotérmico de {magneto_p} A proteja el cable (ITC-BT-22)."})
             sub_out = []
             for sub in node.get("sublineas", []):
-                o = _final_line(sub, general, caida_busbar_p, nombre, sens_p, obs, lineas, cuadro_pot)
+                o = _final_line(sub, general, caida_busbar_p, z_busbar_p, nombre, sens_p, obs, lineas, cuadro_pot)
                 sub_out.append(o)
             nodos_out.append({
                 "kind": "puente", "id": node.get("id"), "nombre": pnombre, "longitud": L_p,
                 "potencia": round(p_dem_p, 1), "Ib": round(Ib_p, 2), "seccion_txt": _fmt_s(s_p),
                 "iz": round(iz_p, 1), "caida_pct": round(caida_p, 2), "caida_acum_pct": round(caida_busbar_p, 2),
                 "magneto": magneto_p, "sensibilidad": sens_p, "tierra": _fmt_s(tierra_p),
-                "estado": "cumple" if ok_p else "observaciones", "sublineas": sub_out,
-                "proteccion": prot_p, "protege_cable": ok_p,
+                "estado": estado_p, "sublineas": sub_out,
+                "proteccion": prot_p, "protege_cable": ok_p, "cortocircuito": cc_p,
             })
         elif k == "subcuadro":
-            sub_arbol = _compute_board(node.get("board") or {}, general, caida_busbar, False, obs, lineas, cuadro_pot)
+            sub_arbol = _compute_board(node.get("board") or {}, general, caida_busbar, z_busbar, False, obs, lineas, cuadro_pot)
             nodos_out.append({"kind": "subcuadro", "id": node.get("id"), "board": sub_arbol})
 
     return {
@@ -427,15 +507,31 @@ def _compute_board(board, general, caida_base_pct, es_raiz, obs, lineas, cuadro_
 def compute(data: dict) -> dict:
     suministro = data.get("suministro") or "monofasica"
     V = TENSION.get(suministro, 230)
+    material = data.get("material") or "Cu"
+    tipo_inst = data.get("tipo_instalacion") or "otro"
+    aislamiento = (data.get("aislamiento") or "PVC").upper()
+    curva = (data.get("curva") or "C").upper()
+    poder_corte = int(_num(data.get("poder_corte_ka"), _PODER_CORTE.get(tipo_inst, 6)))
     general = {
         "suministro": suministro, "V": V,
-        "material": data.get("material") or "Cu",
-        "tipo_instalacion": data.get("tipo_instalacion") or "otro",
+        "material": material,
+        "tipo_instalacion": tipo_inst,
+        "gamma": CONDUCTIVIDAD.get(material, 56.0),
         "caida_max_lga": _num(data.get("caida_max_lga"), 0.5),
         "caida_max_di": _num(data.get("caida_max_di"), 1.5),
         "caida_max_circuito": _num(data.get("caida_max_circuito"), 3),
         "caida_max_total_alumbrado": _num(data.get("caida_max_total_alumbrado"), 3),
         "caida_max_total_otros": _num(data.get("caida_max_total_otros"), 5),
+        # Cortocircuito (ITC-BT-22)
+        "m": SQRT3 if suministro == "trifasica" else 2.0,
+        "U_icc": V,
+        "icc_origen": _num(data.get("icc_origen_a"), _ICC_ORIGEN.get(tipo_inst, 6000)),
+        "aislamiento": aislamiento,
+        "k_term": _K_TERMICO.get((material, aislamiento), 115),
+        "curva": curva,
+        "im_factor": _IM_CURVA.get(curva, 10),
+        "t_disparo": _num(data.get("t_disparo_s"), 0.01) or 0.01,
+        "poder_corte_ka": poder_corte,
     }
     root = _migrate_board(data.get("cuadro") or {})
     has_load = any(
@@ -448,12 +544,13 @@ def compute(data: dict) -> dict:
         raise ValueError("Añade al menos una carga o línea al cuadro para calcular el esquema.")
 
     obs, lineas, cuadro_pot = [], [], []
-    arbol = _compute_board(root, general, 0.0, True, obs, lineas, cuadro_pot)
+    arbol = _compute_board(root, general, 0.0, 0.0, True, obs, lineas, cuadro_pot)
 
-    poder_corte = _PODER_CORTE.get(general["tipo_instalacion"], 6)
-    obs.append({"tipo": "info", "texto": f"Poder de corte mínimo recomendado de los interruptores automáticos: "
-                f"{poder_corte} kA (ITC-BT-22, orientativo). Contrastar con la corriente de cortocircuito (Icc) "
-                f"prevista en el punto de instalación."})
+    icc_max_global = max((l.get("cortocircuito", {}).get("icc_max_a", 0) or 0 for l in lineas), default=0)
+    obs.append({"tipo": "info", "texto": f"Cortocircuito (ITC-BT-22, método simplificado): Icc presunta en origen "
+                f"{general['icc_origen']/1000:.1f} kA; Icc máx. calculada {icc_max_global/1000:.1f} kA. Poder de corte "
+                f"recomendado de los interruptores ≥ {poder_corte} kA (conductor {material}/{aislamiento}, k={general['k_term']}; "
+                f"curva {curva}). Contrastar con la Icc real del punto de instalación."})
 
     estados = [l["estado"] for l in lineas]
     if "no_cumple" in estados:

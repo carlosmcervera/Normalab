@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 30 — REBT: bug fix RebtCuadroStep (queryKey), coordinación magnetotérmico↔cable con autoajuste + sección mínima por tipo, y cortocircuito (ITC-BT-22) verificados. Backend: 8/8 nuevos pytest passing (test_rebt_cortocircuito_e2e.py) + 112 regresión = 120/120 passing (JUnit /app/test_reports/pytest/full_iter30.xml). Frontend: RebtCuadroStep del estudio existente 6a685484405c68bf00035174 carga sin el error 'estancias.map is not a function'; desplegable estancia por línea funcional (4 items: '—' + 3 estancias reales del expediente). Paso 'Datos generales' muestra bloque rebt-cc-config con los 4 selects/inputs (field-aislamiento, field-curva, field-icc-origen, field-poder-corte) y el cambio a XLPE + Icc origen 8000 se refleja en la UI (persistencia por setData). Backend cubre: coordinacion {Ib,In,Iz,I2,I2_max,cond_ib_in_iz,cond_i2,protege} + protege_cable en cada línea; sección mínima alumbrado≥1,5 y tomas/fuerza≥2,5; autoajuste con seccion_ajustada expuesto en árbol (Fuerza taller 7,8 kW mono → Ib≈37,7 A resuelto con In≤Iz); Icc decreciente en cascada (DI > subcuadro feed > sub circ); cortocircuito con icc_max/min, im, curva, i2t_cable/paso, pdc_ok, termico_ok, magnetico_ok, protege_cc; con Icc origen 50 kA + curva D se detectan casos protege_cc=false que mueven estado a 'observaciones'; PVC vs XLPE incrementa k²·S² (i2t_cable); informe REBT lleva sección type='rebt_cortocircuito' (título '6. Comprobación frente a cortocircuitos (ITC-BT-22)') además de 'rebt_lineas' con protege_cable; DOCX contiene los encabezados 'Icc máx (A)', 'Protege CC' y 'Protege cable'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rebt_cortocircuito_e2e.py",
+    "/app/test_reports/pytest/full_iter30.xml",
+    "/app/test_reports/pytest/rebt_cc_iter30.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "rebt/engine.py L187 usa `In, _ = _breaker(Ib, iz)` en la rama de fallback (ningún calibre encaja); es dead-code razonable pero la línea previa L184 dice 'usar la mayor sección y el calibre más próximo' — aceptable pero se recomienda añadir un test negativo con Ib enorme para cubrir esa rama.",
+    "engine.py ha crecido a ~590 LoC concentrando 5 responsabilidades (potencias, coordinación, autoajuste, CC, cascada). Sugerir extraer `_cortocircuito`/`_z_cable`/`_icc` a un submódulo cortocircuito.py para facilitar mantenimiento.",
+    "El bug de queryKey compartido entre RebtCuadroStep y ProyectoSuperficiesStep/SharedSurfacesStep quedaba oculto porque los tres consumen `/projects/{id}/estancias` con clave ['estancias', projectId]. Recomendación: normalizar la respuesta desde el hook (siempre {estancias, plantas}) o usar claves de query distintas por consumidor. Ya mitigado en RebtCuadroStep L70, pero cualquier futuro consumidor debe seguir la misma normalización — considerar centralizar en un hook useEstancias(projectId).",
+    "En el estudio 6a685484405c68bf00035174 el cuadro tiene un subcuadro con una línea 'c1 · Tomas · 4000 W · L 21 m' pero no hay línea directa en el cuadro general. Los cálculos siguen funcionando pero un aviso UI en la cabecera del cuadro (0 líneas directas + 0 puentes) ayudaría al usuario a distinguir intención."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rebt_cortocircuito_e2e.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@normalab.com / Admin1234! (/app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna persistente. Los tests crean/borran proyectos y estudios TEST-REBTCC-* de forma efímera con fixtures module-scope y cleanup en finally.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend REBT ya cubre coordinación + autoajuste + cortocircuito con 8 tests dedicados. El campo icc_origen_a se acepta directamente del payload (data.icc_origen_a) y sobrescribe el default por tipo de instalación en _ICC_ORIGEN. Los datos aislamiento/curva se leen de data.aislamiento (PVC/XLPE) y data.curva (B/C/D). Poder de corte de data.poder_corte_ka (kA) — por defecto 6 kA en vivienda/6 kA otro/10 kA industrial. En el frontend el bloque rebt-cc-config vive en el paso 2 'Datos generales' (no en 'Cargas y esquema'). El árbol/nodos añade 'seccion_ajustada' a cada línea (bool). Cuidado: los tests borran estudios pero no mutan el estudio seed 6a685484405c68bf00035174.",
+  "rca of the issue": "Bug 'estancias.map is not a function' resuelto en L70 de RebtCuadroStep.jsx normalizando la respuesta de useQuery: `const estancias = Array.isArray(shared?.estancias) ? shared.estancias : (Array.isArray(shared) ? shared : []);`. Causa raíz: el mismo queryKey ['estancias', projectId] era compartido por SharedSurfacesStep/ProyectoSuperficiesStep (que devuelven el objeto {estancias, plantas}) y por RebtCuadroStep (que antes accedía a r.data.estancias). Al hidratar la cache con el objeto completo, `r.data.estancias` era undefined en algunos flujos y `.map` estallaba. Reproducción original: navegar al estudio REBT tras haber visitado el paso de superficies; fix verificado en producción preview."
+}

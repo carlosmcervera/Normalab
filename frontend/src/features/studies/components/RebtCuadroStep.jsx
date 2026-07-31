@@ -61,12 +61,13 @@ function updateBoardAt(root, path, fn) {
 
 export function RebtCuadroStep({ data, setData, study }) {
   const projectId = study?.project_id;
-  const { data: estancias = [] } = useQuery({
+  const { data: shared = {} } = useQuery({
     queryKey: ["estancias", projectId],
-    queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
+    queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data),
     enabled: !!projectId,
     staleTime: 0,
   });
+  const estancias = Array.isArray(shared?.estancias) ? shared.estancias : (Array.isArray(shared) ? shared : []);
 
   useEffect(() => {
     setData((d) => (d.cuadro && Array.isArray(d.cuadro.nodos) ? d : { ...d, cuadro: d.cuadro ? migrate(d.cuadro) : newBoard(true) }));

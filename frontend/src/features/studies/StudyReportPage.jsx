@@ -690,6 +690,34 @@ function Section({ s }) {
           </div>
         )}
 
+        {s.type === "rebt_cortocircuito" && (
+          <div className="overflow-x-auto border border-border" data-testid="report-rebt-cortocircuito">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-border bg-secondary/60 text-left uppercase text-muted-foreground">
+                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Icc máx (A)</th><th className="px-2.5 text-right">Icc mín (A)</th><th className="px-2.5 text-right">Im (A)</th><th className="px-2.5">P. corte</th><th className="px-2.5">Térmico</th><th className="px-2.5">Disparo</th><th className="px-2.5">Protege CC</th>
+              </tr></thead>
+              <tbody className="font-mono">
+                {(s.items || []).map((l, i) => {
+                  const c = l.cortocircuito || {};
+                  const yn = (ok) => (ok ? "Sí ✓" : "No ✗");
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-2.5 py-1.5 font-sans">{l.cuadro}</td><td className="px-2.5 font-sans">{l.circuito}</td>
+                      <td className="px-2.5 text-right">{num(c.icc_max_a, 0)}</td><td className="px-2.5 text-right">{num(c.icc_min_a, 0)}</td>
+                      <td className="px-2.5 text-right">{num(c.im_a, 0)}</td>
+                      <td className={`px-2.5 font-sans ${c.pdc_ok ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.pdc_ok)}</td>
+                      <td className={`px-2.5 font-sans ${c.termico_ok ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.termico_ok)}</td>
+                      <td className={`px-2.5 font-sans ${c.magnetico_ok ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.magnetico_ok)}</td>
+                      <td className={`px-2.5 font-sans ${c.protege_cc ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.protege_cc)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="border-t border-border px-2.5 py-2 text-[11px] text-muted-foreground">Poder de corte ≥ Icc máx · k²·S² ≥ I²t · Icc mín ≥ Im (disparo magnético). Icc por método simplificado (Guía BT-22), orientativo.</p>
+          </div>
+        )}
+
         {s.type === "secciones_modulo" && (
           <div className="space-y-4" data-testid="report-secciones-modulo">
             {(s.items || []).map((sec) => {

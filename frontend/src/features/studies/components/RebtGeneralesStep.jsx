@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 import { DynamicField } from "@/features/studies/components/DynamicField";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Límites de caída de tensión precargados por tipo de instalación (ITC-BT-14/15/19/25).
 // El usuario puede editarlos después. DI 1 % con contadores concentrados; 1,5 % un único usuario.
@@ -57,6 +60,45 @@ export function RebtGeneralesStep({ step, data, setData }) {
               <DynamicField field={f} value={data[f.name]} onChange={(v) => onFieldChange(f, v)} testidPrefix="field" />
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="border border-border bg-secondary/20 p-4" data-testid="rebt-cc-config">
+        <p className="mb-3 text-sm font-semibold">Cortocircuito (ITC-BT-22)</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Parámetros para la comprobación frente a cortocircuitos (poder de corte, k²·S² ≥ I²t e Icc mín ≥ Im). La Icc se
+          estima por el método simplificado de la Guía BT-22 a partir de la Icc presunta en el origen. Valores orientativos.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div>
+            <Label className="text-xs">Aislamiento del cable</Label>
+            <Select value={data.aislamiento || "PVC"} onValueChange={(v) => setData((d) => ({ ...d, aislamiento: v }))}>
+              <SelectTrigger className="mt-1 h-9" data-testid="field-aislamiento"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PVC">PVC (k: Cu 115 / Al 76)</SelectItem>
+                <SelectItem value="XLPE">XLPE/EPR (k: Cu 143 / Al 94)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Curva del magnetotérmico</Label>
+            <Select value={data.curva || "C"} onValueChange={(v) => setData((d) => ({ ...d, curva: v }))}>
+              <SelectTrigger className="mt-1 h-9" data-testid="field-curva"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="B">B (Im = 5·In)</SelectItem>
+                <SelectItem value="C">C (Im = 10·In)</SelectItem>
+                <SelectItem value="D">D (Im = 20·In)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Icc presunta en origen (A)</Label>
+            <Input type="number" className="mt-1 h-9 font-mono" placeholder="p. ej. 6000" value={data.icc_origen_a ?? ""} onChange={(e) => setData((d) => ({ ...d, icc_origen_a: e.target.value }))} data-testid="field-icc-origen" />
+          </div>
+          <div>
+            <Label className="text-xs">Poder de corte (kA)</Label>
+            <Input type="number" className="mt-1 h-9 font-mono" placeholder="6 / 10" value={data.poder_corte_ka ?? ""} onChange={(e) => setData((d) => ({ ...d, poder_corte_ka: e.target.value }))} data-testid="field-poder-corte" />
+          </div>
         </div>
       </div>
     </div>

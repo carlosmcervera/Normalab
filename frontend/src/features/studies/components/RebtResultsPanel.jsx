@@ -97,7 +97,37 @@ export function RebtResultsPanel({ results }) {
           </table>
         </div>
         <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-          <b>Coordinación protección↔cable (ITC-BT-22):</b> Ib ≤ In ≤ Iz e I2 ≤ 1,45·Iz (I2 = 1,45·In). Poder de corte mínimo recomendado: <b className="text-foreground">{results.datos?.poder_corte_ka ?? 6} kA</b>.
+          <b>Coordinación protección↔cable (ITC-BT-22):</b> Sobrecarga — Ib ≤ In ≤ Iz e I2 ≤ 1,45·Iz (I2 = 1,45·In). Cortocircuito — poder de corte ≥ Icc máx, k²·S² ≥ I²t e Icc mín ≥ Im. Poder de corte mínimo recomendado: <b className="text-foreground">{results.datos?.poder_corte_ka ?? 6} kA</b>.
+        </div>
+      </div>
+
+      {/* Cortocircuito (ITC-BT-22) */}
+      <div className="border border-border bg-background">
+        <div className="border-b border-border bg-secondary/40 px-4 py-2.5 font-heading text-sm">Cortocircuito (ITC-BT-22)</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
+              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Icc máx (A)</th><th className="px-3 text-right">Icc mín (A)</th><th className="px-3 text-right">Im (A)</th><th className="px-3">Poder corte</th><th className="px-3">Térmico k²S²≥I²t</th><th className="px-3">Disparo Icc≥Im</th><th className="px-3">Protege CC</th>
+            </tr></thead>
+            <tbody className="font-mono">
+              {lineas.filter((l) => l.cortocircuito).map((l, i) => {
+                const c = l.cortocircuito;
+                const yn = (ok) => <span className={ok ? "text-emerald-700" : "text-amber-800 font-semibold"}>{ok ? "Sí ✓" : "No ✗"}</span>;
+                return (
+                  <tr key={i} className="border-b border-border last:border-0" data-testid={`cc-row-${i}`}>
+                    <td className="px-3 py-1.5 font-sans">{l.cuadro}</td><td className="px-3 font-sans">{l.circuito}</td>
+                    <td className="px-3 text-right">{num(c.icc_max_a, 0)}</td><td className="px-3 text-right">{num(c.icc_min_a, 0)}</td>
+                    <td className="px-3 text-right">{num(c.im_a, 0)}</td>
+                    <td className="px-3 font-sans">{yn(c.pdc_ok)}</td><td className="px-3 font-sans">{yn(c.termico_ok)}</td><td className="px-3 font-sans">{yn(c.magnetico_ok)}</td>
+                    <td className="px-3 font-sans">{yn(c.protege_cc)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          Icc por método simplificado (Guía BT-22) a partir de la Icc presunta en origen y la impedancia de los conductores. Valores orientativos: contrastar con la Icc real del punto de instalación.
         </div>
       </div>
 

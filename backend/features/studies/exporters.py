@@ -442,6 +442,21 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
             nota.italic = True
             nota.font.size = Pt(8)
             nota.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+        elif stype == "rebt_cortocircuito":
+            yn = lambda ok: "Sí" if ok else "No"
+            rows = [[l.get("cuadro"), l.get("circuito"),
+                     _fmt((l.get("cortocircuito") or {}).get("icc_max_a"), 0),
+                     _fmt((l.get("cortocircuito") or {}).get("icc_min_a"), 0),
+                     _fmt((l.get("cortocircuito") or {}).get("im_a"), 0),
+                     yn((l.get("cortocircuito") or {}).get("pdc_ok")),
+                     yn((l.get("cortocircuito") or {}).get("termico_ok")),
+                     yn((l.get("cortocircuito") or {}).get("magnetico_ok")),
+                     yn((l.get("cortocircuito") or {}).get("protege_cc"))] for l in s.get("items", [])]
+            _generic_table(doc, ["Cuadro", "Línea", "Icc máx (A)", "Icc mín (A)", "Im (A)", "P. corte", "Térmico k²S²≥I²t", "Disparo Icc≥Im", "Protege CC"], rows)
+            nota2 = doc.add_paragraph().add_run("Poder de corte ≥ Icc máx · k²·S² ≥ I²t · Icc mín ≥ Im (disparo magnético). Icc por método simplificado (Guía BT-22), orientativo.")
+            nota2.italic = True
+            nota2.font.size = Pt(8)
+            nota2.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
         elif stype == "rebt_esquema":
             def _board_docx(b, nivel):
                 spd = b.get("spd") or {}

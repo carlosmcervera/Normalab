@@ -35,10 +35,12 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
         {"id": "esquema", "title": "4. Esquema unifilar", "type": "rebt_esquema", "arbol": results.get("arbol")},
         {"id": "lineas", "title": "5. Dimensionado y comprobación de líneas", "type": "rebt_lineas",
          "items": results.get("lineas", [])},
-        {"id": "estancias", "title": "6. Cuadro de superficies (ubicación)", "type": "estancias_resumen", "data": est},
-        {"id": "observaciones", "title": "7. Observaciones", "type": "observaciones",
+        {"id": "cortocircuito", "title": "6. Comprobación frente a cortocircuitos (ITC-BT-22)", "type": "rebt_cortocircuito",
+         "items": [l for l in results.get("lineas", []) if l.get("cortocircuito")]},
+        {"id": "estancias", "title": "7. Cuadro de superficies (ubicación)", "type": "estancias_resumen", "data": est},
+        {"id": "observaciones", "title": "8. Observaciones", "type": "observaciones",
          "items": results.get("observaciones", [])},
-        {"id": "fundamentos", "title": "8. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
+        {"id": "fundamentos", "title": "9. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
          "items": FUNDAMENTOS},
     ]
     return {
