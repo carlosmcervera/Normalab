@@ -35,22 +35,29 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
 
   const { data: shared } = useQuery({
     queryKey: ["estancias", projectId],
-    queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data.estancias || []),
+    queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data),
     enabled: !!projectId,
     staleTime: 0,
   });
 
-  // Fusión inicial (una vez): trae del cuadro compartido las estancias que falten y
+  // Fusión inicial (una vez): trae del cuadro compartido las estancias y plantas que falten y
   // actualiza los campos base de las existentes, preservando los campos propios de Incendios.
   const mergedRef = useRef(false);
   useEffect(() => {
     if (!shared || mergedRef.current) return;
     mergedRef.current = true;
+    const sharedEst = shared.estancias || [];
+    const sharedPla = shared.plantas || [];
     setData((d) => {
       const byId = new Map((d.dependencias || []).map((x) => [x.id, x]));
-      let plantasNext = d.plantas || [];
+      const plByName = new Map((d.plantas || []).map((p) => [p.nombre, p]));
+      sharedPla.forEach((p) => {
+        const prev = plByName.get(p.nombre) || { id: p.id || genId(), nombre: p.nombre };
+        plByName.set(p.nombre, { ...prev, nombre: p.nombre, rasante: p.rasante || prev.rasante || "sobre", altura: p.altura ?? prev.altura ?? "" });
+      });
+      let plantasNext = Array.from(plByName.values());
       const pn = new Set(plantasNext.map((p) => p.nombre));
-      (shared || []).forEach((e) => {
+      sharedEst.forEach((e) => {
         const prev = byId.get(e.id) || { id: e.id, modo: "produccion", ci: 1.44 };
         byId.set(e.id, {
           ...prev,
@@ -59,7 +66,7 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
           altura: e.altura ?? prev.altura, densidad: e.densidad ?? prev.densidad,
           uso_ocupacion: e.uso_ocupacion ?? prev.uso_ocupacion, sin_ocupacion: e.sin_ocupacion ?? prev.sin_ocupacion,
         });
-        if (e.planta && !pn.has(e.planta)) { pn.add(e.planta); plantasNext = [...plantasNext, { id: genId(), nombre: e.planta }]; }
+        if (e.planta && !pn.has(e.planta)) { pn.add(e.planta); plantasNext = [...plantasNext, { id: genId(), nombre: e.planta, rasante: "sobre", altura: "" }]; }
       });
       return { ...d, dependencias: Array.from(byId.values()), plantas: plantasNext };
     });
@@ -71,20 +78,21 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
   useEffect(() => {
     if (!projectId || !mergedRef.current) return;
     const base = (data.dependencias || []).map(baseFrom);
-    const sig = JSON.stringify(base);
+    const pl = (data.plantas || []).map((p) => ({ id: p.id, nombre: p.nombre, rasante: p.rasante || "sobre", altura: p.altura ?? "" }));
+    const sig = JSON.stringify({ e: base, p: pl });
     if (sig === lastPushSig.current) return;
     clearTimeout(pushTimer.current);
     pushTimer.current = setTimeout(async () => {
       try {
         lastPushSig.current = sig;
-        await api.put(`/projects/${projectId}/estancias`, { estancias: base });
+        await api.put(`/projects/${projectId}/estancias`, { estancias: base, plantas: pl });
         queryClient.invalidateQueries({ queryKey: ["estancias", projectId] });
         queryClient.invalidateQueries({ queryKey: ["project", projectId] });
         queryClient.invalidateQueries({ queryKey: ["studies", projectId] });
       } catch (e) { /* silencioso: reintenta en el próximo cambio */ }
     }, 800);
     return () => clearTimeout(pushTimer.current);
-  }, [data.dependencias, projectId]); // eslint-disable-line
+  }, [data.dependencias, data.plantas, projectId]); // eslint-disable-line
 
   const importarCuadro = async () => {
     setSyncing(true);
@@ -142,9 +150,11 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
   const addPlanta = () => {
     const nombre = nuevaPlanta.trim();
     if (!nombre || plantas.some((p) => p.nombre === nombre)) return;
-    setData((d) => ({ ...d, plantas: [...(d.plantas || []), { id: genId(), nombre }] }));
+    setData((d) => ({ ...d, plantas: [...(d.plantas || []), { id: genId(), nombre, rasante: "sobre", altura: "" }] }));
     setNuevaPlanta("");
   };
+  const updatePlanta = (id, patch) =>
+    setData((d) => ({ ...d, plantas: (d.plantas || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
   const renamePlanta = (id, nombre) =>
     setData((d) => {
       const old = (d.plantas || []).find((p) => p.id === id)?.nombre;
@@ -180,10 +190,24 @@ export function ProyectoSuperficiesStep({ data, setData, study }) {
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers className="h-4 w-4" /> Plantas del proyecto</div>
         <div className="flex flex-wrap items-center gap-2">
           {plantas.map((p) => (
-            <div key={p.id} className="flex items-center gap-1 border border-border bg-background px-2 py-1">
-              <Input className="h-7 w-28 rounded-sm border-0 px-1 text-sm shadow-none focus-visible:ring-0" value={p.nombre}
-                onChange={(e) => renamePlanta(p.id, e.target.value)} data-testid={`planta-${p.id}-nombre`} />
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removePlanta(p.id)} data-testid={`remove-planta-${p.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+            <div key={p.id} className="flex items-end gap-1 border border-border bg-background p-2" data-testid={`planta-${p.id}`}>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Nombre</label>
+                <Input className="h-7 w-24 rounded-sm text-sm" value={p.nombre}
+                  onChange={(e) => renamePlanta(p.id, e.target.value)} data-testid={`planta-${p.id}-nombre`} />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Rasante</label>
+                <Select value={p.rasante || "sobre"} onValueChange={(v) => updatePlanta(p.id, { rasante: v })}>
+                  <SelectTrigger className="h-7 w-32 rounded-sm text-xs" data-testid={`planta-${p.id}-rasante`}><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="sobre">Sobre rasante</SelectItem><SelectItem value="bajo">Bajo rasante</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Altura (m)</label>
+                <NumberInput min={0} className="h-7 w-16 rounded-sm text-right font-mono text-xs" value={p.altura ?? ""} onChange={(v) => updatePlanta(p.id, { altura: v })} data-testid={`planta-${p.id}-altura`} />
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removePlanta(p.id)} data-testid={`remove-planta-${p.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
           ))}
           <div className="flex items-center gap-1">

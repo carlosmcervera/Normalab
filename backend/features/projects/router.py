@@ -1,7 +1,7 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from core.database import db
 from core.deps import get_current_user
@@ -17,6 +17,7 @@ class BulkDelete(BaseModel):
 
 class EstanciasPayload(BaseModel):
     estancias: list = []
+    plantas: Optional[list] = None
 
 
 _BASE_STR = ("id", "nombre", "planta", "uso_ocupacion")
@@ -39,6 +40,17 @@ def _norm_estancia(e: dict) -> dict:
     for k in _BASE_BOOL:
         out[k] = bool(e.get(k))
     return out
+
+
+def _norm_planta(p: dict) -> dict:
+    p = p or {}
+    rasante = p.get("rasante")
+    return {
+        "id": p.get("id"),
+        "nombre": (p.get("nombre") or "").strip() if isinstance(p.get("nombre"), str) else (p.get("nombre") or ""),
+        "rasante": rasante if rasante in ("sobre", "bajo") else "sobre",
+        "altura": _f(p.get("altura")),
+    }
 
 
 def _serialize(doc: dict) -> dict:
@@ -95,14 +107,14 @@ async def get_estancias(project_id: str, user: dict = Depends(get_current_user))
     doc = await db.projects.find_one({"_id": ObjectId(project_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
-    return {"estancias": doc.get("estancias", [])}
+    return {"estancias": doc.get("estancias", []), "plantas": doc.get("plantas", [])}
 
 
 @router.put("/{project_id}/estancias")
 async def put_estancias(project_id: str, payload: EstanciasPayload,
                         user: dict = Depends(get_current_user)):
     existing = await db.projects.find_one({"_id": ObjectId(project_id)},
-                                          {"estancias": 1, "estancias_updated_at": 1})
+                                          {"estancias": 1, "plantas": 1, "estancias_updated_at": 1})
     if not existing:
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
     normalized = [_norm_estancia(e) for e in payload.estancias]
@@ -110,11 +122,19 @@ async def put_estancias(project_id: str, payload: EstanciasPayload,
     now = utcnow_iso()
     changed = normalized != prev
     updates = {"estancias": normalized, "updated_at": now}
+
+    plantas_norm = existing.get("plantas", [])
+    if payload.plantas is not None:
+        plantas_norm = [_norm_planta(p) for p in payload.plantas]
+        if plantas_norm != [_norm_planta(p) for p in (existing.get("plantas") or [])]:
+            changed = True
+        updates["plantas"] = plantas_norm
+
     if changed:
         updates["estancias_updated_at"] = now
     await db.projects.update_one({"_id": ObjectId(project_id)}, {"$set": updates})
     version = now if changed else existing.get("estancias_updated_at")
-    return {"estancias": normalized, "estancias_updated_at": version, "changed": changed}
+    return {"estancias": normalized, "plantas": plantas_norm, "estancias_updated_at": version, "changed": changed}
 
 
 @router.post("/bulk-delete")
