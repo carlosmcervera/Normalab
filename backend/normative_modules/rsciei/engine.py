@@ -10,7 +10,7 @@ condiciones de evacuación (Tabla 2.3.1).
 
 import math
 
-from normative_modules.rsciei.requirements import build_requirements
+from normative_modules.rsciei.requirements import build_requirements, DELIMITADORES
 from normative_modules.cte_dbsi import tablas_oficiales as T_dbsi
 
 MCAL_PER_MJ = 1 / 4.184
