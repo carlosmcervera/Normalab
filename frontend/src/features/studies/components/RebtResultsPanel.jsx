@@ -10,7 +10,7 @@ const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 const estCls = (e) => (e === "no_cumple" ? "text-red-700 font-semibold" : e === "observaciones" ? "text-amber-700" : "text-emerald-700");
 const estLbl = (e) => (e === "no_cumple" ? "No cumple" : e === "observaciones" ? "Revisar" : "Cumple");
 
-export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRecompute, recomputing = false }) {
+export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUpdateBoard, onRecompute, recomputing = false }) {
   if (!results) return null;
   const { resumen = [], cuadro_potencias = [], lineas = [], observaciones = [], arbol, estado_global } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
@@ -88,18 +88,22 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRe
                 const co = l.coordinacion;
                 const protege = l.protege_cable;
                 const canEdit = editable && l.editable && l.id;
+                const canEditBoard = editable && l.editable_board && l.board_id;
                 return (
                 <tr key={i} className="border-b border-border last:border-0" data-testid={`linea-row-${i}`}>
                   <td className="px-3 py-1.5 font-sans">{l.cuadro}</td><td className="px-3 font-sans">{l.circuito}</td>
                   <td className="px-3 text-right">{l.Ib}</td><td className="px-3 text-right">{l.seccion_txt} mm²</td><td className="px-3 text-right">{l.iz}</td>
                   <td className="px-3 font-sans">
                     {canEdit ? (
-                      <div className="flex items-center gap-1">
-                        <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) })}>
-                          <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-magneto-sel`}><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="auto">Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
+                      <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) })}>
+                        <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-magneto-sel`}><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="auto">Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : canEditBoard ? (
+                      <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateBoard(l.board_id, { iga_manual: v === "auto" ? "" : Number(v) })}>
+                        <SelectTrigger className="h-7 w-28 rounded-sm text-xs" data-testid={`board-${i}-iga-sel`}><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="auto">IGA Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>IGA {m} A</SelectItem>)}</SelectContent>
+                      </Select>
                     ) : l.proteccion}
                   </td>
                   <td className="px-3 font-sans">
@@ -131,6 +135,11 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRe
                         </Select>
                         {l.diferencial_ok === false && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" title={l.diferencial_nota} />}
                       </div>
+                    ) : canEditBoard ? (
+                      <Select value={String(l.sensibilidad ?? 300)} onValueChange={(v) => onUpdateBoard(l.board_id, { diferencial_general: { sensibilidad: Number(v) } })}>
+                        <SelectTrigger className="h-7 w-28 rounded-sm text-xs" data-testid={`board-${i}-dif-sel`}><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="30">30 mA (gen.)</SelectItem><SelectItem value="300">300 mA (gen.)</SelectItem></SelectContent>
+                      </Select>
                     ) : l.diferencial}
                   </td>
                   <td className="px-3 text-right">{l.tierra}</td>
@@ -151,7 +160,7 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRe
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Icc máx (A)</th><th className="px-3 text-right">Icc mín (A)</th><th className="px-3 text-right">Im (A)</th><th className="px-3">Poder corte</th><th className="px-3">Térmico k²S²≥I²t</th><th className="px-3">Disparo Icc≥Im</th><th className="px-3">Protege CC</th>
+              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Icc máx (A)</th><th className="px-3 text-right">Icc mín (A)</th><th className="px-3 text-right">Im (A)</th><th className="px-3">Poder corte</th><th className="px-3">Térmico k²S²≥I²t</th><th className="px-3">Disparo Icc≥Im</th><th className="px-3">Protege CC</th><th className="px-3">Recomendación</th>
             </tr></thead>
             <tbody className="font-mono">
               {lineas.filter((l) => l.cortocircuito).map((l, i) => {
@@ -164,6 +173,7 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRe
                     <td className="px-3 text-right">{num(c.im_a, 0)}</td>
                     <td className="px-3 font-sans">{yn(c.pdc_ok)}</td><td className="px-3 font-sans">{yn(c.termico_ok)}</td><td className="px-3 font-sans">{yn(c.magnetico_ok)}</td>
                     <td className="px-3 font-sans">{yn(c.protege_cc)}</td>
+                    <td className="px-3 font-sans text-[11px] text-amber-800" data-testid={`cc-${i}-reco`}>{c.recomendacion ? c.recomendacion.replace(/^Recomendación:\s*/, "") : "—"}</td>
                   </tr>
                 );
               })}

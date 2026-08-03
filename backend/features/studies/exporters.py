@@ -451,8 +451,9 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                      yn((l.get("cortocircuito") or {}).get("pdc_ok")),
                      yn((l.get("cortocircuito") or {}).get("termico_ok")),
                      yn((l.get("cortocircuito") or {}).get("magnetico_ok")),
-                     yn((l.get("cortocircuito") or {}).get("protege_cc"))] for l in s.get("items", [])]
-            _generic_table(doc, ["Cuadro", "Línea", "Icc máx (A)", "Icc mín (A)", "Im (A)", "P. corte", "Térmico k²S²≥I²t", "Disparo Icc≥Im", "Protege CC"], rows)
+                     yn((l.get("cortocircuito") or {}).get("protege_cc")),
+                     ((l.get("cortocircuito") or {}).get("recomendacion") or "—").replace("Recomendación: ", "")] for l in s.get("items", [])]
+            _generic_table(doc, ["Cuadro", "Línea", "Icc máx (A)", "Icc mín (A)", "Im (A)", "P. corte", "Térmico k²S²≥I²t", "Disparo Icc≥Im", "Protege CC", "Recomendación"], rows)
             nota2 = doc.add_paragraph().add_run("Poder de corte ≥ Icc máx · k²·S² ≥ I²t · Icc mín ≥ Im (disparo magnético). Icc por método simplificado (Guía BT-22), orientativo.")
             nota2.italic = True
             nota2.font.size = Pt(8)

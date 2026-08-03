@@ -64,9 +64,13 @@ def _icc(icc_origen, z_acum, m, U):
     return 1.0 / inv if inv > 0 else 0.0
 
 
+# Poderes de corte normalizados (kA) para recomendación.
+_PDC_NORM = [3, 4.5, 6, 10, 15, 25, 36, 50]
+
+
 def _cortocircuito(general, z_up, L, s, In):
     """Comprobación frente a cortocircuitos (ITC-BT-22): poder de corte, resistencia térmica
-    (k²·S² ≥ I²t) y actuación del disparo magnético (Icc_min ≥ Im)."""
+    (k²·S² ≥ I²t) y actuación del disparo magnético (Icc_min ≥ Im). Incluye recomendación."""
     m = general["m"]; U = general["U_icc"]; gamma = general["gamma"]
     icc0 = general["icc_origen"]; k = general["k_term"]; t = general["t_disparo"]
     pdc = general["poder_corte_ka"] * 1000.0
@@ -80,6 +84,19 @@ def _cortocircuito(general, z_up, L, s, In):
     pdc_ok = pdc >= icc_max - 1e-6
     term_ok = i2t_cable >= i2t_paso - 1e-6
     mag_ok = (icc_min >= im - 1e-6) if In else True
+    # Recomendaciones cuando no cumple.
+    s_term = (icc_max * (t ** 0.5) / k) if k > 0 else 0.0          # sección térmica mínima
+    s_reco = next((x for x in SECCIONES if x >= s_term - 1e-9), SECCIONES[-1])
+    pdc_reco = next((x for x in _PDC_NORM if x >= icc_max / 1000.0 - 1e-9), _PDC_NORM[-1])
+    recos = []
+    if not pdc_ok:
+        recos.append(f"usar interruptores con poder de corte ≥ {pdc_reco:g} kA (Icc máx ≈ {icc_max/1000:.1f} kA)")
+    if not term_ok:
+        recos.append(f"aumentar la sección a ≥ {_fmt_s(s_reco)} mm² (o usar protección limitadora) para que k²·S² ≥ I²t")
+    if not mag_ok and In:
+        recos.append(f"reducir la longitud o aumentar la sección para elevar la Icc mín, o emplear curva B "
+                     f"(Im menor); con la selección actual Im ≈ {im:.0f} A > Icc mín {icc_min:.0f} A")
+    recomendacion = ("Recomendación: " + "; ".join(recos) + ".") if recos else None
     return {
         "icc_max_a": round(icc_max, 0), "icc_min_a": round(icc_min, 0),
         "im_a": round(im, 0), "curva": general["curva"],
@@ -88,6 +105,8 @@ def _cortocircuito(general, z_up, L, s, In):
         "poder_corte_ka": general["poder_corte_ka"], "pdc_ok": pdc_ok,
         "termico_ok": term_ok, "magnetico_ok": mag_ok, "z_line": z_line,
         "protege_cc": bool(pdc_ok and term_ok and mag_ok),
+        "seccion_min_termica": _fmt_s(s_reco), "pdc_recomendado_ka": pdc_reco,
+        "recomendacion": recomendacion,
     }
 
 
@@ -381,7 +400,7 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
 # ---------------------------------------------------------------------------
 # Cálculo de un cuadro (recursivo)
 # ---------------------------------------------------------------------------
-def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas, cuadro_pot):
+def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas, cuadro_pot, board_id="__root__"):
     V = general["V"]; suministro = general["suministro"]
     material = general["material"]; gamma = CONDUCTIVIDAD.get(material, 56.0)
 
@@ -426,6 +445,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     else:
         iga = In_feed if In_feed is not None else _breaker(Ib_board, iz_feed)[0]
         iga_ok = bool(prot_feed and prot_feed["protege"])
+    iga_auto = In_feed if In_feed is not None else _breaker(Ib_board, iz_feed)[0]
     tierra_feed = seccion_tierra(s_feed)
     cc_feed = _cortocircuito(general, z_busbar, L_feed, s_feed, iga)
     caida_busbar += caida_feed
@@ -437,20 +457,26 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     feed_estado = "cumple" if (iga_ok and cc_feed["protege_cc"]) else "observaciones"
     tipo_linea = "Acometida / DI" if es_raiz else "Línea puente (alimentación subcuadro)"
     lineas.append({
-        "cuadro": nombre, "circuito": tipo_linea, "tipo": "alimentacion",
+        "board_id": board_id, "cuadro": nombre, "circuito": tipo_linea, "tipo": "alimentacion",
         "potencia": round(p_dem, 1), "Ib": round(Ib_board, 2), "seccion": s_feed, "seccion_txt": _fmt_s(s_feed),
         "iz": round(iz_feed, 1), "caida_pct": round(caida_feed, 2), "caida_acum_pct": round(caida_busbar, 2),
         "proteccion": f"IGA {iga} A", "diferencial": f"{sens_gen} mA (general)",
         "tierra": _fmt_s(tierra_feed), "estado": feed_estado,
         "longitud": L_feed, "protege_cable": iga_ok, "coordinacion": prot_feed, "cortocircuito": cc_feed,
+        "magneto": iga, "magneto_auto": iga_auto, "magneto_manual": (int(_num(iga_manual)) or None),
+        "seleccion_manual": bool(iga_manual), "sensibilidad": sens_gen,
+        "editable_board": True, "es_alimentacion": True,
     })
     if not iga_ok:
-        obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA no protege el cable de alimentación "
+        obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA ({iga} A) no protege el cable de alimentación "
                     f"(no se cumple Ib≤In≤Iz / I2≤1,45·Iz; Ib {Ib_board:.1f} A, Iz {iz_feed:.0f} A). "
-                    f"Revise la sección o el calibre."})
+                    f"Recomendado: {iga_auto} A."})
     elif ajustada_feed and not iga_manual:
         obs.append({"tipo": "info", "texto": f"«{nombre}»: sección de la línea de alimentación aumentada a "
                     f"{_fmt_s(s_feed)} mm² para que el IGA de {iga} A proteja el cable (ITC-BT-22)."})
+    if iga_ok and not cc_feed["protege_cc"] and cc_feed.get("recomendacion"):
+        obs.append({"tipo": "warning", "texto": f"«{nombre} · {tipo_linea}»: no cumple la comprobación de "
+                    f"cortocircuito. {cc_feed['recomendacion']}"})
     if es_raiz and not spd_out["presente"]:
         obs.append({"tipo": "info", "texto": "No se ha previsto protector contra sobretensiones (SPD). Valore su "
                     "instalación conforme a la ITC-BT-23 según la categoría de sobretensión y el riesgo."})
@@ -520,7 +546,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                 "proteccion": prot_p, "protege_cable": ok_p, "cortocircuito": cc_p,
             })
         elif k == "subcuadro":
-            sub_arbol = _compute_board(node.get("board") or {}, general, caida_busbar, z_busbar, False, obs, lineas, cuadro_pot)
+            sub_arbol = _compute_board(node.get("board") or {}, general, caida_busbar, z_busbar, False, obs, lineas, cuadro_pot, board_id=node.get("id") or "sub")
             nodos_out.append({"kind": "subcuadro", "id": node.get("id"), "board": sub_arbol})
 
     return {

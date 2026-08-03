@@ -694,7 +694,7 @@ function Section({ s }) {
           <div className="overflow-x-auto border border-border" data-testid="report-rebt-cortocircuito">
             <table className="w-full text-xs">
               <thead><tr className="border-b border-border bg-secondary/60 text-left uppercase text-muted-foreground">
-                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Icc máx (A)</th><th className="px-2.5 text-right">Icc mín (A)</th><th className="px-2.5 text-right">Im (A)</th><th className="px-2.5">P. corte</th><th className="px-2.5">Térmico</th><th className="px-2.5">Disparo</th><th className="px-2.5">Protege CC</th>
+                <th className="px-2.5 py-2">Cuadro</th><th className="px-2.5">Línea</th><th className="px-2.5 text-right">Icc máx (A)</th><th className="px-2.5 text-right">Icc mín (A)</th><th className="px-2.5 text-right">Im (A)</th><th className="px-2.5">P. corte</th><th className="px-2.5">Térmico</th><th className="px-2.5">Disparo</th><th className="px-2.5">Protege CC</th><th className="px-2.5">Recomendación</th>
               </tr></thead>
               <tbody className="font-mono">
                 {(s.items || []).map((l, i) => {
@@ -709,6 +709,7 @@ function Section({ s }) {
                       <td className={`px-2.5 font-sans ${c.termico_ok ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.termico_ok)}</td>
                       <td className={`px-2.5 font-sans ${c.magnetico_ok ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.magnetico_ok)}</td>
                       <td className={`px-2.5 font-sans ${c.protege_cc ? "text-emerald-700" : "text-amber-800 font-semibold"}`}>{yn(c.protege_cc)}</td>
+                      <td className="px-2.5 font-sans text-[10px] text-amber-800">{c.recomendacion ? c.recomendacion.replace(/^Recomendación:\s*/, "") : "—"}</td>
                     </tr>
                   );
                 })}

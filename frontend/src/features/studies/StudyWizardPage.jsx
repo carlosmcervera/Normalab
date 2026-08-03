@@ -52,6 +52,19 @@ const patchTree = (board, id, patch) => {
   return { ...board, nodos };
 };
 
+const patchBoard = (board, boardId, patch) => {
+  if (!board) return board;
+  if (boardId === "__root__") return { ...board, ...patch };
+  const nodos = (board.nodos || []).map((n) => {
+    if (n.kind === "subcuadro") {
+      if (n.id === boardId) return { ...n, board: { ...(n.board || {}), ...patch } };
+      return { ...n, board: patchBoard(n.board, boardId, patch) };
+    }
+    return n;
+  });
+  return { ...board, nodos };
+};
+
 export default function StudyWizardPage() {
   const { studyId } = useParams();
   const navigate = useNavigate();
@@ -132,6 +145,7 @@ export default function StudyWizardPage() {
   const current = steps[step] || steps[0];
 
   const updateRebtNode = (id, patch) => setData((d) => ({ ...d, cuadro: patchTree(d.cuadro, id, patch) }));
+  const updateRebtBoard = (boardId, patch) => setData((d) => ({ ...d, cuadro: patchBoard(d.cuadro, boardId, patch) }));
   const recomputeRebt = async () => {
     try {
       await saveMut.mutateAsync(data);
@@ -184,7 +198,7 @@ export default function StudyWizardPage() {
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onRecompute={recomputeRebt} recomputing={computeMut.isPending || saveMut.isPending} />
+                results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onUpdateBoard={updateRebtBoard} onRecompute={recomputeRebt} recomputing={computeMut.isPending || saveMut.isPending} />
                   : results?.sectores ? <ResultsPanel results={results} />
                     : results?.ambitos ? <IncendiosResultsPanel results={results} />
                       : <GenericResultsPanel results={results} />
