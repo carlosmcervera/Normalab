@@ -722,8 +722,40 @@ function Section({ s }) {
         {s.type === "rebt_anexo_calculo" && (
           <div className="space-y-4" data-testid="report-rebt-anexo-calculo">
             {(s.items || []).length === 0 && <p className="text-sm text-muted-foreground">No hay circuitos calculados.</p>}
+            {(s.resumen || []).length > 0 && (
+              <div className="overflow-x-auto rounded-md border border-border" data-testid="report-anexo-resumen">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/40 text-left uppercase tracking-wide text-muted-foreground">
+                      <th className="px-3 py-2">#</th><th className="px-3">Cuadro</th><th className="px-3">Línea</th>
+                      <th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th>
+                      <th className="px-3 text-right">Magneto (A)</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {s.resumen.map((r) => (
+                      <tr key={r.id} className="cursor-pointer border-b border-border last:border-0 hover:bg-secondary/30"
+                          data-testid={`anexo-resumen-row-${r.n - 1}`}
+                          onClick={() => { const el = document.getElementById(r.id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
+                        <td className="px-3 py-1.5 font-sans text-muted-foreground">{r.n}</td>
+                        <td className="px-3 font-sans">{r.cuadro}</td>
+                        <td className="px-3 font-sans text-primary underline-offset-2 hover:underline">{r.circuito}</td>
+                        <td className="px-3 text-right">{r.ib}</td>
+                        <td className="px-3 text-right">{r.seccion_txt} mm²</td>
+                        <td className="px-3 text-right">{r.iz}</td>
+                        <td className="px-3 text-right">{r.magneto}</td>
+                        <td className="px-3 text-right">{r.caida_acum_pct}%</td>
+                        <td className={`px-3 font-sans ${r.estado === "no_cumple" ? "font-semibold text-red-700" : r.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>
+                          {r.estado === "no_cumple" ? "No cumple" : r.estado === "observaciones" ? "Revisar" : "Cumple"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {(s.items || []).map((b, bi) => (
-              <div key={bi} className="rounded-md border border-border" data-testid={`report-anexo-calc-${bi}`}>
+              <div key={bi} id={b.id} className="scroll-mt-24 rounded-md border border-border" data-testid={`report-anexo-calc-${bi}`}>
                 <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2">
                   <span className="font-heading text-sm font-semibold">{b.circuito}</span>
                   <span className={`text-xs font-medium ${b.estado === "no_cumple" ? "text-red-700" : b.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>

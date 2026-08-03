@@ -72,9 +72,11 @@ def build_anexo_calculo(results: dict) -> list:
     e_formula = ("e = √3 · L · I · (R·cosφ + X·senφ) ≈ L·P / (γ·S·U) (trifásica)"
                  if trifasica else "e = 2 · L · P / (γ·S·U) (monofásica), con γ del " + mat)
     bloques = []
-    for l in results.get("lineas", []):
+    resumen = []
+    for idx, l in enumerate(results.get("lineas", [])):
         co = l.get("coordinacion") or {}
         cc = l.get("cortocircuito") or {}
+        anchor = f"anexo-calc-{idx}"
         pasos = [
             {"tema": "Corriente de proyecto o de diseño (Ib)",
              "formula": ib_formula,
@@ -103,7 +105,15 @@ def build_anexo_calculo(results: dict) -> list:
              "referencia": "REBT, ITC-BT-22 · UNE-HD 60364-4-43 (Guía BT-22, método simplificado)."},
         ]
         bloques.append({
+            "id": anchor,
             "circuito": f"{l.get('cuadro')} · {l.get('circuito')}",
             "estado": l.get("estado"), "pasos": pasos,
         })
-    return bloques
+        resumen.append({
+            "id": anchor, "n": idx + 1,
+            "cuadro": l.get("cuadro"), "circuito": l.get("circuito"),
+            "ib": l.get("Ib"), "seccion_txt": l.get("seccion_txt"), "iz": l.get("iz"),
+            "magneto": l.get("magneto"), "sensibilidad": l.get("sensibilidad"),
+            "caida_acum_pct": l.get("caida_acum_pct"), "estado": l.get("estado"),
+        })
+    return {"resumen": resumen, "bloques": bloques}

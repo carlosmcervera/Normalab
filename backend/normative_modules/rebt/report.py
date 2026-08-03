@@ -10,6 +10,7 @@ _TIPO = {"alumbrado": "Alumbrado", "tomas": "Tomas de corriente", "fuerza": "Fue
 def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
     d = results.get("datos", {})
     est = resumen_estancias(results.get("estancias", []))
+    _anexo = build_anexo_calculo(results)
     sections = [
         {"id": "resumen", "title": "Resumen del cuadro", "type": "metricas",
          "items": results.get("resumen", []), "estado_global": results.get("estado_global")},
@@ -39,7 +40,7 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
          "items": [l for l in results.get("lineas", []) if l.get("cortocircuito")]},
         {"id": "estancias", "title": "7. Cuadro de superficies (ubicación)", "type": "estancias_resumen", "data": est},
         {"id": "anexo_calculo", "title": "8. Anexo justificativo de cálculo por circuito (ITC-BT-22)", "type": "rebt_anexo_calculo",
-         "items": build_anexo_calculo(results)},
+         "resumen": _anexo["resumen"], "items": _anexo["bloques"]},
         {"id": "observaciones", "title": "9. Observaciones", "type": "observaciones",
          "items": results.get("observaciones", [])},
         {"id": "fundamentos", "title": "10. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",

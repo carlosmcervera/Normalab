@@ -460,6 +460,29 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
             nota2.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
         elif stype == "rebt_anexo_calculo":
             estado_lbl = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}
+            resumen = s.get("resumen", [])
+            if resumen:
+                rp = doc.add_paragraph()
+                rr = rp.add_run("Índice de circuitos")
+                rr.bold = True
+                rr.font.size = Pt(9.5)
+                cols = ["#", "Cuadro", "Línea", "Ib (A)", "Sección", "Iz (A)", "Magneto (A)", "Caída acum.", "Estado"]
+                tbl = doc.add_table(rows=1, cols=len(cols))
+                tbl.style = "Light Grid Accent 1"
+                for ci, cname in enumerate(cols):
+                    crun = tbl.rows[0].cells[ci].paragraphs[0].add_run(cname)
+                    crun.bold = True
+                    crun.font.size = Pt(8)
+                for r in resumen:
+                    cells = tbl.add_row().cells
+                    vals = [str(r.get("n")), str(r.get("cuadro") or ""), str(r.get("circuito") or ""),
+                            str(r.get("ib")), f"{r.get('seccion_txt')} mm²", str(r.get("iz")),
+                            str(r.get("magneto")), f"{r.get('caida_acum_pct')}%",
+                            estado_lbl.get(r.get("estado"), "Info")]
+                    for ci, v in enumerate(vals):
+                        cvr = cells[ci].paragraphs[0].add_run(v)
+                        cvr.font.size = Pt(8)
+                doc.add_paragraph()
             for b in s.get("items", []):
                 hp = doc.add_paragraph()
                 hr = hp.add_run(f"{b.get('circuito', 'Circuito')} — {estado_lbl.get(b.get('estado'), 'Info')}")
