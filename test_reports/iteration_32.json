@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 32 — REBT: cadena de RECOMENDACIÓN en cortocircuito + selección MANUAL editable del IGA/diferencial extendida a cuadros generales y subcuadros. Backend: 6/6 nuevos pytest (test_rebt_board_iga_cc_reco_e2e.py) + regresión REBT 25/25 (JUnit /app/test_reports/pytest/rebt_regression_iter32.xml). Cubre: (a) sin iga_manual → líneas 'alimentacion' de raíz+subcuadro con seleccion_manual=false, magneto==magneto_auto, board_id + editable_board=true; (b) iga_manual bajo en el cuadro raíz (board_id=__root__) → seleccion_manual=true, magneto=manual, protege_cable=false, y observación warning con 'Recomendado: {auto} A'; (c) iga_manual bajo en subcuadro (board_id=sub1) → mismo comportamiento; (d) campo cortocircuito.recomendacion siempre presente, string 'Recomendación: …' cuando protege_cc=false y None cuando cumple; observación warning cita la línea afectada; (e) endpoint DOCX GET /api/studies/{seed}/export/docx → 200, 41 KB, content-type openxmlformats, ZIP válido con word/document.xml y contenido de Cortocircuito. Frontend (Playwright real contra https://normlab.preview.emergentagent.com estudio seed 6a685484405c68bf00035174, paso 4 'Resultados'): (t1) cambiar board-0-iga-sel a 'IGA 6 A' + rebt-recalcular → linea-0-seleccion='Incorrecta (rec. 10 A)' y linea-0-protege='Revisar'; (t2) volver a 'IGA Auto' → linea-0-seleccion='Auto' y linea-0-protege='Sí'; (t3) board-1-dif-sel cambia a '30 mA (gen.)' tras recalcular; (t4) cc-0-reco = 'aumentar la sección a ≥ 6 mm² (o usar protección limitadora) para que k²·S² ≥ I²t.' y cc-1-reco/cc-2-reco = '—'; (t5) sección 'Observaciones' contiene «Cuadro general · Acometida / DI»: no cumple la comprobación de cortocircuito. Recomendación: aumentar la sección a ≥ 6 mm²…; (t6) DOCX descargado dentro de la sesión UI (fetch credentials:include) 200 41083 bytes, MIME openxmlformats correcto. Los data-testid en paso 4 detectados: rebt-recalcular, board-0-iga-sel, board-0-dif-sel, board-1-iga-sel, board-1-dif-sel, linea-2-magneto-sel, linea-2-dif-sel, linea-{0,1,2}-protege, linea-{0,1,2}-seleccion, cc-{0,1,2}-reco. Sin errores en consola.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rebt_board_iga_cc_reco_e2e.py",
+    "/app/test_reports/pytest/rebt_iter32.xml",
+    "/app/test_reports/pytest/rebt_regression_iter32.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine.py L466: `int(_num(iga_manual)) or None` colapsa el valor 0 (o strings vacíos) a None y trata cualquier iga_manual falsy como Auto. Es aceptable para el catálogo de calibres normalizados >0, pero puede ocultar bugs si algún día el frontend permite escribir 0. Añadir test defensivo.",
+    "engine.py L440-448 (root/subcuadro IGA manual): la lógica es idéntica a la usada para circuitos finales y puentes; sería DRY-friendly extraer un helper `_apply_manual_breaker(Ib, manual, iz)` y compartirlo entre las tres ramas (_final_line, puente, alimentación de cuadro).",
+    "engine.py L477: la observación de cortocircuito para la línea de alimentación se emite solo cuando iga_ok es True (`if iga_ok and not cc_feed['protege_cc']`). Si el IGA además NO protege el cable, el warning de sobrecarga desplaza al de CC (se pierde el aviso). Considerar concatenar los mensajes en vez de mutuamente excluirlos.",
+    "RebtResultsPanel.jsx L102-107 vs L96-101: la rama canEdit y canEditBoard comparten estructura Select+SelectContent+MAGNETOS.map; podría extraerse un pequeño componente <MagnetoSelect testId onChange auto value/> para evitar drift entre líneas y cuadros.",
+    "El componente Select de shadcn no expone options nativas → los tests deben usar role=option (ya adaptado). Considerar añadir data-testid a los SelectItem (p.ej. board-i-iga-opt-{n}) para robustecer aún más los tests E2E."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rebt_board_iga_cc_reco_e2e.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@normalab.com / Admin1234! (/app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna persistente. Los tests crean/borran proyectos y estudios TEST-REBTBRD-* efímeros. El estudio seed 6a685484405c68bf00035174 se recompute sin modificar data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Los data-testid clave del paso 4 REBT: rebt-recalcular, board-{i}-iga-sel, board-{i}-dif-sel (líneas de alimentacion editables, i=0 raíz, i=1 subcuadro en el seed), linea-{i}-magneto-sel, linea-{i}-dif-sel (circuito final i=2), linea-{i}-protege, linea-{i}-seleccion, cc-{i}-reco. Los Select son shadcn/Radix (no <select> nativos): para interactuar hay que click en el trigger y luego page.get_by_role('option', name=...).click(). Para board raíz, board_id === '__root__'. El endpoint GET /api/studies/{id}/export/docx funciona con cookie httpOnly (o Bearer) y devuelve openxmlformats válido. En backend, la respuesta de POST /api/studies/{id}/compute expone results.lineas y results.observaciones (algunos tests antiguos usan res['results']['lineas'] mientras que la respuesta cruda del engine puede exponerlo también a nivel raíz; el helper _lineas en el test los cubre a ambos)."
+}
