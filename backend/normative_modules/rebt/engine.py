@@ -207,6 +207,26 @@ def _coordinar(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, c
     return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, _proteccion_dict(Ib, In, iz), True
 
 
+def _apply_seccion_manual(seccion_manual, suministro, L, P, gamma, V, Ib, material, auto):
+    """Aplica una sección elegida manualmente por el técnico sobre el resultado automático.
+
+    `auto` = tupla devuelta por `_coordinar` (s, iz, caida, In, prot, ajustada).
+    Si `seccion_manual` es una sección normalizada válida, recalcula Iz, caída y la
+    coordinación (Ib≤In≤Iz) frente a ESA sección; si no, devuelve el resultado automático.
+    Devuelve: (s, iz, caida, In, prot, ajustada, s_auto, manual_ok).
+    """
+    s_a, iz_a, caida_a, In_a, prot_a, ajustada = auto
+    sm = _num(seccion_manual) or None
+    if not sm or float(sm) not in SECCIONES:
+        return s_a, iz_a, caida_a, In_a, prot_a, ajustada, s_a, False
+    s = float(sm)
+    iz = ampacidad(s, material)
+    caida = _caida_real(suministro, L, P, gamma, V, s)
+    In = _breaker_fit(Ib, iz)
+    prot = _proteccion_dict(Ib, In, iz)
+    return s, iz, caida, In, prot, False, s_a, True
+
+
 def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material):
     """Compat.: (seccion, Iz, caida_pct) sin coordinación de protección (usado por LGA)."""
     i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, 0)
@@ -313,6 +333,9 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
     s_min = _seccion_min_tipo(tipo)
     s_el, iz, caida_c, In_auto, prot_auto, ajustada = _coordinar(
         suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    s_el, iz, caida_c, In_auto, prot_auto, ajustada, s_auto, sec_manual_ok = _apply_seccion_manual(
+        carga.get("seccion_manual"), suministro, L, P, gamma, V, Ib, material,
+        (s_el, iz, caida_c, In_auto, prot_auto, ajustada))
     if In_auto is None:
         In_auto = _breaker(Ib, iz)[0]
     manual_in = int(_num(carga.get("magneto_manual"))) or None
@@ -359,6 +382,8 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
         "magneto": breaker, "magneto_auto": In_auto, "magneto_manual": manual_in,
         "seleccion_manual": bool(manual_in), "sensibilidad": int(dif_sens),
         "diferencial_ok": dif_ok, "diferencial_nota": dif_nota, "editable": True,
+        "seccion_auto": s_auto, "seccion_auto_txt": _fmt_s(s_auto),
+        "seccion_manual": (s_el if sec_manual_ok else None), "seleccion_seccion_manual": sec_manual_ok,
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -437,6 +462,9 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     Ib_board = _ib(suministro, p_dem, V, cosphi_gen)
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = _coordinar(
         suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+    s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed, s_feed_auto, sec_feed_manual = _apply_seccion_manual(
+        board.get("seccion_manual"), suministro, L_feed, p_dem, gamma, V, Ib_board, material,
+        (s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed))
     iga_manual = board.get("iga_manual")
     if iga_manual:
         iga = int(_num(iga_manual))
@@ -466,6 +494,8 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
         "magneto": iga, "magneto_auto": iga_auto, "magneto_manual": (int(_num(iga_manual)) or None),
         "seleccion_manual": bool(iga_manual), "sensibilidad": sens_gen,
         "editable_board": True, "es_alimentacion": True,
+        "seccion_auto": s_feed_auto, "seccion_auto_txt": _fmt_s(s_feed_auto),
+        "seccion_manual": (s_feed if sec_feed_manual else None), "seleccion_seccion_manual": sec_feed_manual,
     })
     if not iga_ok:
         obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA ({iga} A) no protege el cable de alimentación "
@@ -501,6 +531,9 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = _coordinar(
                 suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            s_p, iz_p, caida_p, In_p, prot_p, ajustada_p, s_p_auto, sec_p_manual = _apply_seccion_manual(
+                node.get("seccion_manual"), suministro, L_p, p_dem_p, gamma, V, Ib_p, material,
+                (s_p, iz_p, caida_p, In_p, prot_p, ajustada_p))
             In_p_auto = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
             manual_p = int(_num(node.get("magneto_manual"))) or None
             if manual_p:
@@ -524,6 +557,8 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                 "protege_cable": ok_p, "coordinacion": prot_p, "cortocircuito": cc_p,
                 "magneto": magneto_p, "magneto_auto": In_p_auto, "magneto_manual": manual_p,
                 "seleccion_manual": bool(manual_p), "sensibilidad": sens_p, "editable": True, "es_puente": True,
+                "seccion_auto": s_p_auto, "seccion_auto_txt": _fmt_s(s_p_auto),
+                "seccion_manual": (s_p if sec_p_manual else None), "seleccion_seccion_manual": sec_p_manual,
             })
             if not ok_p:
                 sug = f" Recomendado: {In_p_auto} A." if manual_p else ""

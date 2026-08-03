@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EsquemaUnifilar } from "@/features/studies/components/EsquemaUnifilar";
 
 const MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250];
+const SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240];
+const secTxt = (s) => String(s).replace(".", ",");
 const OBS = { info: "border-slate-200 bg-slate-50 text-slate-700", warning: "border-amber-200 bg-amber-50 text-amber-800", error: "border-red-200 bg-red-50 text-red-800" };
 const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 const estCls = (e) => (e === "no_cumple" ? "text-red-700 font-semibold" : e === "observaciones" ? "text-amber-700" : "text-emerald-700");
@@ -75,7 +77,7 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
         </div>
         {editable && (
           <div className="border-b border-border bg-sky-50/50 px-4 py-1.5 text-[11px] text-sky-800">
-            Ajusta el <b>magnetotérmico</b> y el <b>diferencial</b> de cada circuito y pulsa «Recalcular» para validar la selección (columnas «Protege cable» y «Sel.»).
+            Ajusta la <b>sección</b>, el <b>magnetotérmico</b> y el <b>diferencial</b> de cada circuito y pulsa «Recalcular» para validar la selección (columnas «Protege cable» y «Sel.»).
           </div>
         )}
         <div className="overflow-x-auto">
@@ -92,7 +94,21 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
                 return (
                 <tr key={i} className="border-b border-border last:border-0" data-testid={`linea-row-${i}`}>
                   <td className="px-3 py-1.5 font-sans">{l.cuadro}</td><td className="px-3 font-sans">{l.circuito}</td>
-                  <td className="px-3 text-right">{l.Ib}</td><td className="px-3 text-right">{l.seccion_txt} mm²</td><td className="px-3 text-right">{l.iz}</td>
+                  <td className="px-3 text-right">{l.Ib}</td>
+                  <td className="px-3 text-right font-sans">
+                    {canEdit ? (
+                      <Select value={l.seccion_manual ? String(l.seccion_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { seccion_manual: v === "auto" ? "" : Number(v) })}>
+                        <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-seccion-sel`}><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="auto">Auto ({secTxt(l.seccion_auto)} mm²)</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : canEditBoard ? (
+                      <Select value={l.seccion_manual ? String(l.seccion_manual) : "auto"} onValueChange={(v) => onUpdateBoard(l.board_id, { seccion_manual: v === "auto" ? "" : Number(v) })}>
+                        <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`board-${i}-seccion-sel`}><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="auto">Auto ({secTxt(l.seccion_auto)} mm²)</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : <>{l.seccion_txt} mm²</>}
+                  </td>
+                  <td className="px-3 text-right">{l.iz}</td>
                   <td className="px-3 font-sans">
                     {canEdit ? (
                       <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) })}>
