@@ -718,6 +718,32 @@ function Section({ s }) {
           </div>
         )}
 
+        {s.type === "rebt_anexo_calculo" && (
+          <div className="space-y-4" data-testid="report-rebt-anexo-calculo">
+            {(s.items || []).length === 0 && <p className="text-sm text-muted-foreground">No hay circuitos calculados.</p>}
+            {(s.items || []).map((b, bi) => (
+              <div key={bi} className="rounded-md border border-border" data-testid={`report-anexo-calc-${bi}`}>
+                <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2">
+                  <span className="font-heading text-sm font-semibold">{b.circuito}</span>
+                  <span className={`text-xs font-medium ${b.estado === "no_cumple" ? "text-red-700" : b.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>
+                    {b.estado === "no_cumple" ? "No cumple" : b.estado === "observaciones" ? "Revisar" : "Cumple"}
+                  </span>
+                </div>
+                <div className="divide-y divide-border">
+                  {(b.pasos || []).map((p, pi) => (
+                    <div key={pi} className="px-4 py-2">
+                      <p className="text-xs font-semibold">{p.tema}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-slate-700">{p.formula}</p>
+                      <p className="mt-0.5 font-mono text-[11px] font-medium text-slate-900">{p.valor}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">— {p.referencia}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {s.type === "secciones_modulo" && (
           <div className="space-y-4" data-testid="report-secciones-modulo">
             {(s.items || []).map((sec) => {

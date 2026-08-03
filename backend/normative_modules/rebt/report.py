@@ -1,6 +1,6 @@
 """Informe no vinculante del módulo REBT v2 (cuadro eléctrico)."""
 from core.models import utcnow_iso
-from normative_modules.rebt.norm_texts import FUNDAMENTOS
+from normative_modules.rebt.norm_texts import FUNDAMENTOS, build_anexo_calculo
 from normative_modules.shared_estancias import resumen_estancias
 
 _TIPO = {"alumbrado": "Alumbrado", "tomas": "Tomas de corriente", "fuerza": "Fuerza",
@@ -38,9 +38,11 @@ def build_report(project: dict, study: dict, data: dict, results: dict) -> dict:
         {"id": "cortocircuito", "title": "6. Comprobación frente a cortocircuitos (ITC-BT-22)", "type": "rebt_cortocircuito",
          "items": [l for l in results.get("lineas", []) if l.get("cortocircuito")]},
         {"id": "estancias", "title": "7. Cuadro de superficies (ubicación)", "type": "estancias_resumen", "data": est},
-        {"id": "observaciones", "title": "8. Observaciones", "type": "observaciones",
+        {"id": "anexo_calculo", "title": "8. Anexo justificativo de cálculo por circuito (ITC-BT-22)", "type": "rebt_anexo_calculo",
+         "items": build_anexo_calculo(results)},
+        {"id": "observaciones", "title": "9. Observaciones", "type": "observaciones",
          "items": results.get("observaciones", [])},
-        {"id": "fundamentos", "title": "9. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
+        {"id": "fundamentos", "title": "10. Fundamentos normativos (extractos del REBT)", "type": "fundamentos",
          "items": FUNDAMENTOS},
     ]
     return {

@@ -1,13 +1,16 @@
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, XCircle, Calculator, Loader2 } from "lucide-react";
 import { STATE_META, num } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EsquemaUnifilar } from "@/features/studies/components/EsquemaUnifilar";
 
+const MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250];
 const OBS = { info: "border-slate-200 bg-slate-50 text-slate-700", warning: "border-amber-200 bg-amber-50 text-amber-800", error: "border-red-200 bg-red-50 text-red-800" };
 const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 const estCls = (e) => (e === "no_cumple" ? "text-red-700 font-semibold" : e === "observaciones" ? "text-amber-700" : "text-emerald-700");
 const estLbl = (e) => (e === "no_cumple" ? "No cumple" : e === "observaciones" ? "Revisar" : "Cumple");
 
-export function RebtResultsPanel({ results }) {
+export function RebtResultsPanel({ results, editable = false, onUpdateNode, onRecompute, recomputing = false }) {
   if (!results) return null;
   const { resumen = [], cuadro_potencias = [], lineas = [], observaciones = [], arbol, estado_global } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
@@ -62,21 +65,43 @@ export function RebtResultsPanel({ results }) {
 
       {/* Líneas */}
       <div className="border border-border bg-background">
-        <div className="border-b border-border bg-secondary/40 px-4 py-2.5 font-heading text-sm">Dimensionado y comprobación de líneas</div>
+        <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-2.5">
+          <span className="font-heading text-sm">Dimensionado y comprobación de líneas</span>
+          {editable && (
+            <Button size="sm" className="h-8 rounded-sm" onClick={() => onRecompute?.()} disabled={recomputing} data-testid="rebt-recalcular">
+              {recomputing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />} Recalcular
+            </Button>
+          )}
+        </div>
+        {editable && (
+          <div className="border-b border-border bg-sky-50/50 px-4 py-1.5 text-[11px] text-sky-800">
+            Ajusta el <b>magnetotérmico</b> y el <b>diferencial</b> de cada circuito y pulsa «Recalcular» para validar la selección (columnas «Protege cable» y «Sel.»).
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th><th className="px-3">Protección</th><th className="px-3">Protege cable</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Difer.</th><th className="px-3 text-right">Tierra</th><th className="px-3">Estado</th>
+              <th className="px-3 py-2">Cuadro</th><th className="px-3">Línea</th><th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th><th className="px-3">Magnetotérmico</th><th className="px-3">Protege cable</th><th className="px-3">Sel.</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Diferencial</th><th className="px-3 text-right">Tierra</th><th className="px-3">Estado</th>
             </tr></thead>
             <tbody className="font-mono">
               {lineas.map((l, i) => {
                 const co = l.coordinacion;
                 const protege = l.protege_cable;
+                const canEdit = editable && l.editable && l.id;
                 return (
                 <tr key={i} className="border-b border-border last:border-0" data-testid={`linea-row-${i}`}>
                   <td className="px-3 py-1.5 font-sans">{l.cuadro}</td><td className="px-3 font-sans">{l.circuito}</td>
                   <td className="px-3 text-right">{l.Ib}</td><td className="px-3 text-right">{l.seccion_txt} mm²</td><td className="px-3 text-right">{l.iz}</td>
-                  <td className="px-3 font-sans">{l.proteccion}</td>
+                  <td className="px-3 font-sans">
+                    {canEdit ? (
+                      <div className="flex items-center gap-1">
+                        <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) })}>
+                          <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-magneto-sel`}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="auto">Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    ) : l.proteccion}
+                  </td>
                   <td className="px-3 font-sans">
                     {co ? (
                       <span
@@ -89,7 +114,26 @@ export function RebtResultsPanel({ results }) {
                       </span>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
-                  <td className="px-3 text-right">{l.caida_acum_pct}%</td><td className="px-3 font-sans">{l.diferencial}</td><td className="px-3 text-right">{l.tierra}</td>
+                  <td className="px-3 font-sans" data-testid={`linea-${i}-seleccion`}>
+                    {l.seleccion_manual != null ? (
+                      l.seleccion_manual ? (
+                        <span className={protege ? "text-emerald-700" : "text-red-700 font-semibold"}>{protege ? "Correcta" : `Incorrecta (rec. ${l.magneto_auto} A)`}</span>
+                      ) : <span className="text-muted-foreground">Auto</span>
+                    ) : "—"}
+                  </td>
+                  <td className="px-3 text-right">{l.caida_acum_pct}%</td>
+                  <td className="px-3 font-sans">
+                    {canEdit ? (
+                      <div className="flex items-center gap-1">
+                        <Select value={String(l.sensibilidad ?? 30)} onValueChange={(v) => onUpdateNode(l.id, { dif_propio: true, sensibilidad: Number(v) })}>
+                          <SelectTrigger className="h-7 w-20 rounded-sm text-xs" data-testid={`linea-${i}-dif-sel`}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="30">30 mA</SelectItem><SelectItem value="300">300 mA</SelectItem></SelectContent>
+                        </Select>
+                        {l.diferencial_ok === false && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" title={l.diferencial_nota} />}
+                      </div>
+                    ) : l.diferencial}
+                  </td>
+                  <td className="px-3 text-right">{l.tierra}</td>
                   <td className={`px-3 font-sans ${estCls(l.estado)}`}>{estLbl(l.estado)}</td>
                 </tr>
               );})}

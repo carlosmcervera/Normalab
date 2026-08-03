@@ -16,6 +16,7 @@ const TIPOS = [
   { value: "clima", label: "Climatización" }, { value: "otros", label: "Otros" },
 ];
 const fieldLabel = "text-[11px] uppercase tracking-wide text-muted-foreground";
+const MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250];
 
 const newCarga = (tipo = "tomas") => ({ id: genId(), nombre: "", tipo, potencia: "", cosphi: 0.9, factor_uso: 1, longitud: "", estancia: "" });
 const newLinea = () => ({ ...newCarga("tomas"), kind: "linea", dif_propio: false, sensibilidad: 30 });
@@ -151,7 +152,7 @@ export function RebtCuadroStep({ data, setData, study }) {
                 <Button variant="outline" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => addNode(path, newLinea())} data-testid={`board-${board.id}-add-linea`}><Plus className="mr-1 h-3 w-3" />Línea</Button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs"><thead><tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="px-1 py-1">Circuito</th><th className="px-1">Tipo</th><th className="px-1">P (W)</th><th className="px-1">cosφ</th><th className="px-1">F.u.</th><th className="px-1">L (m)</th><th className="px-1">Estancia</th><th className="px-1">Dif. propio</th><th /></tr></thead>
+                <table className="w-full text-xs"><thead><tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="px-1 py-1">Circuito</th><th className="px-1">Tipo</th><th className="px-1">P (W)</th><th className="px-1">cosφ</th><th className="px-1">F.u.</th><th className="px-1">L (m)</th><th className="px-1">Estancia</th><th className="px-1">Dif. propio</th><th className="px-1">Magneto (A)</th><th /></tr></thead>
                   <tbody>{board.nodos.filter((n) => n.kind === "linea").map((n) => (
                     <tr key={n.id} data-testid={`linea-${n.id}`}>
                       <td className="px-1 py-0.5"><Input className="h-7 w-28 rounded-sm text-xs" value={n.nombre || ""} onChange={(e) => patchNode(path, n.id, { nombre: e.target.value })} data-testid={`linea-${n.id}-nombre`} /></td>
@@ -162,6 +163,7 @@ export function RebtCuadroStep({ data, setData, study }) {
                       <td className="px-1"><NumberInput min={0} className="h-7 w-16 rounded-sm font-mono text-xs" value={n.longitud ?? ""} onChange={(v) => patchNode(path, n.id, { longitud: v })} data-testid={`linea-${n.id}-longitud`} /></td>
                       <td className="px-1">{estOpts(n.estancia, (v) => patchNode(path, n.id, { estancia: v }), `linea-${n.id}-estancia`)}</td>
                       <td className="px-1"><div className="flex items-center gap-1"><Switch checked={!!n.dif_propio} onCheckedChange={(v) => patchNode(path, n.id, { dif_propio: v })} data-testid={`linea-${n.id}-dif`} />{n.dif_propio && <Select value={String(n.sensibilidad ?? 30)} onValueChange={(v) => patchNode(path, n.id, { sensibilidad: Number(v) })}><SelectTrigger className="h-7 w-16 rounded-sm text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30">30</SelectItem><SelectItem value="300">300</SelectItem></SelectContent></Select>}</div></td>
+                      <td className="px-1"><Select value={n.magneto_manual ? String(n.magneto_manual) : "auto"} onValueChange={(v) => patchNode(path, n.id, { magneto_manual: v === "auto" ? "" : Number(v) })}><SelectTrigger className="h-7 w-20 rounded-sm text-xs" data-testid={`linea-${n.id}-magneto`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent></Select></td>
                       <td className="px-1"><Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => rmNode(path, n.id)} data-testid={`linea-${n.id}-remove`}><Trash2 className="h-3.5 w-3.5" /></Button></td>
                     </tr>
                   ))}</tbody>

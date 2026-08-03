@@ -457,6 +457,24 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
             nota2.italic = True
             nota2.font.size = Pt(8)
             nota2.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+        elif stype == "rebt_anexo_calculo":
+            estado_lbl = {"cumple": "Cumple", "no_cumple": "No cumple", "observaciones": "Revisar"}
+            for b in s.get("items", []):
+                hp = doc.add_paragraph()
+                hr = hp.add_run(f"{b.get('circuito', 'Circuito')} — {estado_lbl.get(b.get('estado'), 'Info')}")
+                hr.bold = True
+                hr.font.size = Pt(9.5)
+                for p in b.get("pasos", []):
+                    tp = doc.add_paragraph(style="List Bullet")
+                    tp.add_run(f"{p.get('tema')}: ").bold = True
+                    tp.runs[0].font.size = Pt(9)
+                    r2 = tp.add_run(f"{p.get('formula')} → {p.get('valor')} ")
+                    r2.font.size = Pt(9)
+                    r3 = tp.add_run(f"({p.get('referencia')})")
+                    r3.italic = True
+                    r3.font.size = Pt(8)
+                    r3.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+                doc.add_paragraph()
         elif stype == "rebt_esquema":
             def _board_docx(b, nivel):
                 spd = b.get("spd") or {}

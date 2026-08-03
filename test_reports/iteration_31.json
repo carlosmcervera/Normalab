@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 31 — REBT: selección manual editable del magnetotérmico y anexo justificativo de cálculo por circuito (ITC-BT-22). Backend: 7/7 nuevos pytest pasan (test_rebt_manual_and_anexo_e2e.py) + 120 regresión = 127/127 total (JUnit /app/test_reports/pytest/full_iter31.xml). Cubre: (a) magneto_manual=63 A en un circuito con Iz<63 devuelve magneto=63, magneto_auto (recomendado), seleccion_manual=true, protege_cable=false y observación warning con 'Recomendado: X A'; (b) sin magneto_manual → seleccion_manual=false y magneto==magneto_auto; (c) diferencial_ok=true con sensibilidad 30 mA y false con 300 mA (nota menciona ITC-BT-24/25 y 30 mA); (d) cada línea final expone id, editable=true; (e) build_report incluye sección type='rebt_anexo_calculo' (nº 8) con 5 pasos por bloque (Ib, Iz, Caída, Sobrecargas, Cortocircuitos), cada uno con {tema, formula, valor, referencia ITC-BT}; (f) DOCX contiene los textos del anexo ('Corriente de proyecto', 'Protección frente a sobrecargas', 'Protección frente a cortocircuitos', 'Anexo'); (g) el estudio seed 6a685484405c68bf00035174 también expone la sección. Frontend (browser real en normlab.preview.emergentagent.com): paso 4 Resultados del estudio seed muestra selects data-testid linea-2-magneto-sel y linea-2-dif-sel + columnas 'Protege cable' [linea-i-protege] y 'Sel.' [linea-i-seleccion]; cambiar magneto a 63 A + Recalcular [rebt-recalcular] cambia a Sel.='Incorrecta (rec. 10 A)' y Protege='Revisar'; volver a Auto lo deja en 'Auto' + 'Sí'. El paso 3 Cargas y esquema expone data-testid 'linea-{id}-magneto' (id real: cfbe9975-...). La pantalla /estudios/{id}/informe renderiza sección '8. Anexo justificativo de cálculo por circuito (ITC-BT-22)' con data-testid report-rebt-anexo-calculo y los 5 pasos por circuito. Sin errores en consola.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rebt_manual_and_anexo_e2e.py",
+    "/app/test_reports/pytest/rebt_iter31.xml",
+    "/app/test_reports/pytest/full_iter31.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine.py L299 usa `int(_num(carga.get('magneto_manual'))) or None`: si el usuario escribiese '0' o '0.4' se descartaría como manual. Es aceptable porque los desplegables solo ofrecen calibres normalizados >0, pero conviene añadir un test negativo con manual=0 para documentar el comportamiento.",
+    "engine.py L187 (`In, _ = _breaker(Ib, iz)` en rama fallback) sigue sin cobertura de test negativo (Ib inmenso); heredado de iter 30.",
+    "norm_texts.py build_anexo_calculo no distingue líneas de alimentación (LGA/DI/puente) de circuitos finales: la coordinación de sobrecarga muestra 'NO CUMPLE' con — en In cuando la línea es 'alimentacion' sin protección propia. En la captura del informe la línea 'Cuadro general · Acometida / DI' muestra el paso de sobrecarga con Ib≤In≤Iz usando los valores del IGA (correcto), pero merece un test explícito para líneas tipo 'puente' porque el bloque `l.coordinacion` de puentes puede ser None si prot_p no se construye.",
+    "El anexo enumera todas las líneas del proyecto (LGA/DI/puente/circuito) sin agrupar por cuadro; en cuadros grandes puede resultar largo. Sugerir un índice/tabla-resumen previa al anexo detallado."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rebt_manual_and_anexo_e2e.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@normalab.com / Admin1234! (/app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna persistente. Los tests crean/borran proyectos y estudios TEST-REBTMAN-* efímeros. El estudio seed 6a685484405c68bf00035174 se recompute (POST /compute) sin modificar su data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El informe REBT NO se sirve por un endpoint /estudios/{id}/informe (404). El campo `report` viene embebido en la respuesta de POST /api/studies/{id}/compute y también persistido en el documento del estudio; la ruta de UI /estudios/{id}/informe es una página del frontend que consume study.report. Al escribir tests para el anexo, extraer sections desde `resp.json()['report']['sections']`. En la línea final el override manual se envía como `magneto_manual` (int) en el nodo del cuadro (o cadena vacía para Auto). Los data-testid clave del paso 4: rebt-recalcular, linea-{i}-magneto-sel, linea-{i}-dif-sel, linea-{i}-protege, linea-{i}-seleccion (índice i = posición en la tabla, empieza en 0 e incluye alimentación/puente en las primeras filas). En el estudio seed la única fila editable es i=2 (circuito 'c1', id cfbe9975-76b8-400b-9f1f-6c625919310f). En paso 3 el data-testid del select es linea-{node_id}-magneto (no índice)."
+}

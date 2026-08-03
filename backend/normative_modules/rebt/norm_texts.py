@@ -58,3 +58,52 @@ FUNDAMENTOS = [
         "referencia": "REBT, ITC-BT-22 e ITC-BT-17.",
     },
 ]
+
+
+def build_anexo_calculo(results: dict) -> list:
+    """Anexo justificativo de cálculo por circuito: fórmulas de Ib, Iz, caída de tensión,
+    sobrecarga y cortocircuito con los valores del proyecto, citando la ITC-BT-22."""
+    datos = results.get("datos", {}) or {}
+    trifasica = datos.get("suministro") == "trifasica"
+    V = datos.get("tension", 230)
+    mat = datos.get("material", "Cu")
+    ib_formula = (f"Ib = P / (√3 · U · cosφ), con U = {V} V (trifásica)"
+                  if trifasica else f"Ib = P / (U · cosφ), con U = {V} V (monofásica)")
+    e_formula = ("e = √3 · L · I · (R·cosφ + X·senφ) ≈ L·P / (γ·S·U) (trifásica)"
+                 if trifasica else "e = 2 · L · P / (γ·S·U) (monofásica), con γ del " + mat)
+    bloques = []
+    for l in results.get("lineas", []):
+        co = l.get("coordinacion") or {}
+        cc = l.get("cortocircuito") or {}
+        pasos = [
+            {"tema": "Corriente de proyecto o de diseño (Ib)",
+             "formula": ib_formula,
+             "valor": f"Ib = {l.get('Ib')} A (para P = {l.get('potencia')} W).",
+             "referencia": "REBT, ITC-BT-19 · UNE-HD 60364-5-52."},
+            {"tema": "Intensidad máxima admisible del conductor (Iz)",
+             "formula": f"Iz según sección y método de instalación (conductor {mat}).",
+             "valor": f"Sección adoptada {l.get('seccion_txt')} mm² → Iz = {l.get('iz')} A ≥ Ib.",
+             "referencia": "REBT, ITC-BT-19, Tabla 1 (intensidades admisibles)."},
+            {"tema": "Caída de tensión",
+             "formula": e_formula + f", con L = {l.get('longitud')} m",
+             "valor": f"c.d.t. del tramo = {l.get('caida_pct')} % · acumulada = {l.get('caida_acum_pct')} %.",
+             "referencia": "REBT, ITC-BT-19 (3 % alumbrado / 5 % otros usos; 4,5 %/6,5 % con transformador propio)."},
+            {"tema": "Protección frente a sobrecargas (coordinación con el cable)",
+             "formula": "Ib ≤ In ≤ Iz  y  I2 ≤ 1,45 · Iz  (I2 = 1,45 · In)",
+             "valor": (f"{co.get('Ib')} A ≤ {co.get('In')} A ≤ {co.get('Iz')} A  y  "
+                       f"I2 {co.get('I2')} A ≤ 1,45·Iz {co.get('I2_max')} A → "
+                       f"{'CUMPLE' if co.get('protege') else 'NO CUMPLE'}."),
+             "referencia": "REBT, ITC-BT-22 · UNE-HD 60364-4-43."},
+            {"tema": "Protección frente a cortocircuitos",
+             "formula": "Poder de corte ≥ Icc_máx · k²·S² ≥ I²t · Icc_mín ≥ Im",
+             "valor": (f"Icc_máx = {cc.get('icc_max_a')} A, Icc_mín = {cc.get('icc_min_a')} A, "
+                       f"Im = {cc.get('im_a')} A (curva {cc.get('curva')}); "
+                       f"k²·S² = {cc.get('i2t_cable')} ≥ I²t = {cc.get('i2t_paso')} → "
+                       f"{'CUMPLE' if cc.get('protege_cc') else 'NO CUMPLE'}."),
+             "referencia": "REBT, ITC-BT-22 · UNE-HD 60364-4-43 (Guía BT-22, método simplificado)."},
+        ]
+        bloques.append({
+            "circuito": f"{l.get('cuadro')} · {l.get('circuito')}",
+            "estado": l.get("estado"), "pasos": pasos,
+        })
+    return bloques

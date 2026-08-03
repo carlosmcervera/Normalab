@@ -41,6 +41,17 @@ const migrateIncendios = (d) => {
   return { ...rest, sectores, dependencias };
 };
 
+const patchTree = (board, id, patch) => {
+  if (!board) return board;
+  const nodos = (board.nodos || []).map((n) => {
+    if (n.id === id) return { ...n, ...patch };
+    if (n.kind === "puente") return { ...n, sublineas: (n.sublineas || []).map((s) => (s.id === id ? { ...s, ...patch } : s)) };
+    if (n.kind === "subcuadro") return { ...n, board: patchTree(n.board, id, patch) };
+    return n;
+  });
+  return { ...board, nodos };
+};
+
 export default function StudyWizardPage() {
   const { studyId } = useParams();
   const navigate = useNavigate();
@@ -120,6 +131,16 @@ export default function StudyWizardPage() {
 
   const current = steps[step] || steps[0];
 
+  const updateRebtNode = (id, patch) => setData((d) => ({ ...d, cuadro: patchTree(d.cuadro, id, patch) }));
+  const recomputeRebt = async () => {
+    try {
+      await saveMut.mutateAsync(data);
+      computeMut.mutate();
+    } catch (e) {
+      toast.error(apiError(e) || "No se ha podido guardar antes de recalcular.");
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl">
       <button onClick={() => navigate(`/expedientes/${study.project_id}`)} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" data-testid="back-to-project">
@@ -163,7 +184,7 @@ export default function StudyWizardPage() {
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                results?.arbol ? <RebtResultsPanel results={results} />
+                results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onRecompute={recomputeRebt} recomputing={computeMut.isPending || saveMut.isPending} />
                   : results?.sectores ? <ResultsPanel results={results} />
                     : results?.ambitos ? <IncendiosResultsPanel results={results} />
                       : <GenericResultsPanel results={results} />

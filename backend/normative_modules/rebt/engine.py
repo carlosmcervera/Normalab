@@ -292,11 +292,25 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
     caida_max_c = _num(carga.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
     Ib = _ib(suministro, P, V, cosphi)
     s_min = _seccion_min_tipo(tipo)
-    s_el, iz, caida_c, breaker, prot, ajustada = _coordinar(
+    s_el, iz, caida_c, In_auto, prot_auto, ajustada = _coordinar(
         suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    if In_auto is None:
+        In_auto = _breaker(Ib, iz)[0]
+    manual_in = int(_num(carga.get("magneto_manual"))) or None
+    if manual_in:
+        breaker = manual_in
+        prot = _proteccion_dict(Ib, breaker, iz)
+    else:
+        breaker = In_auto
+        prot = prot_auto
     caida_total = caida_base + caida_c
     br_ok = bool(prot and prot["protege"])
     cc = _cortocircuito(general, z_busbar, L, s_el, breaker)
+    # Validación del diferencial: 30 mA recomendado en circuitos finales (protección de personas).
+    dif_ok = int(dif_sens) <= 30
+    dif_nota = ("Sensibilidad ≤ 30 mA: adecuada para protección de personas (contactos directos)."
+                if dif_ok else "Sensibilidad 300 mA: solo protección de bienes/contactos indirectos; "
+                "para circuitos finales se recomienda 30 mA (ITC-BT-24/25).")
     tierra = seccion_tierra(s_el)
     limite = _limite_total(general, tipo)
     cdt_ok = caida_total <= limite + 1e-6
@@ -318,11 +332,14 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
         "proteccion": prot, "seccion_ajustada": ajustada, "seccion_min": s_min, "cortocircuito": cc,
     }
     lineas.append({
-        "cuadro": cuadro_nombre, "circuito": nombre, "tipo": "circuito",
+        "id": carga.get("id"), "cuadro": cuadro_nombre, "circuito": nombre, "tipo": "circuito",
         "potencia": round(P, 1), "Ib": round(Ib, 2), "seccion": s_el, "seccion_txt": _fmt_s(s_el),
         "iz": round(iz, 1), "caida_pct": round(caida_c, 2), "caida_acum_pct": round(caida_total, 2),
         "proteccion": f"{breaker} A", "diferencial": f"{int(dif_sens)} mA", "tierra": _fmt_s(tierra),
         "estado": estado, "longitud": L, "protege_cable": br_ok, "coordinacion": prot, "cortocircuito": cc,
+        "magneto": breaker, "magneto_auto": In_auto, "magneto_manual": manual_in,
+        "seleccion_manual": bool(manual_in), "sensibilidad": int(dif_sens),
+        "diferencial_ok": dif_ok, "diferencial_nota": dif_nota, "editable": True,
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -334,8 +351,13 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
                     f"{caida_total:.2f} % supera el límite del {limite:g} % "
                     f"({'alumbrado' if tipo == 'alumbrado' else 'otros usos'}). Aumente la sección."})
     elif P > 0 and not br_ok:
-        obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: no existe un calibre normalizado que "
-                    f"proteja el cable (Ib {Ib:.1f} A, Iz {iz:.0f} A). Revise sección/protección."})
+        if manual_in:
+            obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: la selección manual del "
+                        f"magnetotérmico ({manual_in} A) NO protege el cable (se requiere Ib≤In≤Iz e I2≤1,45·Iz; "
+                        f"Ib {Ib:.1f} A, Iz {iz:.0f} A). Recomendado: {In_auto} A."})
+        else:
+            obs.append({"tipo": "warning", "texto": f"«{cuadro_nombre} · {nombre}»: no existe un calibre normalizado que "
+                        f"proteja el cable (Ib {Ib:.1f} A, Iz {iz:.0f} A). Revise sección/protección."})
     elif ajustada and P > 0:
         obs.append({"tipo": "info", "texto": f"«{cuadro_nombre} · {nombre}»: se ha aumentado la sección a "
                     f"{_fmt_s(s_el)} mm² para que el magnetotérmico de {breaker} A proteja el cable "
@@ -453,7 +475,13 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = _coordinar(
                 suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
-            magneto_p = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
+            In_p_auto = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
+            manual_p = int(_num(node.get("magneto_manual"))) or None
+            if manual_p:
+                magneto_p = manual_p
+                prot_p = _proteccion_dict(Ib_p, magneto_p, iz_p)
+            else:
+                magneto_p = In_p_auto
             ok_p = bool(prot_p and prot_p["protege"])
             cc_p = _cortocircuito(general, z_busbar, L_p, s_p, magneto_p)
             caida_busbar_p = caida_busbar + caida_p
@@ -462,16 +490,20 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
             tierra_p = seccion_tierra(s_p)
             estado_p = "cumple" if (ok_p and cc_p["protege_cc"]) else "observaciones"
             lineas.append({
-                "cuadro": nombre, "circuito": f"{pnombre} (puente)", "tipo": "puente",
+                "id": node.get("id"), "cuadro": nombre, "circuito": f"{pnombre} (puente)", "tipo": "puente",
                 "potencia": round(p_dem_p, 1), "Ib": round(Ib_p, 2), "seccion": s_p, "seccion_txt": _fmt_s(s_p),
                 "iz": round(iz_p, 1), "caida_pct": round(caida_p, 2), "caida_acum_pct": round(caida_busbar_p, 2),
                 "proteccion": f"{magneto_p} A", "diferencial": f"{sens_p} mA", "tierra": _fmt_s(tierra_p),
                 "estado": estado_p, "longitud": L_p,
                 "protege_cable": ok_p, "coordinacion": prot_p, "cortocircuito": cc_p,
+                "magneto": magneto_p, "magneto_auto": In_p_auto, "magneto_manual": manual_p,
+                "seleccion_manual": bool(manual_p), "sensibilidad": sens_p, "editable": True, "es_puente": True,
             })
             if not ok_p:
+                sug = f" Recomendado: {In_p_auto} A." if manual_p else ""
                 obs.append({"tipo": "warning", "texto": f"«{nombre} · {pnombre}»: el magnetotérmico de la línea "
-                            f"puente no protege el cable (Ib≤In≤Iz / I2≤1,45·Iz; Ib {Ib_p:.1f} A, Iz {iz_p:.0f} A)."})
+                            f"puente ({magneto_p} A) no protege el cable (Ib≤In≤Iz / I2≤1,45·Iz; Ib {Ib_p:.1f} A, "
+                            f"Iz {iz_p:.0f} A).{sug}"})
             elif ajustada_p:
                 obs.append({"tipo": "info", "texto": f"«{nombre} · {pnombre}»: sección de la línea puente aumentada a "
                             f"{_fmt_s(s_p)} mm² para que el magnetotérmico de {magneto_p} A proteja el cable (ITC-BT-22)."})
