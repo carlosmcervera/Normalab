@@ -466,7 +466,7 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                 rr = rp.add_run("Índice de circuitos")
                 rr.bold = True
                 rr.font.size = Pt(9.5)
-                cols = ["#", "Cuadro", "Línea", "Ib (A)", "Sección", "Iz (A)", "Magneto (A)", "Caída acum.", "Estado"]
+                cols = ["#", "Cuadro", "Línea", "Ib (A)", "Sección", "Iz (A)", "Magneto (A)", "Curva", "vs. mín.", "Caída acum.", "Estado"]
                 tbl = doc.add_table(rows=1, cols=len(cols))
                 tbl.style = "Light Grid Accent 1"
                 for ci, cname in enumerate(cols):
@@ -475,9 +475,14 @@ def build_docx(report: dict, study: dict, project: dict) -> BytesIO:
                     crun.font.size = Pt(8)
                 for r in resumen:
                     cells = tbl.add_row().cells
+                    curva_txt = (r.get("curva") or "—")
+                    if r.get("curva_ajustada"):
+                        curva_txt += " (aj.)"
+                    sob = r.get("sobredimension")
+                    sob_txt = f"+{str(sob).replace('.', ',')} mm²" if (sob is not None and sob > 0) else "—"
                     vals = [str(r.get("n")), str(r.get("cuadro") or ""), str(r.get("circuito") or ""),
                             str(r.get("ib")), f"{r.get('seccion_txt')} mm²", str(r.get("iz")),
-                            str(r.get("magneto")), f"{r.get('caida_acum_pct')}%",
+                            str(r.get("magneto")), curva_txt, sob_txt, f"{r.get('caida_acum_pct')}%",
                             estado_lbl.get(r.get("estado"), "Info")]
                     for ci, v in enumerate(vals):
                         cvr = cells[ci].paragraphs[0].add_run(v)

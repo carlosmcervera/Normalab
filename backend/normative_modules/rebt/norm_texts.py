@@ -115,5 +115,12 @@ def build_anexo_calculo(results: dict) -> list:
             "ib": l.get("Ib"), "seccion_txt": l.get("seccion_txt"), "iz": l.get("iz"),
             "magneto": l.get("magneto"), "sensibilidad": l.get("sensibilidad"),
             "caida_acum_pct": l.get("caida_acum_pct"), "estado": l.get("estado"),
+            "seccion_min_sobrecarga_txt": l.get("seccion_min_sobrecarga_txt"),
+            "sobredimension": (
+                round(float(l.get("seccion") or 0) - float(l.get("seccion_min_sobrecarga") or 0), 2)
+                if (l.get("seccion") is not None and l.get("seccion_min_sobrecarga") is not None) else None
+            ),
+            "curva": (l.get("cortocircuito") or {}).get("curva"),
+            "curva_ajustada": (l.get("cortocircuito") or {}).get("curva_ajustada", False),
         })
     return {"resumen": resumen, "bloques": bloques}

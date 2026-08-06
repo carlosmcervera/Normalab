@@ -81,9 +81,24 @@ def _cortocircuito(general, z_up, L, s, In):
     i2t_paso = (icc_max ** 2) * t                           # energía pasante estimada
     t_adm = (k * s / icc_max) ** 2 if icc_max > 0 else float("inf")
     im = In * general["im_factor"] if In else 0.0
+    curva_used = general["curva"]
+    curva_ajustada = False
     pdc_ok = pdc >= icc_max - 1e-6
     term_ok = i2t_cable >= i2t_paso - 1e-6
     mag_ok = (icc_min >= im - 1e-6) if In else True
+    # Curva óptima (auto-dimensionado): si falla el disparo magnético, probar curvas más
+    # sensibles (menor Im: D→C→B) sin superar la configurada, antes de aumentar la sección.
+    if general.get("auto_cumplimiento") and In and not mag_ok:
+        conf = general["im_factor"]
+        for cv, f in sorted(_IM_CURVA.items(), key=lambda kv: -kv[1]):
+            if f > conf:
+                continue
+            if icc_min >= In * f - 1e-6:
+                im = In * f
+                curva_used = cv
+                curva_ajustada = (cv != general["curva"])
+                mag_ok = True
+                break
     # Recomendaciones cuando no cumple.
     s_term = (icc_max * (t ** 0.5) / k) if k > 0 else 0.0          # sección térmica mínima
     s_reco = next((x for x in SECCIONES if x >= s_term - 1e-9), SECCIONES[-1])
@@ -99,7 +114,8 @@ def _cortocircuito(general, z_up, L, s, In):
     recomendacion = ("Recomendación: " + "; ".join(recos) + ".") if recos else None
     return {
         "icc_max_a": round(icc_max, 0), "icc_min_a": round(icc_min, 0),
-        "im_a": round(im, 0), "curva": general["curva"],
+        "im_a": round(im, 0), "curva": curva_used, "curva_original": general["curva"],
+        "curva_ajustada": curva_ajustada,
         "i2t_cable": round(i2t_cable, 0), "i2t_paso": round(i2t_paso, 0),
         "t_adm_s": round(t_adm, 3) if t_adm != float("inf") else None, "t_disparo_s": t,
         "poder_corte_ka": general["poder_corte_ka"], "pdc_ok": pdc_ok,
@@ -354,10 +370,12 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
     caida_max_c = _num(carga.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
     Ib = _ib(suministro, P, V, cosphi)
     s_min = _seccion_min_tipo(tipo)
+    overload_tuple = _coordinar(suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    s_sobrecarga = overload_tuple[0]
     if general.get("auto_cumplimiento"):
         auto_tuple = _dimensionar_cumplimiento(general, z_busbar, L, P, Ib, material, s_min, suministro, V, caida_max_c, gamma)
     else:
-        auto_tuple = _coordinar(suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+        auto_tuple = overload_tuple
     s_el, iz, caida_c, In_auto, prot_auto, ajustada = auto_tuple
     s_el, iz, caida_c, In_auto, prot_auto, ajustada, s_auto, sec_manual_ok = _apply_seccion_manual(
         carga.get("seccion_manual"), suministro, L, P, gamma, V, Ib, material,
@@ -410,6 +428,7 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
         "diferencial_ok": dif_ok, "diferencial_nota": dif_nota, "editable": True,
         "seccion_auto": s_auto, "seccion_auto_txt": _fmt_s(s_auto),
         "seccion_manual": (s_el if sec_manual_ok else None), "seleccion_seccion_manual": sec_manual_ok,
+        "seccion_min_sobrecarga": s_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_sobrecarga),
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -486,10 +505,12 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     cosphi_gen = _num(alim.get("cosphi"), 0.9) or 0.9
     caida_feed_max = _num(alim.get("caida_max"), general.get("caida_max_di", 1.5) if es_raiz else 1.5) or 1.5
     Ib_board = _ib(suministro, p_dem, V, cosphi_gen)
+    feed_overload = _coordinar(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+    s_feed_sobrecarga = feed_overload[0]
     if general.get("auto_cumplimiento"):
         feed_auto = _dimensionar_cumplimiento(general, z_busbar, L_feed, p_dem, Ib_board, material, 0, suministro, V, caida_feed_max, gamma)
     else:
-        feed_auto = _coordinar(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+        feed_auto = feed_overload
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = feed_auto
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed, s_feed_auto, sec_feed_manual = _apply_seccion_manual(
         board.get("seccion_manual"), suministro, L_feed, p_dem, gamma, V, Ib_board, material,
@@ -525,6 +546,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
         "editable_board": True, "es_alimentacion": True,
         "seccion_auto": s_feed_auto, "seccion_auto_txt": _fmt_s(s_feed_auto),
         "seccion_manual": (s_feed if sec_feed_manual else None), "seleccion_seccion_manual": sec_feed_manual,
+        "seccion_min_sobrecarga": s_feed_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_feed_sobrecarga),
     })
     if not iga_ok:
         obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA ({iga} A) no protege el cable de alimentación "
@@ -558,10 +580,12 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                           for s in node.get("sublineas", [])) * simult_p
             caida_max_p = _num(node.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
+            p_overload = _coordinar(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            s_p_sobrecarga = p_overload[0]
             if general.get("auto_cumplimiento"):
                 p_auto = _dimensionar_cumplimiento(general, z_busbar, L_p, p_dem_p, Ib_p, material, _SECCION_MIN_OTROS, suministro, V, caida_max_p, gamma)
             else:
-                p_auto = _coordinar(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+                p_auto = p_overload
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = p_auto
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p, s_p_auto, sec_p_manual = _apply_seccion_manual(
                 node.get("seccion_manual"), suministro, L_p, p_dem_p, gamma, V, Ib_p, material,
@@ -591,6 +615,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                 "seleccion_manual": bool(manual_p), "sensibilidad": sens_p, "editable": True, "es_puente": True,
                 "seccion_auto": s_p_auto, "seccion_auto_txt": _fmt_s(s_p_auto),
                 "seccion_manual": (s_p if sec_p_manual else None), "seleccion_seccion_manual": sec_p_manual,
+                "seccion_min_sobrecarga": s_p_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_p_sobrecarga),
             })
             if not ok_p:
                 sug = f" Recomendado: {In_p_auto} A." if manual_p else ""
@@ -694,6 +719,12 @@ def compute(data: dict) -> dict:
             base += f"; el poder de corte de los interruptores se ha elevado a {poder_corte} kA para superar la Icc presunta en origen"
         base += ". Revise y valide el dimensionado propuesto (estudio orientativo, no vinculante)."
         obs.append({"tipo": "info", "texto": base})
+        curva_adj = [l for l in lineas if (l.get("cortocircuito") or {}).get("curva_ajustada")]
+        if curva_adj:
+            det = "; ".join(f"«{l.get('circuito', '')}» → curva {l['cortocircuito']['curva']}" for l in curva_adj)
+            obs.append({"tipo": "info", "texto": "Para garantizar el disparo magnético (Icc_mín≥Im) sin aumentar "
+                        f"la sección, se ha ajustado la curva del interruptor en: {det} (curva original "
+                        f"{curva}). Verifique que la curva elegida no provoque disparos intempestivos por corrientes de arranque."})
         if no_cc:
             obs.append({"tipo": "warning", "texto": "Con dimensionado automático, las siguientes líneas no pueden "
                         "cumplir cortocircuito solo aumentando la sección (Icc demasiado elevada o límites de "

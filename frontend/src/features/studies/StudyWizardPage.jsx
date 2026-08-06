@@ -180,7 +180,7 @@ export default function StudyWizardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-7xl">
       <button onClick={() => navigate(`/expedientes/${study.project_id}`)} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" data-testid="back-to-project">
         <ArrowLeft className="h-4 w-4" /> Volver al expediente
       </button>

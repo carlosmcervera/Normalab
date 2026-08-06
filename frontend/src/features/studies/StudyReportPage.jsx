@@ -729,7 +729,7 @@ function Section({ s }) {
                     <tr className="border-b border-border bg-secondary/40 text-left uppercase tracking-wide text-muted-foreground">
                       <th className="px-3 py-2">#</th><th className="px-3">Cuadro</th><th className="px-3">Línea</th>
                       <th className="px-3 text-right">Ib (A)</th><th className="px-3 text-right">Sección</th><th className="px-3 text-right">Iz (A)</th>
-                      <th className="px-3 text-right">Magneto (A)</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Estado</th>
+                      <th className="px-3 text-right">Magneto (A)</th><th className="px-3">Curva</th><th className="px-3 text-right">vs. mín.</th><th className="px-3 text-right">Caída acum.</th><th className="px-3">Estado</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">
@@ -744,6 +744,16 @@ function Section({ s }) {
                         <td className="px-3 text-right">{r.seccion_txt} mm²</td>
                         <td className="px-3 text-right">{r.iz}</td>
                         <td className="px-3 text-right">{r.magneto}</td>
+                        <td className="px-3 font-sans" data-testid={`anexo-row-${r.n - 1}-curva`}>
+                          {r.curva ? (r.curva_ajustada
+                            ? <span className="rounded-sm bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800" title="Curva ajustada por el dimensionado automático para garantizar el disparo magnético">{r.curva} ⚙</span>
+                            : r.curva) : "—"}
+                        </td>
+                        <td className="px-3 text-right font-sans" data-testid={`anexo-row-${r.n - 1}-sobredim`}>
+                          {r.sobredimension > 0
+                            ? <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" title={`Sección por encima de la mínima por sobrecarga (${r.seccion_min_sobrecarga_txt} mm²), para cumplir cortocircuito o por selección manual`}>+{String(r.sobredimension).replace(".", ",")} mm²</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
                         <td className="px-3 text-right">{r.caida_acum_pct}%</td>
                         <td className={`px-3 font-sans ${r.estado === "no_cumple" ? "font-semibold text-red-700" : r.estado === "observaciones" ? "text-amber-700" : "text-emerald-700"}`}>
                           {r.estado === "no_cumple" ? "No cumple" : r.estado === "observaciones" ? "Revisar" : "Cumple"}
