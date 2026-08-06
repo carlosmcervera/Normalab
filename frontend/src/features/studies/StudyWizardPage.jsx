@@ -154,6 +154,30 @@ export default function StudyWizardPage() {
       toast.error(apiError(e) || "No se ha podido guardar antes de recalcular.");
     }
   };
+  const clearRebtOverrides = (board) => {
+    if (!board) return board;
+    const { seccion_manual, iga_manual, ...b } = board;
+    b.nodos = (b.nodos || []).map((n) => {
+      if (n.kind === "subcuadro") return { ...n, board: clearRebtOverrides(n.board) };
+      const { seccion_manual: sm, magneto_manual: mm, ...node } = n;
+      if (n.kind === "puente") node.sublineas = (n.sublineas || []).map((s) => { const { seccion_manual: s2, magneto_manual: m2, ...ss } = s; return ss; });
+      return node;
+    });
+    return b;
+  };
+  const autoDimensionarRebt = async (enable) => {
+    const next = enable
+      ? { ...data, auto_cumplimiento: true, cuadro: clearRebtOverrides(data.cuadro) }
+      : { ...data, auto_cumplimiento: false };
+    setData(next);
+    try {
+      await saveMut.mutateAsync(next);
+      computeMut.mutate();
+      if (enable) toast.success("Dimensionado automático (REBT 100%) aplicado.");
+    } catch (e) {
+      toast.error(apiError(e) || "No se ha podido aplicar el dimensionado automático.");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -198,7 +222,7 @@ export default function StudyWizardPage() {
               {computeMut.isPending ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
-                results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onUpdateBoard={updateRebtBoard} onRecompute={recomputeRebt} recomputing={computeMut.isPending || saveMut.isPending} />
+                results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onUpdateBoard={updateRebtBoard} onRecompute={recomputeRebt} onAutoDimensionar={autoDimensionarRebt} autoOn={!!data.auto_cumplimiento} recomputing={computeMut.isPending || saveMut.isPending} />
                   : results?.sectores ? <ResultsPanel results={results} />
                     : results?.ambitos ? <IncendiosResultsPanel results={results} />
                       : <GenericResultsPanel results={results} />

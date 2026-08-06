@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Info, XCircle, Calculator, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, XCircle, Calculator, Loader2, Wand2 } from "lucide-react";
 import { STATE_META, num } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,7 +12,7 @@ const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 const estCls = (e) => (e === "no_cumple" ? "text-red-700 font-semibold" : e === "observaciones" ? "text-amber-700" : "text-emerald-700");
 const estLbl = (e) => (e === "no_cumple" ? "No cumple" : e === "observaciones" ? "Revisar" : "Cumple");
 
-export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUpdateBoard, onRecompute, recomputing = false }) {
+export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUpdateBoard, onRecompute, onAutoDimensionar, autoOn = false, recomputing = false }) {
   if (!results) return null;
   const { resumen = [], cuadro_potencias = [], lineas = [], observaciones = [], arbol, estado_global } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
@@ -27,6 +27,23 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
           </div>
         ))}
       </div>
+      {editable && onAutoDimensionar && (
+        <div className={`flex flex-col gap-3 border p-4 sm:flex-row sm:items-center sm:justify-between ${autoOn ? "border-emerald-300 bg-emerald-50/60" : "border-border bg-background"}`} data-testid="rebt-auto-dim-panel">
+          <div className="flex items-start gap-3">
+            <Wand2 className={`mt-0.5 h-5 w-5 ${autoOn ? "text-emerald-600" : "text-muted-foreground"}`} />
+            <div>
+              <p className="text-sm font-semibold">Dimensionado automático · cumplimiento REBT 100%</p>
+              <p className="text-xs text-muted-foreground">Ajusta la sección de cada línea (y el poder de corte) para cumplir sobrecarga (Ib≤In≤Iz) y cortocircuito (k²·S²≥I²t, Icc_mín≥Im, poder de corte≥Icc) según la ITC-BT-22. Reemplaza las selecciones manuales.</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {autoOn && <span className="inline-flex items-center gap-1 rounded-sm border border-emerald-300 bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800" data-testid="rebt-auto-badge"><CheckCircle2 className="h-3 w-3" />Activado</span>}
+            {autoOn
+              ? <Button variant="outline" size="sm" className="rounded-sm text-xs" onClick={() => onAutoDimensionar(false)} disabled={recomputing} data-testid="rebt-auto-off">Desactivar</Button>
+              : <Button size="sm" className="rounded-sm text-xs" onClick={() => onAutoDimensionar(true)} disabled={recomputing} data-testid="rebt-auto-on">{recomputing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}Dimensionar automáticamente</Button>}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between border border-border bg-background p-4">
         <h3 className="font-heading text-base">Resultado global del cuadro</h3>
         <span className={`inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 text-sm font-medium ${state.cls}`} data-testid="global-state">

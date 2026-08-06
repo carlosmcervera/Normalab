@@ -227,6 +227,29 @@ def _apply_seccion_manual(seccion_manual, suministro, L, P, gamma, V, Ib, materi
     return s, iz, caida, In, prot, False, s_a, True
 
 
+def _dimensionar_cumplimiento(general, z_up, L, P, Ib, material, s_min, suministro, V, caida_max_pct, gamma):
+    """Dimensionado automático con cumplimiento REBT 100%: elige la menor sección normalizada
+    que satisface a la vez la caída de tensión, la coordinación frente a sobrecargas
+    (Ib≤In≤Iz e I2≤1,45·Iz) y las comprobaciones de cortocircuito (k²·S²≥I²t e Icc_mín≥Im)
+    en el punto de instalación (z_up). Devuelve (s, iz, caida, In, prot, ajustada)."""
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min)
+    for i in range(i0, len(SECCIONES)):
+        s = SECCIONES[i]
+        iz = ampacidad(s, material)
+        In = _breaker_fit(Ib, iz)
+        if In is None:
+            continue
+        prot = _proteccion_dict(Ib, In, iz)
+        cc = _cortocircuito(general, z_up, L, s, In)
+        if prot["protege"] and cc["termico_ok"] and cc["magnetico_ok"]:
+            return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, prot, i > i0
+    # Ninguna sección lo cumple todo (p. ej. Icc muy elevada): usar la mayor disponible.
+    s = SECCIONES[-1]
+    iz = ampacidad(s, material)
+    In = _breaker_fit(Ib, iz) or _breaker(Ib, iz)[0]
+    return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, _proteccion_dict(Ib, In, iz), True
+
+
 def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material):
     """Compat.: (seccion, Iz, caida_pct) sin coordinación de protección (usado por LGA)."""
     i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, 0)
@@ -331,8 +354,11 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
     caida_max_c = _num(carga.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
     Ib = _ib(suministro, P, V, cosphi)
     s_min = _seccion_min_tipo(tipo)
-    s_el, iz, caida_c, In_auto, prot_auto, ajustada = _coordinar(
-        suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    if general.get("auto_cumplimiento"):
+        auto_tuple = _dimensionar_cumplimiento(general, z_busbar, L, P, Ib, material, s_min, suministro, V, caida_max_c, gamma)
+    else:
+        auto_tuple = _coordinar(suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    s_el, iz, caida_c, In_auto, prot_auto, ajustada = auto_tuple
     s_el, iz, caida_c, In_auto, prot_auto, ajustada, s_auto, sec_manual_ok = _apply_seccion_manual(
         carga.get("seccion_manual"), suministro, L, P, gamma, V, Ib, material,
         (s_el, iz, caida_c, In_auto, prot_auto, ajustada))
@@ -460,8 +486,11 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     cosphi_gen = _num(alim.get("cosphi"), 0.9) or 0.9
     caida_feed_max = _num(alim.get("caida_max"), general.get("caida_max_di", 1.5) if es_raiz else 1.5) or 1.5
     Ib_board = _ib(suministro, p_dem, V, cosphi_gen)
-    s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = _coordinar(
-        suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+    if general.get("auto_cumplimiento"):
+        feed_auto = _dimensionar_cumplimiento(general, z_busbar, L_feed, p_dem, Ib_board, material, 0, suministro, V, caida_feed_max, gamma)
+    else:
+        feed_auto = _coordinar(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+    s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = feed_auto
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed, s_feed_auto, sec_feed_manual = _apply_seccion_manual(
         board.get("seccion_manual"), suministro, L_feed, p_dem, gamma, V, Ib_board, material,
         (s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed))
@@ -529,8 +558,11 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                           for s in node.get("sublineas", [])) * simult_p
             caida_max_p = _num(node.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
-            s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = _coordinar(
-                suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            if general.get("auto_cumplimiento"):
+                p_auto = _dimensionar_cumplimiento(general, z_busbar, L_p, p_dem_p, Ib_p, material, _SECCION_MIN_OTROS, suministro, V, caida_max_p, gamma)
+            else:
+                p_auto = _coordinar(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = p_auto
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p, s_p_auto, sec_p_manual = _apply_seccion_manual(
                 node.get("seccion_manual"), suministro, L_p, p_dem_p, gamma, V, Ib_p, material,
                 (s_p, iz_p, caida_p, In_p, prot_p, ajustada_p))
@@ -605,10 +637,19 @@ def compute(data: dict) -> dict:
     aislamiento = (data.get("aislamiento") or "PVC").upper()
     curva = (data.get("curva") or "C").upper()
     poder_corte = int(_num(data.get("poder_corte_ka"), _PODER_CORTE.get(tipo_inst, 6)))
+    auto_cumplimiento = bool(data.get("auto_cumplimiento"))
+    icc_origen = _num(data.get("icc_origen_a"), _ICC_ORIGEN.get(tipo_inst, 6000))
+    pdc_ajustado = False
+    if auto_cumplimiento:
+        pdc_needed = next((x for x in _PDC_NORM if x >= icc_origen / 1000.0 - 1e-9), _PDC_NORM[-1])
+        if pdc_needed > poder_corte:
+            poder_corte = pdc_needed
+            pdc_ajustado = True
     general = {
         "suministro": suministro, "V": V,
         "material": material,
         "tipo_instalacion": tipo_inst,
+        "auto_cumplimiento": auto_cumplimiento,
         "gamma": CONDUCTIVIDAD.get(material, 56.0),
         "caida_max_lga": _num(data.get("caida_max_lga"), 0.5),
         "caida_max_di": _num(data.get("caida_max_di"), 1.5),
@@ -618,7 +659,7 @@ def compute(data: dict) -> dict:
         # Cortocircuito (ITC-BT-22)
         "m": SQRT3 if suministro == "trifasica" else 2.0,
         "U_icc": V,
-        "icc_origen": _num(data.get("icc_origen_a"), _ICC_ORIGEN.get(tipo_inst, 6000)),
+        "icc_origen": icc_origen,
         "aislamiento": aislamiento,
         "k_term": _K_TERMICO.get((material, aislamiento), 115),
         "curva": curva,
@@ -644,6 +685,20 @@ def compute(data: dict) -> dict:
                 f"{general['icc_origen']/1000:.1f} kA; Icc máx. calculada {icc_max_global/1000:.1f} kA. Poder de corte "
                 f"recomendado de los interruptores ≥ {poder_corte} kA (conductor {material}/{aislamiento}, k={general['k_term']}; "
                 f"curva {curva}). Contrastar con la Icc real del punto de instalación."})
+    if auto_cumplimiento:
+        no_cc = [l for l in lineas if l.get("cortocircuito") and not l["cortocircuito"].get("protege_cc")
+                 and not l.get("seleccion_manual") and not l.get("seleccion_seccion_manual")]
+        base = ("Dimensionado automático (cumplimiento REBT 100%) activado: se han ajustado las secciones "
+                "para cumplir sobrecarga (Ib≤In≤Iz, I2≤1,45·Iz) y cortocircuito (k²·S²≥I²t, Icc_mín≥Im) en cada línea")
+        if pdc_ajustado:
+            base += f"; el poder de corte de los interruptores se ha elevado a {poder_corte} kA para superar la Icc presunta en origen"
+        base += ". Revise y valide el dimensionado propuesto (estudio orientativo, no vinculante)."
+        obs.append({"tipo": "info", "texto": base})
+        if no_cc:
+            obs.append({"tipo": "warning", "texto": "Con dimensionado automático, las siguientes líneas no pueden "
+                        "cumplir cortocircuito solo aumentando la sección (Icc demasiado elevada o límites de "
+                        f"catálogo): {', '.join(l.get('circuito', '') for l in no_cc)}. Considere protección "
+                        "limitadora de corriente, reducir la longitud o revisar la Icc presunta en origen."})
 
     estados = [l["estado"] for l in lineas]
     if "no_cumple" in estados:
@@ -675,5 +730,6 @@ def compute(data: dict) -> dict:
             "potencia_instalada": total_inst, "potencia_demandada": total_dem,
             "iga": arbol["iga"], "Ib": arbol["Ib"], "num_lineas": len(lineas),
             "spd": arbol["spd"], "poder_corte_ka": poder_corte,
+            "auto_cumplimiento": auto_cumplimiento, "pdc_ajustado": pdc_ajustado,
         },
     }
