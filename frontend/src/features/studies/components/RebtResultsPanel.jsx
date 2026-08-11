@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, XCircle, Calculator, Loader2, Wand2 } from "lucide-react";
 import { STATE_META, num } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,14 @@ const estCls = (e) => (e === "no_cumple" ? "text-red-700 font-semibold" : e === 
 const estLbl = (e) => (e === "no_cumple" ? "No cumple" : e === "observaciones" ? "Revisar" : "Cumple");
 
 export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUpdateBoard, onRecompute, onAutoDimensionar, autoOn = false, recomputing = false }) {
+  const [pending, setPending] = useState({});
+  const sig = results ? (results.lineas || []).map((l) => `${l.seccion_manual || ""}|${l.magneto_manual || ""}|${l.sensibilidad || ""}`).join(",") : "";
+  useEffect(() => { setPending({}); }, [sig]);
   if (!results) return null;
   const { resumen = [], cuadro_potencias = [], lineas = [], observaciones = [], arbol, estado_global } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
+  const pv = (i, field, fallback) => (pending[`${i}:${field}`] !== undefined ? pending[`${i}:${field}`] : fallback);
+  const setPv = (i, field, v) => setPending((p) => ({ ...p, [`${i}:${field}`]: v }));
 
   return (
     <div className="space-y-6" data-testid="rebt-results-panel">
@@ -114,12 +120,12 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
                   <td className="px-3 text-right">{l.Ib}</td>
                   <td className="px-3 text-right font-sans">
                     {canEdit ? (
-                      <Select value={l.seccion_manual ? String(l.seccion_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { seccion_manual: v === "auto" ? "" : Number(v) })}>
+                      <Select value={pv(i, "sec", l.seccion_manual ? String(l.seccion_manual) : "auto")} onValueChange={(v) => { setPv(i, "sec", v); onUpdateNode(l.id, { seccion_manual: v === "auto" ? "" : Number(v) }); }}>
                         <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-seccion-sel`}><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="auto">Auto ({secTxt(l.seccion_auto)} mm²)</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
                       </Select>
                     ) : canEditBoard ? (
-                      <Select value={l.seccion_manual ? String(l.seccion_manual) : "auto"} onValueChange={(v) => onUpdateBoard(l.board_id, { seccion_manual: v === "auto" ? "" : Number(v) })}>
+                      <Select value={pv(i, "sec", l.seccion_manual ? String(l.seccion_manual) : "auto")} onValueChange={(v) => { setPv(i, "sec", v); onUpdateBoard(l.board_id, { seccion_manual: v === "auto" ? "" : Number(v) }); }}>
                         <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`board-${i}-seccion-sel`}><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="auto">Auto ({secTxt(l.seccion_auto)} mm²)</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
                       </Select>
@@ -128,12 +134,12 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
                   <td className="px-3 text-right">{l.iz}</td>
                   <td className="px-3 font-sans">
                     {canEdit ? (
-                      <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) })}>
+                      <Select value={pv(i, "mag", l.magneto_manual ? String(l.magneto_manual) : "auto")} onValueChange={(v) => { setPv(i, "mag", v); onUpdateNode(l.id, { magneto_manual: v === "auto" ? "" : Number(v) }); }}>
                         <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${i}-magneto-sel`}><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="auto">Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent>
                       </Select>
                     ) : canEditBoard ? (
-                      <Select value={l.magneto_manual ? String(l.magneto_manual) : "auto"} onValueChange={(v) => onUpdateBoard(l.board_id, { iga_manual: v === "auto" ? "" : Number(v) })}>
+                      <Select value={pv(i, "mag", l.magneto_manual ? String(l.magneto_manual) : "auto")} onValueChange={(v) => { setPv(i, "mag", v); onUpdateBoard(l.board_id, { iga_manual: v === "auto" ? "" : Number(v) }); }}>
                         <SelectTrigger className="h-7 w-28 rounded-sm text-xs" data-testid={`board-${i}-iga-sel`}><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="auto">IGA Auto ({l.magneto_auto} A)</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>IGA {m} A</SelectItem>)}</SelectContent>
                       </Select>
@@ -162,14 +168,14 @@ export function RebtResultsPanel({ results, editable = false, onUpdateNode, onUp
                   <td className="px-3 font-sans">
                     {canEdit ? (
                       <div className="flex items-center gap-1">
-                        <Select value={String(l.sensibilidad ?? 30)} onValueChange={(v) => onUpdateNode(l.id, { dif_propio: true, sensibilidad: Number(v) })}>
+                        <Select value={pv(i, "dif", String(l.sensibilidad ?? 30))} onValueChange={(v) => { setPv(i, "dif", v); onUpdateNode(l.id, { dif_propio: true, sensibilidad: Number(v) }); }}>
                           <SelectTrigger className="h-7 w-20 rounded-sm text-xs" data-testid={`linea-${i}-dif-sel`}><SelectValue /></SelectTrigger>
                           <SelectContent><SelectItem value="30">30 mA</SelectItem><SelectItem value="300">300 mA</SelectItem></SelectContent>
                         </Select>
                         {l.diferencial_ok === false && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" title={l.diferencial_nota} />}
                       </div>
-                    ) : canEditBoard ? (
-                      <Select value={String(l.sensibilidad ?? 300)} onValueChange={(v) => onUpdateBoard(l.board_id, { diferencial_general: { sensibilidad: Number(v) } })}>
+                    ) : canEditBoard && !l.es_lga ? (
+                      <Select value={pv(i, "dif", String(l.sensibilidad ?? 300))} onValueChange={(v) => { setPv(i, "dif", v); onUpdateBoard(l.board_id, { diferencial_general: { sensibilidad: Number(v) } }); }}>
                         <SelectTrigger className="h-7 w-28 rounded-sm text-xs" data-testid={`board-${i}-dif-sel`}><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="30">30 mA (gen.)</SelectItem><SelectItem value="300">300 mA (gen.)</SelectItem></SelectContent>
                       </Select>

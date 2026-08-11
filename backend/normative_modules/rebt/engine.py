@@ -490,18 +490,45 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     if es_raiz and lga.get("presente"):
         L = _num(lga.get("longitud"))
         cmax = _num(lga.get("caida_max"), general.get("caida_max_lga", 0.5)) or 0.5
+        metodo_lga = lga.get("metodo_instalacion") or general.get("metodo_instalacion") or "b1"
         Ib_l = _ib(suministro, p_dem, V, 0.9)
-        s_l, iz_l, caida_l = _seccion_caida(suministro, L, p_dem, gamma, V, cmax, Ib_l, material)
+        lga_overload = _coordinar(suministro, L, p_dem, gamma, V, cmax, Ib_l, material, 0, metodo=metodo_lga)
+        s_l_sobre = lga_overload[0]
+        if general.get("auto_cumplimiento"):
+            lga_auto = _dimensionar_cumplimiento(general, z_base, L, p_dem, Ib_l, material, 0, suministro, V, cmax, gamma, metodo_lga)
+        else:
+            lga_auto = lga_overload
+        s_l, iz_l, caida_l, In_l, prot_l, ajustada_l = lga_auto
+        s_l, iz_l, caida_l, In_l, prot_l, ajustada_l, s_l_auto, sec_l_manual = _apply_seccion_manual(
+            lga.get("seccion_manual"), suministro, L, p_dem, gamma, V, Ib_l, material,
+            (s_l, iz_l, caida_l, In_l, prot_l, ajustada_l), metodo_lga)
+        if In_l is None:
+            In_l = _breaker(Ib_l, iz_l)[0]
+        calibre_manual = int(_num(lga.get("iga_manual"))) or None
+        dispositivo = lga.get("proteccion") or "fusible"
+        cal = calibre_manual or In_l
         caida_busbar += caida_l
         z_busbar += _z_cable(L, gamma, s_l)
+        cc_l = _cortocircuito(general, z_base, L, s_l, cal)
+        coord_l = _proteccion_dict(Ib_l, cal, iz_l)
+        cd_ok = caida_busbar <= general.get("caida_max_lga", 0.5) + 1e-9
+        estado_l = "cumple" if (coord_l["protege"] and cc_l["protege_cc"] and cd_ok) else ("no_cumple" if not coord_l["protege"] else "observaciones")
+        disp_lbl = ("Fusible gL/gG" if dispositivo == "fusible" else "IGA") + f" {cal} A"
         lga_out = {"seccion_txt": _fmt_s(s_l), "longitud": L, "caida_pct": round(caida_l, 2),
-                   "caida_acum_pct": round(caida_busbar, 2)}
+                   "caida_acum_pct": round(caida_busbar, 2), "dispositivo": disp_lbl, "calibre": cal}
         lineas.append({
             "cuadro": nombre, "circuito": "Línea general de alimentación (LGA)", "tipo": "alimentacion",
             "potencia": round(p_dem, 1), "Ib": round(Ib_l, 2), "seccion": s_l, "seccion_txt": _fmt_s(s_l),
             "iz": round(iz_l, 1), "caida_pct": round(caida_l, 2), "caida_acum_pct": round(caida_busbar, 2),
-            "proteccion": "—", "diferencial": "—", "tierra": _fmt_s(seccion_tierra(s_l)),
-            "estado": "cumple", "longitud": L,
+            "proteccion": disp_lbl, "magneto": cal, "magneto_auto": In_l, "magneto_manual": calibre_manual,
+            "seleccion_manual": bool(calibre_manual), "protege_cable": coord_l["protege"], "coordinacion": coord_l,
+            "cortocircuito": cc_l, "diferencial": "—", "tierra": _fmt_s(seccion_tierra(s_l)),
+            "estado": estado_l, "longitud": L, "editable_board": True, "board_id": "__lga__", "es_lga": True,
+            "dispositivo": dispositivo,
+            "seccion_auto": s_l_auto, "seccion_auto_txt": _fmt_s(s_l_auto),
+            "seccion_manual": (s_l if sec_l_manual else None), "seleccion_seccion_manual": sec_l_manual,
+            "seccion_min_sobrecarga": s_l_sobre, "seccion_min_sobrecarga_txt": _fmt_s(s_l_sobre),
+            "metodo_instalacion": metodo_lga, "metodo_label": _METODO_LABEL.get(metodo_lga, metodo_lga),
         })
 
     alim = board.get("alim") or {}

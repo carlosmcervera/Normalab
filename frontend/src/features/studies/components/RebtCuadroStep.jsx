@@ -154,11 +154,38 @@ export function RebtCuadroStep({ data, setData, study }) {
                 )}
               </div>
               {raiz && (
-                <div className="flex items-center gap-2" data-testid={`board-${board.id}-lga`}>
-                  <span className="text-xs">LGA</span>
+                <div className="flex flex-wrap items-center gap-2" data-testid={`board-${board.id}-lga`}>
+                  <span className="text-xs font-medium">LGA</span>
                   <Switch checked={!!board.lga?.presente} onCheckedChange={(v) => patchBoard(path, { lga: { ...board.lga, presente: v } })} data-testid={`board-${board.id}-lga-toggle`} />
                   {board.lga?.presente && (
-                    <div className="flex items-center gap-1"><span className={fieldLabel}>Long. (m)</span><NumberInput min={0} className="h-7 w-20 rounded-sm font-mono text-xs" value={board.lga?.longitud ?? ""} onChange={(v) => patchBoard(path, { lga: { ...board.lga, longitud: v } })} data-testid={`board-${board.id}-lga-long`} /></div>
+                    <>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Long. (m)</span><NumberInput min={0} className="h-7 w-16 rounded-sm font-mono text-xs" value={board.lga?.longitud ?? ""} onChange={(v) => patchBoard(path, { lga: { ...board.lga, longitud: v } })} data-testid={`board-${board.id}-lga-long`} /></div>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Caída máx (%)</span><NumberInput min={0} className="h-7 w-14 rounded-sm font-mono text-xs" value={board.lga?.caida_max ?? ""} onChange={(v) => patchBoard(path, { lga: { ...board.lga, caida_max: v } })} data-testid={`board-${board.id}-lga-caida`} /></div>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Sección</span>
+                        <Select value={board.lga?.seccion_manual ? String(board.lga.seccion_manual) : "auto"} onValueChange={(v) => patchBoard(path, { lga: { ...board.lga, seccion_manual: v === "auto" ? "" : Number(v) } })}>
+                          <SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`board-${board.id}-lga-seccion`}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="auto">Auto</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Instalación</span>
+                        <Select value={board.lga?.metodo_instalacion || "b1"} onValueChange={(v) => patchBoard(path, { lga: { ...board.lga, metodo_instalacion: v } })}>
+                          <SelectTrigger className="h-7 w-44 rounded-sm text-xs" data-testid={`board-${board.id}-lga-metodo`}><SelectValue /></SelectTrigger>
+                          <SelectContent>{METODOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Protección CGP</span>
+                        <Select value={board.lga?.proteccion || "fusible"} onValueChange={(v) => patchBoard(path, { lga: { ...board.lga, proteccion: v } })}>
+                          <SelectTrigger className="h-7 w-28 rounded-sm text-xs" data-testid={`board-${board.id}-lga-disp`}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="fusible">Fusible gL/gG</SelectItem><SelectItem value="iga">IGA</SelectItem></SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1"><span className={fieldLabel}>Calibre (A)</span>
+                        <Select value={board.lga?.iga_manual ? String(board.lga.iga_manual) : "auto"} onValueChange={(v) => patchBoard(path, { lga: { ...board.lga, iga_manual: v === "auto" ? "" : Number(v) } })}>
+                          <SelectTrigger className="h-7 w-20 rounded-sm text-xs" data-testid={`board-${board.id}-lga-calibre`}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="auto">Auto</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
                 </div>
               )}

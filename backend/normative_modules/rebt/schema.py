@@ -5,9 +5,6 @@ from normative_modules.rebt.catalog import SUMINISTROS, MATERIALES, TIPOS_INSTAL
 def get_schema() -> dict:
     return {
         "steps": [
-            {"id": "superficies", "type": "estancias_compartidas", "hide_occupancy": True,
-             "title": "Cuadro de superficies",
-             "description": "Inventario compartido del expediente. Sirve para ubicar los circuitos por estancia."},
             {"id": "generales", "type": "rebt_generales", "title": "Datos generales del cuadro",
              "description": "Condiciones de la instalación (ITC-BT-19). Al elegir el tipo de instalación se precargan los límites normativos de caída de tensión (editables).",
              "fields": [

@@ -180,6 +180,20 @@ async def export_docx(study_id: str, user: dict = Depends(get_current_user)):
     return _download(buf, name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
+@router.get("/{study_id}/export/proyecto-docx")
+async def export_proyecto_docx(study_id: str, user: dict = Depends(get_current_user)):
+    doc = await _get_study_or_404(study_id)
+    if (doc.get("module_code") or "").upper() != "REBT":
+        raise HTTPException(status_code=400, detail="El generador de proyecto solo está disponible para el módulo REBT.")
+    if not doc.get("results"):
+        raise HTTPException(status_code=400, detail="El estudio aún no tiene resultados. Ejecuta el cálculo primero.")
+    from normative_modules.rebt.proyecto import build_proyecto_docx
+    project = await _project_for(doc)
+    buf = build_proyecto_docx(_serialize(doc), project, doc.get("results", {}))
+    name = f"proyecto_bt_{project.get('code','estudio')}.docx".replace(" ", "_")
+    return _download(buf, name, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
 @router.get("/{study_id}/export/xlsx")
 async def export_xlsx(study_id: str, user: dict = Depends(get_current_user)):
     doc = await _get_study_or_404(study_id)

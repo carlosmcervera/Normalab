@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Loader2, Calculator, Save, FileText, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Calculator, Save, FileText, FileDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ const patchTree = (board, id, patch) => {
 
 const patchBoard = (board, boardId, patch) => {
   if (!board) return board;
+  if (boardId === "__lga__") return { ...board, lga: { ...(board.lga || {}), ...patch } };
   if (boardId === "__root__") return { ...board, ...patch };
   const nodos = (board.nodos || []).map((n) => {
     if (n.kind === "subcuadro") {
@@ -72,6 +73,22 @@ export default function StudyWizardPage() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(null);
   const [results, setResults] = useState(null);
+  const [genProy, setGenProy] = useState(false);
+  const generarProyecto = async () => {
+    setGenProy(true);
+    try {
+      const res = await api.get(`/studies/${studyId}/export/proyecto-docx`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url; a.download = "proyecto_baja_tension.docx";
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(apiError(e) || "No se ha podido generar el proyecto.");
+    } finally {
+      setGenProy(false);
+    }
+  };
 
   const { data: study } = useQuery({ queryKey: ["study", studyId], queryFn: () => api.get(`/studies/${studyId}`).then((r) => r.data) });
   const { data: project } = useQuery({ queryKey: ["project", study?.project_id], enabled: !!study?.project_id, queryFn: () => api.get(`/projects/${study.project_id}`).then((r) => r.data) });
@@ -255,6 +272,11 @@ export default function StudyWizardPage() {
               <Button className="rounded-sm" onClick={() => navigate(`/estudios/${studyId}/informe`)} data-testid="view-report-button">
                 <FileText className="mr-2 h-4 w-4" /> Ver informe
               </Button>
+              {results?.arbol && (
+                <Button className="rounded-sm" onClick={generarProyecto} disabled={genProy} data-testid="generate-project-button">
+                  {genProy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />} Generar proyecto
+                </Button>
+              )}
             </>
           )}
           {step < totalSteps - 1 && (
