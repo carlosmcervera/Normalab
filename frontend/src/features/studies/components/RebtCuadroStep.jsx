@@ -18,6 +18,13 @@ const TIPOS = [
 const fieldLabel = "text-[11px] uppercase tracking-wide text-muted-foreground";
 const MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250];
 const SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240];
+const METODOS = [
+  { value: "b1", label: "Bajo tubo empotrado (B1)" },
+  { value: "b2", label: "Bajo tubo superficie (B2)" },
+  { value: "c", label: "Sobre pared / bandeja no perf. (C)" },
+  { value: "e", label: "Bandeja perforada (E/F)" },
+  { value: "d", label: "Enterrado bajo tubo (D)" },
+];
 const secTxt = (s) => String(s).replace(".", ",");
 
 const newCarga = (tipo = "tomas") => ({ id: genId(), nombre: "", tipo, potencia: "", cosphi: 0.9, factor_uso: 1, longitud: "", estancia: "" });
@@ -126,6 +133,12 @@ export function RebtCuadroStep({ data, setData, study }) {
                   <SelectContent><SelectItem value="auto">Auto</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+              <div className="w-44"><Label className={fieldLabel}>Instalación alim.</Label>
+                <Select value={board.metodo_instalacion || "b1"} onValueChange={(v) => patchBoard(path, { metodo_instalacion: v })}>
+                  <SelectTrigger className="mt-1 h-8 rounded-sm text-xs" data-testid={`board-${board.id}-metodo`}><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               {!raiz && <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => rmBoard(path)} data-testid={`rm-sub-${board.id}`}><Trash2 className="h-4 w-4" /></Button>}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -160,7 +173,7 @@ export function RebtCuadroStep({ data, setData, study }) {
                 <Button variant="outline" size="sm" className="h-6 rounded-sm px-2 text-xs" onClick={() => addNode(path, newLinea())} data-testid={`board-${board.id}-add-linea`}><Plus className="mr-1 h-3 w-3" />Línea</Button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs"><thead><tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="px-1 py-1">Circuito</th><th className="px-1">Tipo</th><th className="px-1">P (W)</th><th className="px-1">cosφ</th><th className="px-1">F.u.</th><th className="px-1">L (m)</th><th className="px-1">Estancia</th><th className="px-1">Dif. propio</th><th className="px-1">Magneto (A)</th><th className="px-1">Sección</th><th /></tr></thead>
+                <table className="w-full text-xs"><thead><tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="px-1 py-1">Circuito</th><th className="px-1">Tipo</th><th className="px-1">P (W)</th><th className="px-1">cosφ</th><th className="px-1">F.u.</th><th className="px-1">L (m)</th><th className="px-1">Estancia</th><th className="px-1">Dif. propio</th><th className="px-1">Magneto (A)</th><th className="px-1">Sección</th><th className="px-1">Instalación</th><th /></tr></thead>
                   <tbody>{board.nodos.filter((n) => n.kind === "linea").map((n) => (
                     <tr key={n.id} data-testid={`linea-${n.id}`}>
                       <td className="px-1 py-0.5"><Input className="h-7 w-28 rounded-sm text-xs" value={n.nombre || ""} onChange={(e) => patchNode(path, n.id, { nombre: e.target.value })} data-testid={`linea-${n.id}-nombre`} /></td>
@@ -173,6 +186,7 @@ export function RebtCuadroStep({ data, setData, study }) {
                       <td className="px-1"><div className="flex items-center gap-1"><Switch checked={!!n.dif_propio} onCheckedChange={(v) => patchNode(path, n.id, { dif_propio: v })} data-testid={`linea-${n.id}-dif`} />{n.dif_propio && <Select value={String(n.sensibilidad ?? 30)} onValueChange={(v) => patchNode(path, n.id, { sensibilidad: Number(v) })}><SelectTrigger className="h-7 w-16 rounded-sm text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30">30</SelectItem><SelectItem value="300">300</SelectItem></SelectContent></Select>}</div></td>
                       <td className="px-1"><Select value={n.magneto_manual ? String(n.magneto_manual) : "auto"} onValueChange={(v) => patchNode(path, n.id, { magneto_manual: v === "auto" ? "" : Number(v) })}><SelectTrigger className="h-7 w-20 rounded-sm text-xs" data-testid={`linea-${n.id}-magneto`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto</SelectItem>{MAGNETOS.map((m) => <SelectItem key={m} value={String(m)}>{m} A</SelectItem>)}</SelectContent></Select></td>
                       <td className="px-1"><Select value={n.seccion_manual ? String(n.seccion_manual) : "auto"} onValueChange={(v) => patchNode(path, n.id, { seccion_manual: v === "auto" ? "" : Number(v) })}><SelectTrigger className="h-7 w-24 rounded-sm text-xs" data-testid={`linea-${n.id}-seccion`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent></Select></td>
+                      <td className="px-1"><Select value={n.metodo_instalacion || "b1"} onValueChange={(v) => patchNode(path, n.id, { metodo_instalacion: v })}><SelectTrigger className="h-7 w-44 rounded-sm text-xs" data-testid={`linea-${n.id}-metodo`}><SelectValue /></SelectTrigger><SelectContent>{METODOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent></Select></td>
                       <td className="px-1"><Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => rmNode(path, n.id)} data-testid={`linea-${n.id}-remove`}><Trash2 className="h-3.5 w-3.5" /></Button></td>
                     </tr>
                   ))}</tbody>
@@ -190,6 +204,7 @@ export function RebtCuadroStep({ data, setData, study }) {
                   <div className="w-20"><Label className={fieldLabel}>Simult.</Label><NumberInput min={0} className="mt-1 h-7 rounded-sm font-mono text-xs" value={n.simultaneidad ?? ""} onChange={(v) => patchNode(path, n.id, { simultaneidad: v })} /></div>
                   <div className="w-24"><Label className={fieldLabel}>Diferencial mA</Label><Select value={String(n.sensibilidad ?? 30)} onValueChange={(v) => patchNode(path, n.id, { sensibilidad: Number(v) })}><SelectTrigger className="mt-1 h-7 rounded-sm font-mono text-xs" data-testid={`puente-${n.id}-dif`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30">30 mA</SelectItem><SelectItem value="300">300 mA</SelectItem></SelectContent></Select></div>
                   <div className="w-28"><Label className={fieldLabel}>Sección</Label><Select value={n.seccion_manual ? String(n.seccion_manual) : "auto"} onValueChange={(v) => patchNode(path, n.id, { seccion_manual: v === "auto" ? "" : Number(v) })}><SelectTrigger className="mt-1 h-7 rounded-sm font-mono text-xs" data-testid={`puente-${n.id}-seccion`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto</SelectItem>{SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{secTxt(s)} mm²</SelectItem>)}</SelectContent></Select></div>
+                  <div className="w-44"><Label className={fieldLabel}>Instalación</Label><Select value={n.metodo_instalacion || "b1"} onValueChange={(v) => patchNode(path, n.id, { metodo_instalacion: v })}><SelectTrigger className="mt-1 h-7 rounded-sm text-xs" data-testid={`puente-${n.id}-metodo`}><SelectValue /></SelectTrigger><SelectContent>{METODOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent></Select></div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => rmNode(path, n.id)} data-testid={`puente-${n.id}-remove`}><Trash2 className="h-4 w-4" /></Button>
                 </div>
                 <div className="overflow-x-auto rounded-sm border border-border bg-background">

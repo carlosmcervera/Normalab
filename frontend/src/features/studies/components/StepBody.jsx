@@ -44,7 +44,7 @@ export function StepBody({ step, schema, data, setData, study }) {
     );
   }
 
-  if (step.type === "estancias_compartidas") return <SharedSurfacesStep projectId={study?.project_id} studyId={study?.id} />;
+  if (step.type === "estancias_compartidas") return <SharedSurfacesStep projectId={study?.project_id} studyId={study?.id} hideOccupancy={!!step.hide_occupancy} />;
   if (step.type === "rebt_generales") return <RebtGeneralesStep step={step} data={data} setData={setData} />;
   if (step.type === "rebt_cuadro") return <RebtCuadroStep data={data} setData={setData} study={study} />;
   if (step.type === "superficies") return <SuperficiesStep data={data} setData={setData} configTypes={schema.config_types || []} />;

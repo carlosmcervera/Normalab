@@ -17,10 +17,12 @@ import math
 
 from normative_modules.rebt.catalog import (
     TENSION, CONDUCTIVIDAD, SECCIONES, MAGNETOS, ampacidad, seccion_tierra,
+    METODOS_INSTALACION,
 )
 
 SQRT3 = math.sqrt(3)
 _TIPO_OTROS = ("tomas", "fuerza", "motor", "clima", "otros")
+_METODO_LABEL = {m["value"]: m["label"] for m in METODOS_INSTALACION}
 
 # Sección mínima del conductor de fase por tipo de circuito final (ITC-BT-25, viviendas;
 # criterio general de buena práctica para el resto): alumbrado 1,5 mm², tomas/fuerza 2,5 mm².
@@ -164,11 +166,11 @@ def _seccion_cdt_teorica(suministro, L, P, gamma, V, caida_max_pct):
     return (2 * L * P) / (gamma * e_max * V)
 
 
-def _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min):
+def _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, metodo="b1"):
     """Índice de la menor sección que cumple caída de tensión, calentamiento (Iz≥Ib) y sección mínima."""
     s_cdt = _seccion_cdt_teorica(suministro, L, P, gamma, V, caida_max_pct)
     for i, s in enumerate(SECCIONES):
-        if s >= s_min - 1e-9 and s >= s_cdt - 1e-9 and ampacidad(s, material) >= Ib - 1e-9:
+        if s >= s_min - 1e-9 and s >= s_cdt - 1e-9 and ampacidad(s, material, metodo) >= Ib - 1e-9:
             return i
     return len(SECCIONES) - 1
 
@@ -198,32 +200,32 @@ def _proteccion_dict(Ib, In, iz):
             "protege": bool(c1 and c2)}
 
 
-def _coordinar(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, con_proteccion=True):
+def _coordinar(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, con_proteccion=True, metodo="b1"):
     """Dimensiona el cable y (si procede) su magnetotérmico garantizando que la protección
     protege al cable. Si con la sección mínima por caída/Ib no existe un calibre que cumpla
     Ib≤In≤Iz, aumenta automáticamente la sección hasta lograrlo.
 
     Devuelve: (seccion, Iz, caida_pct, In, proteccion, ajustada).
     """
-    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min)
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, metodo)
     if not con_proteccion:
         s = SECCIONES[i0]
-        return s, ampacidad(s, material), _caida_real(suministro, L, P, gamma, V, s), None, None, False
+        return s, ampacidad(s, material, metodo), _caida_real(suministro, L, P, gamma, V, s), None, None, False
     for i in range(i0, len(SECCIONES)):
         s = SECCIONES[i]
-        iz = ampacidad(s, material)
+        iz = ampacidad(s, material, metodo)
         In = _breaker_fit(Ib, iz)
         if In is not None:
             prot = _proteccion_dict(Ib, In, iz)
             return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, prot, i > i0
     # Ningún calibre encaja ni ampliando: usar la mayor sección y el calibre más próximo.
     s = SECCIONES[-1]
-    iz = ampacidad(s, material)
+    iz = ampacidad(s, material, metodo)
     In, _ = _breaker(Ib, iz)
     return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, _proteccion_dict(Ib, In, iz), True
 
 
-def _apply_seccion_manual(seccion_manual, suministro, L, P, gamma, V, Ib, material, auto):
+def _apply_seccion_manual(seccion_manual, suministro, L, P, gamma, V, Ib, material, auto, metodo="b1"):
     """Aplica una sección elegida manualmente por el técnico sobre el resultado automático.
 
     `auto` = tupla devuelta por `_coordinar` (s, iz, caida, In, prot, ajustada).
@@ -236,22 +238,22 @@ def _apply_seccion_manual(seccion_manual, suministro, L, P, gamma, V, Ib, materi
     if not sm or float(sm) not in SECCIONES:
         return s_a, iz_a, caida_a, In_a, prot_a, ajustada, s_a, False
     s = float(sm)
-    iz = ampacidad(s, material)
+    iz = ampacidad(s, material, metodo)
     caida = _caida_real(suministro, L, P, gamma, V, s)
     In = _breaker_fit(Ib, iz)
     prot = _proteccion_dict(Ib, In, iz)
     return s, iz, caida, In, prot, False, s_a, True
 
 
-def _dimensionar_cumplimiento(general, z_up, L, P, Ib, material, s_min, suministro, V, caida_max_pct, gamma):
+def _dimensionar_cumplimiento(general, z_up, L, P, Ib, material, s_min, suministro, V, caida_max_pct, gamma, metodo="b1"):
     """Dimensionado automático con cumplimiento REBT 100%: elige la menor sección normalizada
     que satisface a la vez la caída de tensión, la coordinación frente a sobrecargas
     (Ib≤In≤Iz e I2≤1,45·Iz) y las comprobaciones de cortocircuito (k²·S²≥I²t e Icc_mín≥Im)
     en el punto de instalación (z_up). Devuelve (s, iz, caida, In, prot, ajustada)."""
-    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min)
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, s_min, metodo)
     for i in range(i0, len(SECCIONES)):
         s = SECCIONES[i]
-        iz = ampacidad(s, material)
+        iz = ampacidad(s, material, metodo)
         In = _breaker_fit(Ib, iz)
         if In is None:
             continue
@@ -261,16 +263,16 @@ def _dimensionar_cumplimiento(general, z_up, L, P, Ib, material, s_min, suminist
             return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, prot, i > i0
     # Ninguna sección lo cumple todo (p. ej. Icc muy elevada): usar la mayor disponible.
     s = SECCIONES[-1]
-    iz = ampacidad(s, material)
+    iz = ampacidad(s, material, metodo)
     In = _breaker_fit(Ib, iz) or _breaker(Ib, iz)[0]
     return s, iz, _caida_real(suministro, L, P, gamma, V, s), In, _proteccion_dict(Ib, In, iz), True
 
 
-def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material):
+def _seccion_caida(suministro, L, P, gamma, V, caida_max_pct, Ib, material, metodo="b1"):
     """Compat.: (seccion, Iz, caida_pct) sin coordinación de protección (usado por LGA)."""
-    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, 0)
+    i0 = _idx_seccion_base(suministro, L, P, gamma, V, caida_max_pct, Ib, material, 0, metodo)
     s = SECCIONES[i0]
-    return s, ampacidad(s, material), _caida_real(suministro, L, P, gamma, V, s)
+    return s, ampacidad(s, material, metodo), _caida_real(suministro, L, P, gamma, V, s)
 
 
 def _breaker(Ib, Iz):
@@ -370,16 +372,17 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
     caida_max_c = _num(carga.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
     Ib = _ib(suministro, P, V, cosphi)
     s_min = _seccion_min_tipo(tipo)
-    overload_tuple = _coordinar(suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min)
+    metodo = carga.get("metodo_instalacion") or general.get("metodo_instalacion") or "b1"
+    overload_tuple = _coordinar(suministro, L, P, gamma, V, caida_max_c, Ib, material, s_min, metodo=metodo)
     s_sobrecarga = overload_tuple[0]
     if general.get("auto_cumplimiento"):
-        auto_tuple = _dimensionar_cumplimiento(general, z_busbar, L, P, Ib, material, s_min, suministro, V, caida_max_c, gamma)
+        auto_tuple = _dimensionar_cumplimiento(general, z_busbar, L, P, Ib, material, s_min, suministro, V, caida_max_c, gamma, metodo)
     else:
         auto_tuple = overload_tuple
     s_el, iz, caida_c, In_auto, prot_auto, ajustada = auto_tuple
     s_el, iz, caida_c, In_auto, prot_auto, ajustada, s_auto, sec_manual_ok = _apply_seccion_manual(
         carga.get("seccion_manual"), suministro, L, P, gamma, V, Ib, material,
-        (s_el, iz, caida_c, In_auto, prot_auto, ajustada))
+        (s_el, iz, caida_c, In_auto, prot_auto, ajustada), metodo)
     if In_auto is None:
         In_auto = _breaker(Ib, iz)[0]
     manual_in = int(_num(carga.get("magneto_manual"))) or None
@@ -429,6 +432,7 @@ def _final_line(carga, general, caida_base, z_busbar, cuadro_nombre, dif_sens, o
         "seccion_auto": s_auto, "seccion_auto_txt": _fmt_s(s_auto),
         "seccion_manual": (s_el if sec_manual_ok else None), "seleccion_seccion_manual": sec_manual_ok,
         "seccion_min_sobrecarga": s_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_sobrecarga),
+        "metodo_instalacion": metodo, "metodo_label": _METODO_LABEL.get(metodo, metodo),
     })
     cuadro_pot.append({
         "cuadro": cuadro_nombre, "circuito": nombre, "tipo": tipo,
@@ -505,16 +509,17 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
     cosphi_gen = _num(alim.get("cosphi"), 0.9) or 0.9
     caida_feed_max = _num(alim.get("caida_max"), general.get("caida_max_di", 1.5) if es_raiz else 1.5) or 1.5
     Ib_board = _ib(suministro, p_dem, V, cosphi_gen)
-    feed_overload = _coordinar(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0)
+    metodo_feed = board.get("metodo_instalacion") or general.get("metodo_instalacion") or "b1"
+    feed_overload = _coordinar(suministro, L_feed, p_dem, gamma, V, caida_feed_max, Ib_board, material, 0, metodo=metodo_feed)
     s_feed_sobrecarga = feed_overload[0]
     if general.get("auto_cumplimiento"):
-        feed_auto = _dimensionar_cumplimiento(general, z_busbar, L_feed, p_dem, Ib_board, material, 0, suministro, V, caida_feed_max, gamma)
+        feed_auto = _dimensionar_cumplimiento(general, z_busbar, L_feed, p_dem, Ib_board, material, 0, suministro, V, caida_feed_max, gamma, metodo_feed)
     else:
         feed_auto = feed_overload
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed = feed_auto
     s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed, s_feed_auto, sec_feed_manual = _apply_seccion_manual(
         board.get("seccion_manual"), suministro, L_feed, p_dem, gamma, V, Ib_board, material,
-        (s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed))
+        (s_feed, iz_feed, caida_feed, In_feed, prot_feed, ajustada_feed), metodo_feed)
     iga_manual = board.get("iga_manual")
     if iga_manual:
         iga = int(_num(iga_manual))
@@ -547,6 +552,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
         "seccion_auto": s_feed_auto, "seccion_auto_txt": _fmt_s(s_feed_auto),
         "seccion_manual": (s_feed if sec_feed_manual else None), "seleccion_seccion_manual": sec_feed_manual,
         "seccion_min_sobrecarga": s_feed_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_feed_sobrecarga),
+        "metodo_instalacion": metodo_feed, "metodo_label": _METODO_LABEL.get(metodo_feed, metodo_feed),
     })
     if not iga_ok:
         obs.append({"tipo": "warning", "texto": f"«{nombre}»: el IGA ({iga} A) no protege el cable de alimentación "
@@ -580,16 +586,17 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                           for s in node.get("sublineas", [])) * simult_p
             caida_max_p = _num(node.get("caida_max"), general.get("caida_max_circuito", 3)) or 3
             Ib_p = _ib(suministro, p_dem_p, V, cosphi_p)
-            p_overload = _coordinar(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS)
+            metodo_p = node.get("metodo_instalacion") or general.get("metodo_instalacion") or "b1"
+            p_overload = _coordinar(suministro, L_p, p_dem_p, gamma, V, caida_max_p, Ib_p, material, _SECCION_MIN_OTROS, metodo=metodo_p)
             s_p_sobrecarga = p_overload[0]
             if general.get("auto_cumplimiento"):
-                p_auto = _dimensionar_cumplimiento(general, z_busbar, L_p, p_dem_p, Ib_p, material, _SECCION_MIN_OTROS, suministro, V, caida_max_p, gamma)
+                p_auto = _dimensionar_cumplimiento(general, z_busbar, L_p, p_dem_p, Ib_p, material, _SECCION_MIN_OTROS, suministro, V, caida_max_p, gamma, metodo_p)
             else:
                 p_auto = p_overload
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p = p_auto
             s_p, iz_p, caida_p, In_p, prot_p, ajustada_p, s_p_auto, sec_p_manual = _apply_seccion_manual(
                 node.get("seccion_manual"), suministro, L_p, p_dem_p, gamma, V, Ib_p, material,
-                (s_p, iz_p, caida_p, In_p, prot_p, ajustada_p))
+                (s_p, iz_p, caida_p, In_p, prot_p, ajustada_p), metodo_p)
             In_p_auto = In_p if In_p is not None else _breaker(Ib_p, iz_p)[0]
             manual_p = int(_num(node.get("magneto_manual"))) or None
             if manual_p:
@@ -616,6 +623,7 @@ def _compute_board(board, general, caida_base_pct, z_base, es_raiz, obs, lineas,
                 "seccion_auto": s_p_auto, "seccion_auto_txt": _fmt_s(s_p_auto),
                 "seccion_manual": (s_p if sec_p_manual else None), "seleccion_seccion_manual": sec_p_manual,
                 "seccion_min_sobrecarga": s_p_sobrecarga, "seccion_min_sobrecarga_txt": _fmt_s(s_p_sobrecarga),
+                "metodo_instalacion": metodo_p, "metodo_label": _METODO_LABEL.get(metodo_p, metodo_p),
             })
             if not ok_p:
                 sug = f" Recomendado: {In_p_auto} A." if manual_p else ""

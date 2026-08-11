@@ -44,10 +44,23 @@ MATERIALES = [{"value": "Cu", "label": "Cobre (Cu)"}, {"value": "Al", "label": "
 SUMINISTROS = [{"value": "monofasica", "label": "Monofásica 230 V"},
                {"value": "trifasica", "label": "Trifásica 400 V"}]
 
+# Métodos de instalación de referencia (ITC-BT-19, Tabla 1). La AMPACIDAD_CU base corresponde
+# al método B1 (bajo tubo empotrado en pared/obra); para el resto se aplica un factor derivado
+# de las relaciones de la Tabla 1 (estudio orientativo, no vinculante).
+METODOS_INSTALACION = [
+    {"value": "b1", "label": "Bajo tubo empotrado en pared (B1)"},
+    {"value": "b2", "label": "Bajo tubo en superficie (B2)"},
+    {"value": "c", "label": "Directamente sobre pared / bandeja no perforada (C)"},
+    {"value": "e", "label": "Bandeja perforada (E/F)"},
+    {"value": "d", "label": "Enterrado bajo tubo (D)"},
+]
+METODO_FACTOR = {"b1": 1.0, "b2": 0.92, "c": 1.13, "e": 1.27, "d": 1.21}
 
-def ampacidad(seccion: float, material: str) -> float:
+
+def ampacidad(seccion: float, material: str, metodo: str = "b1") -> float:
     base = AMPACIDAD_CU.get(seccion, 0)
-    return base * (FACTOR_AL if material == "Al" else 1.0)
+    base *= (FACTOR_AL if material == "Al" else 1.0)
+    return base * METODO_FACTOR.get((metodo or "b1"), 1.0)
 
 
 def seccion_tierra(s_fase: float) -> float:

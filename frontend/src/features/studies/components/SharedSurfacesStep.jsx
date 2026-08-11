@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Layers, Check } from "lucide-react";
+import { Plus, Trash2, Loader2, Layers, Check, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,24 @@ const ocupacionDe = (e) => {
 
 // Cuadro de superficies + ocupación COMPARTIDO por el expediente (project.estancias + project.plantas).
 // Fuente única, agrupado por plantas (con sobre/bajo rasante y altura). Autosave + invalidación.
-export function SharedSurfacesStep({ projectId, studyId }) {
+export function SharedSurfacesStep({ projectId, studyId, hideOccupancy = false }) {
   const qc = useQueryClient();
+  const [downloading, setDownloading] = useState("");
+  const showOcc = !hideOccupancy;
+  const descargar = async (fmt) => {
+    setDownloading(fmt);
+    try {
+      const res = await api.get(`/projects/${projectId}/estancias/export/${fmt}`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cuadro_superficies.${fmt === "xlsx" ? "xlsx" : "pdf"}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setDownloading("");
+    }
+  };
   const { data, isLoading } = useQuery({
     queryKey: ["estancias", projectId],
     queryFn: () => api.get(`/projects/${projectId}/estancias`).then((r) => r.data),
@@ -114,9 +130,9 @@ export function SharedSurfacesStep({ projectId, studyId }) {
         <th className="px-2 py-2 text-right font-semibold">S. útil</th>
         <th className="px-2 py-2 text-right font-semibold">S. constr.</th>
         <th className="px-2 py-2 text-right font-semibold">Altura</th>
-        <th className="px-2 py-2 font-semibold">Uso</th>
-        <th className="px-2 py-2 text-right font-semibold">m²/pers.</th>
-        <th className="px-2 py-2 text-right font-semibold">Ocup.</th>
+        {showOcc && <th className="px-2 py-2 font-semibold">Uso</th>}
+        {showOcc && <th className="px-2 py-2 text-right font-semibold">m²/pers.</th>}
+        {showOcc && <th className="px-2 py-2 text-right font-semibold">Ocup.</th>}
         <th className="px-2 py-2 font-semibold">Planta</th>
         <th className="px-2 py-2" />
       </tr>
@@ -129,9 +145,9 @@ export function SharedSurfacesStep({ projectId, studyId }) {
       <td className="px-2 py-1.5"><NumberInput min={0} className="h-8 w-20 rounded-sm text-right font-mono" value={x.sup_util ?? ""} onChange={(v) => upd(x.id, { sup_util: v })} data-testid={`estancia-${i}-util`} /></td>
       <td className="px-2 py-1.5"><NumberInput min={0} className="h-8 w-20 rounded-sm text-right font-mono" value={x.sup_construida ?? ""} onChange={(v) => upd(x.id, { sup_construida: v })} data-testid={`estancia-${i}-construida`} /></td>
       <td className="px-2 py-1.5"><NumberInput min={0} className="h-8 w-16 rounded-sm text-right font-mono" value={x.altura ?? ""} onChange={(v) => upd(x.id, { altura: v })} data-testid={`estancia-${i}-altura`} /></td>
-      <td className="px-2 py-1.5"><Input className="h-8 w-28 rounded-sm" value={x.uso_ocupacion || ""} onChange={(e) => upd(x.id, { uso_ocupacion: e.target.value })} placeholder="Uso" data-testid={`estancia-${i}-uso`} /></td>
-      <td className="px-2 py-1.5"><NumberInput min={0} className="h-8 w-16 rounded-sm text-right font-mono" value={x.densidad ?? ""} onChange={(v) => upd(x.id, { densidad: v })} data-testid={`estancia-${i}-densidad`} /></td>
-      <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-ocup`}>{ocupacionDe(x) == null ? "—" : ocupacionDe(x)}</td>
+      {showOcc && <td className="px-2 py-1.5"><Input className="h-8 w-28 rounded-sm" value={x.uso_ocupacion || ""} onChange={(e) => upd(x.id, { uso_ocupacion: e.target.value })} placeholder="Uso" data-testid={`estancia-${i}-uso`} /></td>}
+      {showOcc && <td className="px-2 py-1.5"><NumberInput min={0} className="h-8 w-16 rounded-sm text-right font-mono" value={x.densidad ?? ""} onChange={(v) => upd(x.id, { densidad: v })} data-testid={`estancia-${i}-densidad`} /></td>}
+      {showOcc && <td className="px-2 py-1.5 text-right font-mono text-xs" data-testid={`estancia-${i}-ocup`}>{ocupacionDe(x) == null ? "—" : ocupacionDe(x)}</td>}
       <td className="px-2 py-1.5">
         <Select value={x.planta || SIN} onValueChange={(v) => upd(x.id, { planta: v === SIN ? "" : v })}>
           <SelectTrigger className="h-8 w-32 rounded-sm text-xs" data-testid={`estancia-${i}-planta`}><SelectValue /></SelectTrigger>
@@ -186,6 +202,14 @@ export function SharedSurfacesStep({ projectId, studyId }) {
           <Layers className="h-4 w-4" /> Cuadro compartido del expediente, agrupado por planta. Se guarda automáticamente y lo comparten todos los módulos.
           {saved && <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> Guardado</span>}
         </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="rounded-sm text-xs" onClick={() => descargar("xlsx")} disabled={!!downloading || estancias.length === 0} data-testid="download-master-xlsx">
+            {downloading === "xlsx" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}Excel
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-sm text-xs" onClick={() => descargar("pdf")} disabled={!!downloading || estancias.length === 0} data-testid="download-master-pdf">
+            {downloading === "pdf" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}PDF
+          </Button>
+        </div>
       </div>
 
       {estancias.length === 0 && (plantas || []).length === 0 ? (
@@ -212,7 +236,7 @@ export function SharedSurfacesStep({ projectId, studyId }) {
             <span className="flex gap-6">
               <span data-testid="shared-total-util">S. útil {num(totalU, 2)}</span>
               <span data-testid="shared-total-construida">S. constr. {num(totalC, 2)}</span>
-              <span data-testid="shared-total-ocup">Ocup. {totalO}</span>
+              {showOcc && <span data-testid="shared-total-ocup">Ocup. {totalO}</span>}
             </span>
           </div>
           <Button variant="outline" size="sm" className="rounded-sm" onClick={() => addEstancia("")} data-testid="add-estancia"><Plus className="mr-1.5 h-4 w-4" /> Añadir estancia sin planta</Button>

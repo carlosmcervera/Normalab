@@ -1,5 +1,6 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -7,6 +8,7 @@ from core.database import db
 from core.deps import get_current_user
 from core.models import utcnow_iso
 from features.projects.models import Project, ProjectCreate, ProjectUpdate
+from features.projects.exporters import master_table_xlsx, master_table_pdf
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -108,6 +110,25 @@ async def get_estancias(project_id: str, user: dict = Depends(get_current_user))
     if not doc:
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
     return {"estancias": doc.get("estancias", []), "plantas": doc.get("plantas", [])}
+
+
+@router.get("/{project_id}/estancias/export/{fmt}")
+async def export_estancias(project_id: str, fmt: str, user: dict = Depends(get_current_user)):
+    doc = await db.projects.find_one({"_id": ObjectId(project_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+    if fmt == "xlsx":
+        buf = master_table_xlsx(doc)
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        fname = "cuadro_superficies.xlsx"
+    elif fmt == "pdf":
+        buf = master_table_pdf(doc)
+        media = "application/pdf"
+        fname = "cuadro_superficies.pdf"
+    else:
+        raise HTTPException(status_code=400, detail="Formato no soportado")
+    return StreamingResponse(buf, media_type=media,
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 @router.put("/{project_id}/estancias")
