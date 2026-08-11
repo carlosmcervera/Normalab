@@ -30,11 +30,13 @@ def bootstrap_modules():
     requires creating its module class and registering it here."""
     from normative_modules.incendios.module import IncendiosModule
     from normative_modules.rebt.module import RebtModule
+    from normative_modules.rebt_linea.module import RebtLineaModule
     from normative_modules.rite.module import RiteModule
     from normative_modules.placeholders import AccesibilidadModule
 
     registry.register(IncendiosModule())
     registry.register(RebtModule())
+    registry.register(RebtLineaModule())
     registry.register(RiteModule())
     registry.register(AccesibilidadModule())
     return registry

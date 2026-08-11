@@ -12,6 +12,11 @@ App web interna para despacho técnico de ingeniería/arquitectura. Plataforma m
 - Backend features-first: `core/`, `features/` (auth, projects, studies, modules), `normative_modules/` (base + registry + `rsciei/` + `placeholders.py`).
 
 ## Changelog reciente
+- 2026-08-11: **Nuevo módulo «REBT · Comprobación de una línea» (línea única) + conductores en paralelo (verificado e2e en vivo)**.
+  - Módulo `normative_modules/rebt_linea/` (engine, schema, module, report) registrado (`REBT_LINEA`, operativo). Comprueba una única línea BT: Ib, Iz con **factor de agrupamiento** por circuitos en misma canalización (UNE-HD 60364-5-52, Tabla B.52.17), caída de tensión y cortocircuito (ITC-BT-22).
+  - **Conductores en paralelo por fase**: campo `n_conductores`; el motor admite Nx por fase (p. ej. 2×240) para potencias elevadas. Iz = ampacidad·f_agrup·N; caída y solicitación térmica de cortocircuito usan sección efectiva N×s; auto-dimensionado aumenta N si ni la mayor sección basta. Resumen muestra «N×S» y tierra «N×S_pe».
+  - Auto-selección prioriza sección que cumple sobrecarga + caída + **cortocircuito** (antes solo sobrecarga+caída → falsos «no cumple»).
+  - Frontend: `RebtLineaResultPanel.jsx` (métricas, estado global, aviso de paralelo, tabla de agrupamiento y comprobaciones) renderizado en `StudyWizardPage` cuando `results.linea_unica`. **Sin exportación** (solo vista en pantalla, por decisión del usuario).
 - 2026-08-11: **REBT — Quitar step de superficies + arreglo de edición + LGA configurable + "Generar proyecto" (Word) (verificado en vivo + 17/17 pytest)**.
   - **Step de superficies eliminado en REBT** (irrelevante para el cálculo): el asistente REBT queda en Datos generales → Cargas y esquema → Resultados.
   - **Bugfix edición "Dimensionado y comprobación de líneas"**: los selectores de sección/magneto/diferencial revertían visualmente porque el `value` se leía del último cálculo, no del cambio pendiente. Añadido estado pendiente local en `RebtResultsPanel` (se limpia al recomputar) → ahora la selección se queda fijada y con «Recalcular» se aplica.

@@ -12,6 +12,7 @@ import { IncendiosResultsPanel } from "@/features/studies/components/IncendiosRe
 import { ResultsPanel } from "@/features/studies/components/ResultsPanel";
 import { GenericResultsPanel } from "@/features/studies/components/GenericResultsPanel";
 import { RebtResultsPanel } from "@/features/studies/components/RebtResultsPanel";
+import { RebtLineaResultPanel } from "@/features/studies/components/RebtLineaResultPanel";
 
 const defaultData = (code) => (code === "INCENDIOS" ? { establecimiento: { config: "C" }, sectores: [], dependencias: [] } : { establecimiento: { config: "C" }, sectores: [], dependencias: [] });
 
@@ -240,6 +241,7 @@ export default function StudyWizardPage() {
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
                 results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onUpdateBoard={updateRebtBoard} onRecompute={recomputeRebt} onAutoDimensionar={autoDimensionarRebt} autoOn={!!data.auto_cumplimiento} recomputing={computeMut.isPending || saveMut.isPending} />
+                  : results?.linea_unica ? <RebtLineaResultPanel results={results} />
                   : results?.sectores ? <ResultsPanel results={results} />
                     : results?.ambitos ? <IncendiosResultsPanel results={results} />
                       : <GenericResultsPanel results={results} />
