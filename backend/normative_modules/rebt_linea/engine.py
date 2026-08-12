@@ -62,6 +62,23 @@ def _sec_txt(n, s):
     return (f"{n}×" if n > 1 else "") + reng._fmt_s(s)
 
 
+def _buscar_solucion(g, gamma, Ib, sum_, V, L, P, material, metodo, f, cmax, s_min, n_max=8):
+    """Menor solución (nº de conductores en paralelo, sección) que cumple sobrecarga,
+    caída de tensión y cortocircuito. Devuelve dict o None."""
+    for nn in range(1, n_max + 1):
+        for s in [x for x in SECCIONES if x >= s_min - 1e-9]:
+            iz = round(ampacidad(s, material, metodo) * f * nn, 1)
+            In = reng._breaker_fit(Ib, iz)
+            if In is None:
+                continue
+            caida = reng._caida_real(sum_, L, P, gamma, V, s * nn)
+            if caida > cmax + 1e-9:
+                continue
+            if reng._cortocircuito(g, 0.0, L, s * nn, In)["protege_cc"]:
+                return {"n": nn, "s": s, "In": In, "iz": iz, "caida": round(caida, 2)}
+    return None
+
+
 def compute(data: dict) -> dict:
     g = _build_general(data)
     sum_, V, material, gamma = g["suministro"], g["V"], g["material"], g["gamma"]
@@ -85,44 +102,36 @@ def compute(data: dict) -> dict:
         # Iz de n conductores en paralelo por fase, corregida por agrupamiento de circuitos.
         return round(ampacidad(s, material, metodo) * f * n, 1)
 
+    n = n_forzado  # el nº de conductores por fase lo fija el técnico (valor exacto).
     manual = bool(sec_manual and sec_manual in SECCIONES)
     if manual:
-        n = n_forzado
         s = sec_manual
         iz = _iz(s, n)
         In = reng._breaker_fit(Ib, iz) or reng._breaker(Ib, iz)[0]
         caida = reng._caida_real(sum_, L, P, gamma, V, s * n)
     else:
-        # Dimensionado automático de la sección; si el técnico fija los conductores por fase
-        # (n_conductores > 1) se respeta ese número exacto y solo se dimensiona la sección.
-        # Con n_conductores = 1 (auto) se aumentan los conductores en paralelo si hace falta
-        # (potencias elevadas, p. ej. 2×240).
-        n_list = [n_forzado] if n_forzado > 1 else [1, 2, 3, 4]
-        preferida = None   # cumple sobrecarga + caída + cortocircuito
-        fallback = None    # cumple al menos sobrecarga + caída
-        for nn in n_list:
-            for s in [x for x in SECCIONES if x >= s_min - 1e-9]:
-                iz = _iz(s, nn)
-                In = reng._breaker_fit(Ib, iz)
-                caida = reng._caida_real(sum_, L, P, gamma, V, s * nn)
-                if In is None or caida > cmax + 1e-9:
-                    continue
-                if fallback is None:
-                    fallback = (nn, s, iz, In, caida)
-                cc_try = reng._cortocircuito(g, 0.0, L, s * nn, In)
-                if cc_try["protege_cc"]:
-                    preferida = (nn, s, iz, In, caida)
-                    break
-            if preferida:
+        # Dimensionado automático de la SECCIÓN para el nº de conductores fijado por el técnico:
+        # menor sección que cumple sobrecarga + caída + cortocircuito; si ninguna lo cumple,
+        # la menor que cumple sobrecarga + caída; si tampoco, la mayor disponible.
+        preferida = fallback = None
+        for s in [x for x in SECCIONES if x >= s_min - 1e-9]:
+            iz = _iz(s, n)
+            In = reng._breaker_fit(Ib, iz)
+            caida = reng._caida_real(sum_, L, P, gamma, V, s * n)
+            if In is None or caida > cmax + 1e-9:
+                continue
+            if fallback is None:
+                fallback = (s, iz, In, caida)
+            if reng._cortocircuito(g, 0.0, L, s * n, In)["protege_cc"]:
+                preferida = (s, iz, In, caida)
                 break
         elegida = preferida or fallback
         if elegida is None:
-            nn = n_list[-1]
             s = SECCIONES[-1]
-            iz = _iz(s, nn)
+            iz = _iz(s, n)
             In = reng._breaker_fit(Ib, iz) or reng._breaker(Ib, iz)[0]
-            elegida = (nn, s, iz, In, reng._caida_real(sum_, L, P, gamma, V, s * nn))
-        n, s, iz, In, caida = elegida
+            elegida = (s, iz, In, reng._caida_real(sum_, L, P, gamma, V, s * n))
+        s, iz, In, caida = elegida
 
     s_eff = s * n
     coord = reng._proteccion_dict(Ib, In, iz)
@@ -160,9 +169,19 @@ def compute(data: dict) -> dict:
             f"La caída de tensión ({caida:.2f} %) supera el máximo ({cmax:g} %): aumente la sección o reduzca la longitud."}])
     if n > 1:
         observaciones.insert(0, {"tipo": "info", "texto":
-            f"Se resuelve con {n} conductores en paralelo por fase de {reng._fmt_s(s)} mm² "
+            f"Se emplea {n} conductores en paralelo por fase de {reng._fmt_s(s)} mm² "
             f"(sección total {reng._fmt_s(s_eff)} mm²/fase). Verifique el reparto equilibrado de corriente "
             f"y la longitud igual de los conductores en paralelo (ITC-BT-19)."})
+    # Recomendación de solución que cumple cuando la configuración actual no cumple.
+    recomendada = None
+    if not cumple and not manual and P > 0:
+        reco = _buscar_solucion(g, gamma, Ib, sum_, V, L, P, material, metodo, f, cmax, s_min)
+        if reco and (reco["n"] != n or reco["s"] != s):
+            recomendada = reco
+            observaciones.insert(0, {"tipo": "info", "texto":
+                f"Solución recomendada que cumple: {_sec_txt(reco['n'], reco['s'])} mm²/fase "
+                f"con protección de {reco['In']} A (caída {reco['caida']:.2f} %). "
+                f"Ajusta «Conductores por fase» a {reco['n']} para aplicarla."})
 
     return {
         "linea_unica": True,
@@ -177,6 +196,7 @@ def compute(data: dict) -> dict:
         "agrupamiento": {"factor": f, "n_circuitos": n_circ, "disposicion_label": _AGRUP_LABEL.get(disp, disp),
                          "iz_base": round(iz_base_unit, 1), "iz_corregida": iz},
         "paralelo": {"n": n, "seccion_por_conductor_txt": reng._fmt_s(s), "seccion_efectiva_txt": reng._fmt_s(s_eff)},
+        "recomendada": recomendada,
         "resumen": [
             {"label": "Ib (diseño)", "valor": f"{Ib:.1f}", "unidad": "A"},
             {"label": "Sección/fase", "valor": sec_txt, "unidad": "mm²"},

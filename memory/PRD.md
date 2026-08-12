@@ -12,6 +12,11 @@ App web interna para despacho técnico de ingeniería/arquitectura. Plataforma m
 - Backend features-first: `core/`, `features/` (auth, projects, studies, modules), `normative_modules/` (base + registry + `rsciei/` + `placeholders.py`).
 
 ## Changelog reciente
+- 2026-08-12 (2): **REBT · Línea — pantalla única + N exacto + solución recomendada 1-clic (verificado e2e en vivo)**.
+  - **Nº de conductores por fase = valor EXACTO** (antes 1 = "auto" y escalaba, confundía). Poner 1 = exactamente 1 conductor. Si la configuración no cumple, el motor calcula la **solución recomendada** (mín. conductores+sección que cumple sobrecarga+caída+cortocircuito) y la muestra con botón **«Aplicar»** que fija `n_conductores` y recalcula.
+  - **Módulo en una sola pantalla**: para `REBT_LINEA` se sustituye el asistente por pasos por un layout único (formulario a la izquierda, resultados a la derecha) con **recálculo automático (debounce 700 ms)** al editar cualquier campo. Botones Guardar versión / Ver informe arriba.
+  - **Diagrama de agrupamiento mejorado**: dibuja los N circuitos de la canalización y los conductores en paralelo por fase del circuito estudiado (resaltado).
+  - Verificado: N=1 300 kW → 1×240 No cumple + recomendación 2×185; «Aplicar» → 2×185 Cumple (6/6 comprobaciones).
 - 2026-08-12: **REBT · Línea — resultados editables + calibres altos + N exacto + diagrama de agrupamiento (verificado e2e en vivo)**.
   - **Calibres de protección ampliados** (`catalog.MAGNETOS` + 500/630/800/1000/1250/1600 A) para líneas de gran potencia (antes tope 400 A hacía imposible proteger Ib>400 A → escalaba a 4×240 sin cumplir). Ej.: 300 kW trifásicos → 2×185 mm² con IA 500 A, cumple.
   - **N conductores por fase = valor exacto** cuando el técnico lo fija (>1); solo se dimensiona la sección. Con N=1 (auto) el motor aún aumenta conductores si hace falta.

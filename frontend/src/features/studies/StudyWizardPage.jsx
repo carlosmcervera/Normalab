@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Loader2, Calculator, Save, FileText, FileDown, Check } from "lucide-react";
@@ -109,6 +109,7 @@ export default function StudyWizardPage() {
 
   const schema = schemaQ.data?.schema;
   const isIncendios = study?.module_code === "INCENDIOS";
+  const isLinea = study?.module_code === "REBT_LINEA";
 
   useEffect(() => {
     if (!schema || data === null || isIncendios) return;
@@ -137,6 +138,18 @@ export default function StudyWizardPage() {
     onError: (e) => toast.error(apiError(e)),
   });
 
+  // Módulo «línea única»: una sola pantalla con recálculo automático (con debounce) al editar.
+  const liveRef = useRef();
+  useEffect(() => {
+    if (!isLinea || data === null) return undefined;
+    if (!(Number(data.potencia) > 0 && Number(data.longitud) > 0)) return undefined;
+    clearTimeout(liveRef.current);
+    liveRef.current = setTimeout(async () => {
+      try { await saveMut.mutateAsync(data); computeMut.mutate(); } catch (e) { /* noop */ }
+    }, 700);
+    return () => clearTimeout(liveRef.current);
+  }, [isLinea, JSON.stringify(data)]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!study || !schema || data === null) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
@@ -161,6 +174,58 @@ export default function StudyWizardPage() {
   };
 
   const current = steps[step] || steps[0];
+
+  if (isLinea) {
+    const lineaStep = (schema.steps || [])[0] || { fields: [] };
+    const applyReco = (reco) => setData((d) => ({ ...d, n_conductores: reco.n, seccion_manual: undefined }));
+    const canCompute = Number(data.potencia) > 0 && Number(data.longitud) > 0;
+    return (
+      <div className="mx-auto max-w-7xl">
+        <button onClick={() => navigate(`/expedientes/${study.project_id}`)} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" data-testid="back-to-project">
+          <ArrowLeft className="h-4 w-4" /> Volver al expediente
+        </button>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h1 className="font-heading text-2xl tracking-tight">{study.name}</h1>
+            <Badge variant="outline" className="rounded-sm font-mono text-xs">{study.module_code}</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="rounded-sm" onClick={() => versionMut.mutate()} disabled={versionMut.isPending || !results} data-testid="save-version-button">
+              {versionMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar versión
+            </Button>
+            <Button className="rounded-sm" onClick={() => navigate(`/estudios/${studyId}/informe`)} disabled={!results} data-testid="view-report-button">
+              <FileText className="mr-2 h-4 w-4" /> Ver informe
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(320px,380px)_1fr]">
+          <div className="border border-border bg-background p-6 lg:sticky lg:top-4" data-testid="linea-input-panel">
+            <h2 className="font-heading text-lg">Datos de la línea</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Los resultados se actualizan automáticamente al editar.</p>
+            <div className="mt-5">
+              <StepBody step={lineaStep} schema={schema} data={data} setData={setData} study={study} />
+            </div>
+            <Button className="mt-5 w-full rounded-sm" onClick={() => canCompute && computeMut.mutate()} disabled={!canCompute || computeMut.isPending} data-testid="compute-button">
+              {computeMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />} Calcular ahora
+            </Button>
+          </div>
+
+          <div data-testid="linea-results-column">
+            {computeMut.isPending && !results ? (
+              <div className="flex justify-center border border-border bg-background py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : results ? (
+              <RebtLineaResultPanel results={results} onApplyReco={applyReco} />
+            ) : (
+              <div className="border border-dashed border-border py-24 text-center">
+                <p className="text-sm text-muted-foreground">Introduce la potencia y la longitud para ver la comprobación.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const updateRebtNode = (id, patch) => setData((d) => ({ ...d, cuadro: patchTree(d.cuadro, id, patch) }));
   const updateRebtBoard = (boardId, patch) => setData((d) => ({ ...d, cuadro: patchBoard(d.cuadro, boardId, patch) }));
@@ -241,7 +306,7 @@ export default function StudyWizardPage() {
                 <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : results ? (
                 results?.arbol ? <RebtResultsPanel results={results} editable data={data} onUpdateNode={updateRebtNode} onUpdateBoard={updateRebtBoard} onRecompute={recomputeRebt} onAutoDimensionar={autoDimensionarRebt} autoOn={!!data.auto_cumplimiento} recomputing={computeMut.isPending || saveMut.isPending} />
-                  : results?.linea_unica ? <RebtLineaResultPanel results={results} data={data} setData={setData} onRecompute={recomputeRebt} recomputing={computeMut.isPending || saveMut.isPending} />
+                  : results?.linea_unica ? <RebtLineaResultPanel results={results} />
                   : results?.sectores ? <ResultsPanel results={results} />
                     : results?.ambitos ? <IncendiosResultsPanel results={results} />
                       : <GenericResultsPanel results={results} />

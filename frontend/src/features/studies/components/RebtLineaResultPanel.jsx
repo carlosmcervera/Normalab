@@ -1,11 +1,6 @@
-import { AlertTriangle, CheckCircle2, Info, XCircle, Cable, RotateCcw, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, XCircle, Cable, Wand2 } from "lucide-react";
 import { STATE_META } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import {
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
-} from "@/components/ui/select";
 
 const OBS_CLS = {
   info: "border-slate-200 bg-slate-50 text-slate-700",
@@ -13,29 +8,34 @@ const OBS_CLS = {
   error: "border-red-200 bg-red-50 text-red-800",
 };
 const OBS_ICON = { info: Info, warning: AlertTriangle, error: XCircle };
-const SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240];
-const fmtS = (s) => `${s}`.replace(".", ",");
 
-// Diagrama del agrupamiento: n bundles dentro de una canalización, el estudiado resaltado.
-function GroupingDiagram({ n, factor, nCond, fases }) {
-  const N = Math.max(1, Math.min(12, n || 1));
-  const r = 9, gap = 8, padX = 16, padY = 12;
-  const bundleW = fases * (2 * r) + (fases - 1) * 4;
-  const W = padX * 2 + N * bundleW + (N - 1) * gap;
+// Diagrama del agrupamiento: n_circuitos manojos dentro de una canalización; el circuito
+// estudiado se resalta y muestra sus conductores en paralelo por fase.
+function GroupingDiagram({ nCirc, factor, nCond, fases }) {
+  const N = Math.max(1, Math.min(12, nCirc || 1));
+  const nc = Math.max(1, nCond || 1);
+  const r = 6, condGap = 3, phaseGap = 7, bundleGap = 12, padX = 16, padY = 12;
+  const condW = 2 * r;
+  const phaseW = nc * condW + (nc - 1) * condGap;
+  const bundleW = fases * phaseW + (fases - 1) * phaseGap;
+  const W = padX * 2 + N * bundleW + (N - 1) * bundleGap;
   const H = padY * 2 + 2 * r;
   return (
     <div className="flex flex-col items-center gap-2" data-testid="linea-grouping-diagram">
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="max-w-md">
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="max-w-lg">
         <rect x="1" y="1" width={W - 2} height={H - 2} rx="10" className="fill-slate-50 stroke-slate-300" strokeWidth="1.5" />
         {Array.from({ length: N }).map((_, ci) => {
-          const bx = padX + ci * (bundleW + gap);
           const active = ci === 0;
+          const bx = padX + ci * (bundleW + bundleGap);
           return (
             <g key={ci}>
-              {Array.from({ length: fases }).map((__, fi) => (
-                <circle key={fi} cx={bx + r + fi * (2 * r + 4)} cy={padY + r} r={r}
-                  className={active ? "fill-amber-400 stroke-amber-600" : "fill-slate-200 stroke-slate-400"} strokeWidth="1.2" />
-              ))}
+              {Array.from({ length: fases }).map((__, fi) => {
+                const px = bx + fi * (phaseW + phaseGap);
+                return Array.from({ length: nc }).map((___, ki) => (
+                  <circle key={`${fi}-${ki}`} cx={px + r + ki * (condW + condGap)} cy={padY + r} r={r}
+                    className={active ? "fill-amber-400 stroke-amber-600" : "fill-slate-200 stroke-slate-400"} strokeWidth="1.1" />
+                ));
+              })}
             </g>
           );
         })}
@@ -43,26 +43,23 @@ function GroupingDiagram({ n, factor, nCond, fases }) {
       <p className="text-center text-xs text-muted-foreground">
         <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400 align-middle" /> Circuito estudiado
         {" · "}{N} circuito{N > 1 ? "s" : ""} en la misma canalización
-        {nCond > 1 ? ` · ${nCond} conductor(es) por fase` : ""}
+        {nc > 1 ? ` · ${nc} conductores por fase` : ""}
         {" → factor de agrupamiento "}<strong>{factor}</strong>
       </p>
     </div>
   );
 }
 
-// Panel de resultados del módulo «REBT · Comprobación de una línea» con edición y recálculo.
-export function RebtLineaResultPanel({ results, data, setData, onRecompute, recomputing }) {
+// Panel de resultados del módulo «REBT · Comprobación de una línea» (presentacional).
+export function RebtLineaResultPanel({ results, onApplyReco }) {
   if (!results) return null;
   const {
     resumen = [], comprobaciones = [], observaciones = [], estado_global,
-    agrupamiento = {}, entradas = {}, paralelo = {},
+    agrupamiento = {}, entradas = {}, paralelo = {}, recomendada,
   } = results;
   const state = STATE_META[estado_global] || STATE_META.observaciones;
   const n = paralelo.n || 1;
   const fases = entradas.suministro === "trifasica" ? 3 : 2;
-  const editable = !!setData;
-
-  const setField = (name, value) => setData((d) => ({ ...d, [name]: value }));
 
   return (
     <div className="space-y-6" data-testid="rebt-linea-results-panel">
@@ -85,62 +82,21 @@ export function RebtLineaResultPanel({ results, data, setData, onRecompute, reco
         </span>
       </div>
 
-      {/* Ajuste de la solución (editable en resultados) */}
-      {editable && (
-        <div className="border border-border bg-background" data-testid="linea-ajustes">
-          <div className="border-b border-border bg-secondary/40 px-4 py-2.5">
-            <span className="font-heading text-sm">Ajustar solución para que cumpla</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 lg:grid-cols-5">
-            <div>
-              <Label className="text-xs">Conductores por fase</Label>
-              <Input type="number" min={1} className="mt-1 rounded-sm" data-testid="linea-edit-nconductores"
-                value={data?.n_conductores ?? 1}
-                onChange={(e) => setField("n_conductores", Math.max(1, parseInt(e.target.value || "1", 10)))} />
-            </div>
-            <div>
-              <Label className="text-xs">Sección/conductor</Label>
-              <Select value={data?.seccion_manual ? String(data.seccion_manual) : "auto"}
-                onValueChange={(v) => setField("seccion_manual", v === "auto" ? undefined : parseFloat(v))}>
-                <SelectTrigger className="mt-1 rounded-sm" data-testid="linea-edit-seccion"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Automática</SelectItem>
-                  {SECCIONES.map((s) => <SelectItem key={s} value={String(s)}>{fmtS(s)} mm²</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Curva magnetotérmico</Label>
-              <Select value={data?.curva || "C"} onValueChange={(v) => setField("curva", v)}>
-                <SelectTrigger className="mt-1 rounded-sm" data-testid="linea-edit-curva"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["B", "C", "D"].map((c) => <SelectItem key={c} value={c}>Curva {c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Poder de corte (kA)</Label>
-              <Input type="number" min={1} className="mt-1 rounded-sm" data-testid="linea-edit-pdc"
-                value={data?.poder_corte_ka ?? 6}
-                onChange={(e) => setField("poder_corte_ka", Math.max(1, parseInt(e.target.value || "6", 10)))} />
-            </div>
-            <div>
-              <Label className="text-xs">Icc en origen (A)</Label>
-              <Input type="number" min={0} className="mt-1 rounded-sm" data-testid="linea-edit-icc"
-                value={data?.icc_origen_a ?? 6000}
-                onChange={(e) => setField("icc_origen_a", Math.max(0, parseInt(e.target.value || "6000", 10)))} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-            <p className="text-xs text-muted-foreground">
-              Con «Sección automática» el motor dimensiona la sección para el nº de conductores indicado. Si sigue sin
-              cumplir, aumenta los conductores por fase, sube la sección o revisa la Icc/curva.
+      {/* Solución recomendada (cuando no cumple) */}
+      {recomendada && (
+        <div className="flex flex-col gap-3 border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between" data-testid="linea-recomendada">
+          <div className="flex items-start gap-3">
+            <Wand2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Solución que cumple: <strong>{recomendada.n > 1 ? `${recomendada.n}×` : ""}{`${recomendada.s}`.replace(".", ",")} mm²/fase</strong>
+              {" "}con protección <strong>{recomendada.In} A</strong> (caída {recomendada.caida}%).
             </p>
-            <Button className="rounded-sm" onClick={onRecompute} disabled={recomputing} data-testid="linea-recompute">
-              {recomputing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-              Recalcular
-            </Button>
           </div>
+          {onApplyReco && (
+            <Button size="sm" className="shrink-0 rounded-sm" onClick={() => onApplyReco(recomendada)} data-testid="linea-apply-reco">
+              Aplicar ({recomendada.n} conductor{recomendada.n > 1 ? "es" : ""}/fase)
+            </Button>
+          )}
         </div>
       )}
 
@@ -149,10 +105,10 @@ export function RebtLineaResultPanel({ results, data, setData, onRecompute, reco
         <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" data-testid="linea-paralelo">
           <Cable className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            Línea resuelta con <strong>{n} conductores en paralelo por fase</strong> de{" "}
+            Línea con <strong>{n} conductores en paralelo por fase</strong> de{" "}
             <strong>{paralelo.seccion_por_conductor_txt} mm²</strong> (sección total{" "}
-            <strong>{paralelo.seccion_efectiva_txt} mm²/fase</strong>). Los conductores en paralelo deben
-            tener la misma longitud, sección y disposición para repartir la corriente (ITC-BT-19).
+            <strong>{paralelo.seccion_efectiva_txt} mm²/fase</strong>). Deben tener la misma longitud,
+            sección y disposición para repartir la corriente (ITC-BT-19).
           </p>
         </div>
       )}
@@ -163,7 +119,7 @@ export function RebtLineaResultPanel({ results, data, setData, onRecompute, reco
           <span className="font-heading text-sm">Factor de agrupamiento (UNE-HD 60364-5-52, Tabla B.52.17)</span>
         </div>
         <div className="border-b border-border p-4">
-          <GroupingDiagram n={agrupamiento.n_circuitos} factor={agrupamiento.factor} nCond={n} fases={fases} />
+          <GroupingDiagram nCirc={agrupamiento.n_circuitos} factor={agrupamiento.factor} nCond={n} fases={fases} />
         </div>
         <div className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
           {[
