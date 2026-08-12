@@ -93,9 +93,11 @@ def compute(data: dict) -> dict:
         In = reng._breaker_fit(Ib, iz) or reng._breaker(Ib, iz)[0]
         caida = reng._caida_real(sum_, L, P, gamma, V, s * n)
     else:
-        # Dimensionado automático: menor sección que cumple; si ni la mayor sección basta,
-        # se aumentan los conductores en paralelo por fase (potencias elevadas, p. ej. 2×240).
-        n_list = list(range(n_forzado, 5)) if n_forzado > 1 else [1, 2, 3, 4]
+        # Dimensionado automático de la sección; si el técnico fija los conductores por fase
+        # (n_conductores > 1) se respeta ese número exacto y solo se dimensiona la sección.
+        # Con n_conductores = 1 (auto) se aumentan los conductores en paralelo si hace falta
+        # (potencias elevadas, p. ej. 2×240).
+        n_list = [n_forzado] if n_forzado > 1 else [1, 2, 3, 4]
         preferida = None   # cumple sobrecarga + caída + cortocircuito
         fallback = None    # cumple al menos sobrecarga + caída
         for nn in n_list:

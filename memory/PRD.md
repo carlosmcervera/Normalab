@@ -12,6 +12,11 @@ App web interna para despacho técnico de ingeniería/arquitectura. Plataforma m
 - Backend features-first: `core/`, `features/` (auth, projects, studies, modules), `normative_modules/` (base + registry + `rsciei/` + `placeholders.py`).
 
 ## Changelog reciente
+- 2026-08-12: **REBT · Línea — resultados editables + calibres altos + N exacto + diagrama de agrupamiento (verificado e2e en vivo)**.
+  - **Calibres de protección ampliados** (`catalog.MAGNETOS` + 500/630/800/1000/1250/1600 A) para líneas de gran potencia (antes tope 400 A hacía imposible proteger Ib>400 A → escalaba a 4×240 sin cumplir). Ej.: 300 kW trifásicos → 2×185 mm² con IA 500 A, cumple.
+  - **N conductores por fase = valor exacto** cuando el técnico lo fija (>1); solo se dimensiona la sección. Con N=1 (auto) el motor aún aumenta conductores si hace falta.
+  - **Panel de resultados editable** (`RebtLineaResultPanel`): conductores por fase, sección/conductor (auto o forzada), curva, poder de corte e Icc en origen + botón «Recalcular» (guarda `data` y recomputa). Permite ajustar la solución hasta que cumpla sin volver al paso anterior.
+  - **Diagrama gráfico del agrupamiento** (SVG): canalización con los N circuitos (circuito estudiado resaltado) y el factor de reducción aplicado.
 - 2026-08-11: **Nuevo módulo «REBT · Comprobación de una línea» (línea única) + conductores en paralelo (verificado e2e en vivo)**.
   - Módulo `normative_modules/rebt_linea/` (engine, schema, module, report) registrado (`REBT_LINEA`, operativo). Comprueba una única línea BT: Ib, Iz con **factor de agrupamiento** por circuitos en misma canalización (UNE-HD 60364-5-52, Tabla B.52.17), caída de tensión y cortocircuito (ITC-BT-22).
   - **Conductores en paralelo por fase**: campo `n_conductores`; el motor admite Nx por fase (p. ej. 2×240) para potencias elevadas. Iz = ampacidad·f_agrup·N; caída y solicitación térmica de cortocircuito usan sección efectiva N×s; auto-dimensionado aumenta N si ni la mayor sección basta. Resumen muestra «N×S» y tierra «N×S_pe».

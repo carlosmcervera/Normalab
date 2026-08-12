@@ -18,8 +18,10 @@ AMPACIDAD_CU = {
 }
 FACTOR_AL = 0.78
 
-# Calibres normalizados de interruptor automático magnetotérmico (A).
-MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320, 400]
+# Calibres normalizados de interruptor automático magnetotérmico (A). Se incluyen calibres
+# de caja moldeada/regulados (>400 A) para líneas de gran potencia con conductores en paralelo.
+MAGNETOS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320, 400,
+            500, 630, 800, 1000, 1250, 1600]
 
 # Tipos de instalación / local (para caída de tensión recomendada y grado eléctrico).
 TIPOS_INSTALACION = [
